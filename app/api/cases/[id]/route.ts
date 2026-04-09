@@ -4,10 +4,11 @@ import { getCaseById, updateCase } from '@/lib/google-sheets';
 // GET /api/cases/[id] — get a single case
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const faultCase = await getCaseById(params.id);
+    const { id } = await params;
+    const faultCase = await getCaseById(id);
     if (!faultCase) {
       return NextResponse.json({ error: 'Case not found' }, { status: 404 });
     }
@@ -21,11 +22,12 @@ export async function GET(
 // PATCH /api/cases/[id] — update a case (partial update)
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await req.json();
-    const updated = await updateCase(params.id, body);
+    const updated = await updateCase(id, body);
     return NextResponse.json({ data: updated });
   } catch (error: any) {
     console.error('[PATCH /api/cases/[id]]', error);
