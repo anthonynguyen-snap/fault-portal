@@ -1,0 +1,482 @@
+'use client';
+
+import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Upload,
+  X,
+  CheckCircle,
+  AlertCircle,
+  ChevronLeft,
+  File,
+  Image,
+  Video,
+} from 'lucide-react';
+import Link from 'next/link';
+import { Product, FaultType } from '@/types';
+import { formatCurrency } from '@/lib/utils';
+
+interface FormData {
+  date: string;
+  orderNumber: string;
+  customerName: string;
+  product: string;
+  manufacturerName: string;
+  manufacturerNumber: string;
+  faultType: string;
+  faultNotes: string;
+  evidenceLink: string;
+  unitCostUSD: number;
+  submittedBy: string;
+}
+
+function getFileIcon(type: string) {
+  if (type.startsWith('image/')) return <Image size={20} className="text-blue-500" />;
+  if (type.startsWith('video/')) return <Video size={20} className="text-purple-500" />;
+  return <File size={20} className="text-slate-500" />;
+}
+
+export default function NewCasePage() {
+  const router = useRouter();
+
+  const [products, setProducts] = useState<Product[]>([]);
+  const [faultTypes, setFaultTypes] = useState<FaultType[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  const [form, setForm] = useState<FormData>({
+    date: new Date().toISOString().slice(0, 10),
+    orderNumber: '',
+    customerName: '',
+    product: '',
+    manufacturerName: '',
+    manufacturerNumber: '',
+    faultType: '',
+    faultNotes: '',
+    evidenceLink: '',
+    unitCostUSD: 0,
+    submittedBy: '',
+  });
+
+  const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'file', string>>>({});
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; link: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Temporary case ID for Drive folder organisation
+  const tempCaseId = useRef(`CASE-${Date.now()}`);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/products').then(r => r.json()),
+      fetch('/api/fault-types').then(r => r.json()),
+    ]).then(([pRes, ftRes]) => {
+      setProducts(pRes.data || []);
+      setFaultTypes(ftRes.data || []);
+    });
+  }, []);
+
+  // Auto-fill manufacturer + cost when product is selected
+  function handleProductChange(productName: string) {
+    const product = products.find(p => p.name === productName) || null;
+    setSelectedProduct(product);
+    setForm(f => ({
+      ...f,
+      product: productName,
+      manufacturerName: product?.manufacturerName || '',
+      unitCostUSD: product?.unitCostUSD || 0,
+      manufacturerNumber: '',
+    }));
+  }
+
+  function handleChange(field: keyof FormData, value: string | number) {
+    setForm(f => ({ ...f, [field]: value }));
+    setErrors(e => ({ ...e, [field]: '' }));
+  }
+
+  async function handleFileUpload(file: File) {
+    if (!file) return;
+
+    // Clear previous upload
+    setUploadedFile(null);
+    setErrors(e => ({ ...e, file: '' }));
+
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setErrors(e => ({ ...e, file: 'File too large. Maximum 50MB.' }));
+      return;
+    }
+
+    const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','application/pdf'];
+    if (!allowed.includes(file.type)) {
+      setErrors(e => ({ ...e, file: 'Invalid file type. Use images, videos, or PDF.' }));
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('caseId', tempCaseId.current);
+
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      const json = await res.json();
+
+      if (json.error) throw new Error(json.error);
+
+      setUploadedFile({ name: file.name, link: json.data.link });
+      setForm(f => ({ ...f, evidenceLink: json.data.link }));
+    } catch (err: any) {
+      setErrors(e => ({ ...e, file: err.message || 'Upload failed. Please try again.' }));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function validate(): boolean {
+    const newErrors: typeof errors = {};
+
+    if (!form.date)          newErrors.date = 'Date is required';
+    if (!form.orderNumber)   newErrors.orderNumber = 'Order number is required';
+    if (!form.customerName)  newErrors.customerName = 'Customer name is required';
+    if (!form.product)       newErrors.product = 'Product is required';
+    if (!form.faultType)     newErrors.faultType = 'Fault type is required';
+    if (!form.evidenceLink)  newErrors.file = 'Evidence upload is required';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setSuccess(true);
+      setTimeout(() => router.push(`/cases/${json.data.id}`), 1500);
+    } catch (err: any) {
+      setErrors(e => ({ ...e, submit: err.message }));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <CheckCircle size={32} className="text-emerald-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Case Submitted!</h2>
+          <p className="text-slate-500 text-sm">Redirecting to case details…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <Link href="/cases" className="btn-ghost -ml-2 mb-3 inline-flex">
+          <ChevronLeft size={16} /> Back to Cases
+        </Link>
+        <h1 className="page-title">Submit Fault Case</h1>
+        <p className="page-subtitle">Log a new faulty product case with evidence</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Section 1: Basic Info */}
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+            Case Details
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="form-label">Date <span className="text-red-500">*</span></label>
+              <input
+                type="date"
+                value={form.date}
+                onChange={e => handleChange('date', e.target.value)}
+                className={`form-input ${errors.date ? 'border-red-300 focus:ring-red-400' : ''}`}
+              />
+              {errors.date && <p className="form-error">{errors.date}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">Order Number <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                value={form.orderNumber}
+                onChange={e => handleChange('orderNumber', e.target.value)}
+                placeholder="e.g. ORD-12345"
+                className={`form-input ${errors.orderNumber ? 'border-red-300 focus:ring-red-400' : ''}`}
+              />
+              {errors.orderNumber && <p className="form-error">{errors.orderNumber}</p>}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="form-label">Customer Name <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                value={form.customerName}
+                onChange={e => handleChange('customerName', e.target.value)}
+                placeholder="Full name of the customer"
+                className={`form-input ${errors.customerName ? 'border-red-300 focus:ring-red-400' : ''}`}
+              />
+              {errors.customerName && <p className="form-error">{errors.customerName}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">Submitted By</label>
+              <input
+                type="text"
+                value={form.submittedBy}
+                onChange={e => handleChange('submittedBy', e.target.value)}
+                placeholder="Your name (optional)"
+                className="form-input"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: Product (auto-fills manufacturer + cost) */}
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+            Product Information
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="form-label">Product <span className="text-red-500">*</span></label>
+              <select
+                value={form.product}
+                onChange={e => handleProductChange(e.target.value)}
+                className={`form-input ${errors.product ? 'border-red-300 focus:ring-red-400' : ''}`}
+              >
+                <option value="">Select a product…</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.name}>{p.name}</option>
+                ))}
+              </select>
+              {errors.product && <p className="form-error">{errors.product}</p>}
+            </div>
+
+            {/* Auto-filled fields — read-only */}
+            <div>
+              <label className="form-label">Manufacturer <span className="text-slate-400 font-normal">(auto-filled)</span></label>
+              <input
+                type="text"
+                value={form.manufacturerName}
+                readOnly
+                className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
+                placeholder="Auto-filled from product"
+              />
+            </div>
+
+            <div>
+              <label className="form-label">Unit Cost <span className="text-slate-400 font-normal">(auto-filled)</span></label>
+              <input
+                type="text"
+                value={form.unitCostUSD > 0 ? formatCurrency(form.unitCostUSD) : ''}
+                readOnly
+                className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
+                placeholder="Auto-filled from product"
+              />
+            </div>
+
+            {/* Manufacturer number — select from presets or free text */}
+            <div className="sm:col-span-2">
+              <label className="form-label">Manufacturer Number</label>
+              {selectedProduct && selectedProduct.manufacturerNumbers.length > 0 ? (
+                <select
+                  value={form.manufacturerNumber}
+                  onChange={e => handleChange('manufacturerNumber', e.target.value)}
+                  className="form-input"
+                >
+                  <option value="">Select manufacturer number…</option>
+                  {selectedProduct.manufacturerNumbers.map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={form.manufacturerNumber}
+                  onChange={e => handleChange('manufacturerNumber', e.target.value)}
+                  placeholder="Enter manufacturer number"
+                  className="form-input"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Fault Details */}
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+            Fault Details
+          </h2>
+          <div className="space-y-4">
+            <div>
+              <label className="form-label">Fault Type <span className="text-red-500">*</span></label>
+              <select
+                value={form.faultType}
+                onChange={e => handleChange('faultType', e.target.value)}
+                className={`form-input ${errors.faultType ? 'border-red-300 focus:ring-red-400' : ''}`}
+              >
+                <option value="">Select fault type…</option>
+                {faultTypes.map(ft => (
+                  <option key={ft.id} value={ft.name}>{ft.name}</option>
+                ))}
+              </select>
+              {errors.faultType && <p className="form-error">{errors.faultType}</p>}
+            </div>
+
+            <div>
+              <label className="form-label">Fault Notes</label>
+              <textarea
+                value={form.faultNotes}
+                onChange={e => handleChange('faultNotes', e.target.value)}
+                rows={4}
+                placeholder="Describe the fault in detail — what happened, how it was discovered, customer feedback…"
+                className="form-input resize-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Section 4: Evidence Upload */}
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-slate-900 mb-1 pb-2 border-b border-slate-100">
+            Evidence Upload <span className="text-red-500">*</span>
+          </h2>
+          <p className="text-xs text-slate-500 mb-4">
+            Upload photos, videos (MP4), or PDFs of the fault. Max 50MB.
+          </p>
+
+          {!uploadedFile && (
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setDragOver(false);
+                const file = e.dataTransfer.files[0];
+                if (file) handleFileUpload(file);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                dragOver
+                  ? 'border-brand-600 bg-brand-50'
+                  : errors.file
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-slate-200 hover:border-brand-400 hover:bg-slate-50'
+              }`}
+            >
+              <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <Upload size={24} className="text-slate-400" />
+              </div>
+              <p className="text-sm font-medium text-slate-700">
+                {uploading ? 'Uploading…' : 'Drop file here or click to browse'}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Max 50MB</p>
+              {uploading && (
+                <div className="mt-3">
+                  <div className="w-32 h-1 bg-slate-200 rounded-full mx-auto overflow-hidden">
+                    <div className="h-full bg-brand-600 rounded-full animate-pulse" style={{ width: '70%' }} />
+                  </div>
+                  <p className="text-xs text-brand-600 mt-1">Uploading to Google Drive…</p>
+                </div>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/mp4,video/quicktime,.pdf"
+                className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file);
+                }}
+              />
+            </div>
+          )}
+
+          {errors.file && (
+            <div className="flex items-center gap-2 mt-2">
+              <AlertCircle size={14} className="text-red-500" />
+              <p className="form-error mt-0">{errors.file}</p>
+            </div>
+          )}
+
+          {uploadedFile && (
+            <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl mt-3">
+              <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <CheckCircle size={18} className="text-emerald-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-emerald-800 truncate">{uploadedFile.name}</p>
+                <a
+                  href={uploadedFile.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-600 hover:underline"
+                >
+                  View in Google Drive
+                </a>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadedFile(null);
+                  setForm(f => ({ ...f, evidenceLink: '' }));
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                className="text-emerald-500 hover:text-emerald-700 p-1"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Submit */}
+        {(errors as any).submit && (
+          <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
+            <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+            <p className="text-sm text-red-700">{(errors as any).submit}</p>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-4 pb-4">
+          <Link href="/cases" className="btn-secondary">
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={submitting || uploading}
+            className="btn-primary px-8"
+          >
+            {submitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Submitting…
+              </>
+            ) : 'Submit Case'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
