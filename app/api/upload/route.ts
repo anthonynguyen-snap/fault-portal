@@ -28,12 +28,16 @@ export async function POST(req: NextRequest) {
       'video/mp4',
       'video/quicktime',
       'video/x-msvideo',
+      'video/x-ms-wmv',
+      'video/avi',
+      'video/mkv',
       'application/pdf',
     ];
+    const isVideo = file.type.startsWith('video/') || /\.(mov|mp4|avi|wmv|mkv)$/i.test(file.name);
 
-    if (!allowedTypes.includes(file.type)) {
+    if (!allowedTypes.includes(file.type) && !isVideo) {
       return NextResponse.json(
-        { error: 'File type not allowed. Please upload images, videos, or PDFs.' },
+        { error: 'File type not allowed. Please upload images, videos (MP4, MOV, AVI), or PDFs.' },
         { status: 400 }
       );
     }

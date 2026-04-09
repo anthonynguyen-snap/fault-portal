@@ -110,9 +110,10 @@ export default function NewCasePage() {
       return;
     }
 
-    const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','application/pdf'];
-    if (!allowed.includes(file.type)) {
-      setErrors(e => ({ ...e, file: 'Invalid file type. Use images, videos, or PDF.' }));
+    const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','video/x-msvideo','video/x-ms-wmv','video/avi','application/pdf'];
+    const isVideo = file.type.startsWith('video/') || /\.(mov|mp4|avi|wmv|mkv)$/i.test(file.name);
+    if (!allowed.includes(file.type) && !isVideo) {
+      setErrors(e => ({ ...e, file: 'Invalid file type. Use images, videos (MP4, MOV, AVI), or PDF.' }));
       return;
     }
 
@@ -363,7 +364,7 @@ export default function NewCasePage() {
             Evidence Upload <span className="text-red-500">*</span>
           </h2>
           <p className="text-xs text-slate-500 mb-4">
-            Upload photos, videos (MP4), or PDFs of the fault. Max 50MB.
+            Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Max 50MB.
           </p>
 
           {!uploadedFile && (
@@ -403,7 +404,7 @@ export default function NewCasePage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*,video/mp4,video/quicktime,.pdf"
+                accept="image/*,video/*,.mov,.mp4,.avi,.wmv,.mkv,.pdf"
                 className="hidden"
                 onChange={e => {
                   const file = e.target.files?.[0];
