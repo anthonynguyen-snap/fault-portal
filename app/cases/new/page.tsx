@@ -1,20 +1,15 @@
 'use client';
-
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Upload,
-  X,
-  CheckCircle,
-  AlertCircle,
-  ChevronLeft,
-  File,
-  Image,
-  Video,
+  Upload, X, CheckCircle, AlertCircle, ChevronLeft,
+  File, Image, Video, Zap, LayoutList, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Product, FaultType } from '@/types';
 import { formatCurrency } from '@/lib/utils';
+
+type Mode = 'standard' | 'quick';
 
 interface FormData {
   date: string;
@@ -38,10 +33,11 @@ function getFileIcon(type: string) {
 
 export default function NewCasePage() {
   const router = useRouter();
-
   const [products, setProducts] = useState<Product[]>([]);
   const [faultTypes, setFaultTypes] = useState<FaultType[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [mode, setMode] = useState<Mode>('standard');
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
 
   const [form, setForm] = useState<FormData>({
     date: new Date().toISOString().slice(0, 10),
@@ -57,16 +53,13 @@ export default function NewCasePage() {
     submittedBy: '',
   });
 
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'file', string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'file' | 'submit', string>>>({});
   const [uploading, setUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<{ name: string; link: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-
-  // Temporary case ID for Drive folder organisation
   const tempCaseId = useRef(`CASE-${Date.now()}`);
 
   useEffect(() => {
@@ -79,7 +72,13 @@ export default function NewCasePage() {
     });
   }, []);
 
-  // Auto-fill manufacturer + cost when product is selected
+  // When switching modes, auto-expand More Details if it has values
+  function handleModeSwitch(newMode: Mode) {
+    setMode(newMode);
+    setErrors({});
+    if (newMode === 'quick') setShowMoreDetails(false);
+  }
+
   function handleProductChange(productName: string) {
     const product = products.find(p => p.name === productName) || null;
     setSelectedProduct(product);
@@ -99,35 +98,27 @@ export default function NewCasePage() {
 
   async function handleFileUpload(file: File) {
     if (!file) return;
-
-    // Clear previous upload
     setUploadedFile(null);
     setErrors(e => ({ ...e, file: '' }));
-
     const MAX_SIZE = 50 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setErrors(e => ({ ...e, file: 'File too large. Maximum 50MB.' }));
       return;
     }
-
     const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','video/x-msvideo','video/x-ms-wmv','video/avi','application/pdf'];
     const isVideo = file.type.startsWith('video/') || /\.(mov|mp4|avi|wmv|mkv)$/i.test(file.name);
     if (!allowed.includes(file.type) && !isVideo) {
       setErrors(e => ({ ...e, file: 'Invalid file type. Use images, videos (MP4, MOV, AVI), or PDF.' }));
       return;
     }
-
     setUploading(true);
     try {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('caseId', tempCaseId.current);
-
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const json = await res.json();
-
       if (json.error) throw new Error(json.error);
-
       setUploadedFile({ name: file.name, link: json.data.link });
       setForm(f => ({ ...f, evidenceLink: json.data.link }));
     } catch (err: any) {
@@ -139,13 +130,23 @@ export default function NewCasePage() {
 
   function validate(): boolean {
     const newErrors: typeof errors = {};
+    if (!form.date)         newErrors.date = 'Date is required';
+    if (!form.orderNumber)  newErrors.orderNumber = 'Order number is required';
+    if (!form.product)      newErrors.product = 'Product is required';
+    if (!form.faultType)    newErrors.faultType = 'Fault type is required';
+    if (!form.evidenceLink) newErrors.file = 'Evidence upload is required';
 
-    if (!form.date)          newErrors.date = 'Date is required';
-    if (!form.orderNumber)   newErrors.orderNumber = 'Order number is required';
-    if (!form.customerName)  newErrors.customerName = 'Customer name is required';
-    if (!form.product)       newErrors.product = 'Product is required';
-    if (!form.faultType)     newErrors.faultType = 'Fault type is required';
-    if (!form.evidenceLink)  newErrors.file = 'Evidence upload is required';
+    // In Standard mode, customerName is also required
+    if (mode === 'standard' && !form.customerName) {
+      newErrors.customerName = 'Customer name is required';
+    }
+
+    // In Quick mode, if More Details fields have errors, auto-expand the section
+    const moreDetailFields: (keyof FormData)[] = ['customerName','manufacturerNumber','faultNotes','submittedBy'];
+    const hasMoreDetailErrors = moreDetailFields.some(f => newErrors[f]);
+    if (mode === 'quick' && hasMoreDetailErrors) {
+      setShowMoreDetails(true);
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -154,7 +155,6 @@ export default function NewCasePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-
     setSubmitting(true);
     try {
       const res = await fetch('/api/cases', {
@@ -172,6 +172,11 @@ export default function NewCasePage() {
       setSubmitting(false);
     }
   }
+
+  // Count how many "More Details" fields have values (for the badge)
+  const moreDetailsFilled = [
+    form.customerName, form.manufacturerNumber, form.faultNotes, form.submittedBy,
+  ].filter(Boolean).length;
 
   if (success) {
     return (
@@ -194,171 +199,294 @@ export default function NewCasePage() {
         <Link href="/cases" className="btn-ghost -ml-2 mb-3 inline-flex">
           <ChevronLeft size={16} /> Back to Cases
         </Link>
-        <h1 className="page-title">Submit Fault Case</h1>
-        <p className="page-subtitle">Log a new faulty product case with evidence</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="page-title">Submit Fault Case</h1>
+            <p className="page-subtitle">Log a new faulty product case with evidence</p>
+          </div>
+          {/* Mode toggle */}
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden flex-shrink-0 mt-1">
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('standard')}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+                mode === 'standard'
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <LayoutList size={13} />
+              Standard
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSwitch('quick')}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${
+                mode === 'quick'
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <Zap size={13} />
+              Quick
+            </button>
+          </div>
+        </div>
+        {mode === 'quick' && (
+          <div className="mt-3 flex items-center gap-2 p-2.5 bg-brand-50 border border-brand-200 rounded-lg text-xs text-brand-700">
+            <Zap size={12} />
+            <span>Quick Mode — showing essential fields only. Use <strong>More Details</strong> below for optional info.</span>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Section 1: Basic Info */}
-        <div className="card p-6">
-          <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            Case Details
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        {/* ── STANDARD MODE ── */}
+        {mode === 'standard' && (
+          <>
+            {/* Section 1: Basic Info */}
+            <div className="card p-6">
+              <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+                Case Details
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Date <span className="text-red-500">*</span></label>
+                  <input type="date" value={form.date}
+                    onChange={e => handleChange('date', e.target.value)}
+                    className={`form-input ${errors.date ? 'border-red-300' : ''}`} />
+                  {errors.date && <p className="form-error">{errors.date}</p>}
+                </div>
+                <div>
+                  <label className="form-label">Order Number <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.orderNumber}
+                    onChange={e => handleChange('orderNumber', e.target.value)}
+                    placeholder="e.g. ORD-12345"
+                    className={`form-input ${errors.orderNumber ? 'border-red-300' : ''}`} />
+                  {errors.orderNumber && <p className="form-error">{errors.orderNumber}</p>}
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="form-label">Customer Name <span className="text-red-500">*</span></label>
+                  <input type="text" value={form.customerName}
+                    onChange={e => handleChange('customerName', e.target.value)}
+                    placeholder="Full name of the customer"
+                    className={`form-input ${errors.customerName ? 'border-red-300' : ''}`} />
+                  {errors.customerName && <p className="form-error">{errors.customerName}</p>}
+                </div>
+                <div>
+                  <label className="form-label">Submitted By</label>
+                  <input type="text" value={form.submittedBy}
+                    onChange={e => handleChange('submittedBy', e.target.value)}
+                    placeholder="Your name (optional)" className="form-input" />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Product */}
+            <div className="card p-6">
+              <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+                Product Information
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="form-label">Product <span className="text-red-500">*</span></label>
+                  <select value={form.product} onChange={e => handleProductChange(e.target.value)}
+                    className={`form-input ${errors.product ? 'border-red-300' : ''}`}>
+                    <option value="">Select a product…</option>
+                    {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  </select>
+                  {errors.product && <p className="form-error">{errors.product}</p>}
+                </div>
+                <div>
+                  <label className="form-label">Manufacturer <span className="text-slate-400 font-normal">(auto-filled)</span></label>
+                  <input type="text" value={form.manufacturerName} readOnly
+                    className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
+                    placeholder="Auto-filled from product" />
+                </div>
+                <div>
+                  <label className="form-label">Unit Cost <span className="text-slate-400 font-normal">(auto-filled)</span></label>
+                  <input type="text" value={form.unitCostUSD > 0 ? formatCurrency(form.unitCostUSD) : ''} readOnly
+                    className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
+                    placeholder="Auto-filled from product" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="form-label">Manufacturer Number</label>
+                  {selectedProduct && selectedProduct.manufacturerNumbers.length > 0 ? (
+                    <select value={form.manufacturerNumber}
+                      onChange={e => handleChange('manufacturerNumber', e.target.value)}
+                      className="form-input">
+                      <option value="">Select manufacturer number…</option>
+                      {selectedProduct.manufacturerNumbers.map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input type="text" value={form.manufacturerNumber}
+                      onChange={e => handleChange('manufacturerNumber', e.target.value)}
+                      placeholder="Enter manufacturer number" className="form-input" />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Fault Details */}
+            <div className="card p-6">
+              <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
+                Fault Details
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="form-label">Fault Type <span className="text-red-500">*</span></label>
+                  <select value={form.faultType} onChange={e => handleChange('faultType', e.target.value)}
+                    className={`form-input ${errors.faultType ? 'border-red-300' : ''}`}>
+                    <option value="">Select fault type…</option>
+                    {faultTypes.map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
+                  </select>
+                  {errors.faultType && <p className="form-error">{errors.faultType}</p>}
+                </div>
+                <div>
+                  <label className="form-label">Fault Notes</label>
+                  <textarea value={form.faultNotes}
+                    onChange={e => handleChange('faultNotes', e.target.value)}
+                    rows={4}
+                    placeholder="Describe the fault in detail — what happened, how it was discovered, customer feedback…"
+                    className="form-input resize-none" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── QUICK MODE ── */}
+        {mode === 'quick' && (
+          <div className="card p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-slate-900 pb-2 border-b border-slate-100">
+              Essential Details
+            </h2>
+
+            {/* Row 1: Date + Order Number */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Date <span className="text-red-500">*</span></label>
+                <input type="date" value={form.date}
+                  onChange={e => handleChange('date', e.target.value)}
+                  className={`form-input ${errors.date ? 'border-red-300' : ''}`} />
+                {errors.date && <p className="form-error">{errors.date}</p>}
+              </div>
+              <div>
+                <label className="form-label">Order Number <span className="text-red-500">*</span></label>
+                <input type="text" value={form.orderNumber}
+                  onChange={e => handleChange('orderNumber', e.target.value)}
+                  placeholder="e.g. ORD-12345"
+                  className={`form-input ${errors.orderNumber ? 'border-red-300' : ''}`} />
+                {errors.orderNumber && <p className="form-error">{errors.orderNumber}</p>}
+              </div>
+            </div>
+
+            {/* Row 2: Product */}
             <div>
-              <label className="form-label">Date <span className="text-red-500">*</span></label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={e => handleChange('date', e.target.value)}
-                className={`form-input ${errors.date ? 'border-red-300 focus:ring-red-400' : ''}`}
-              />
-              {errors.date && <p className="form-error">{errors.date}</p>}
-            </div>
-
-            <div>
-              <label className="form-label">Order Number <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={form.orderNumber}
-                onChange={e => handleChange('orderNumber', e.target.value)}
-                placeholder="e.g. ORD-12345"
-                className={`form-input ${errors.orderNumber ? 'border-red-300 focus:ring-red-400' : ''}`}
-              />
-              {errors.orderNumber && <p className="form-error">{errors.orderNumber}</p>}
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="form-label">Customer Name <span className="text-red-500">*</span></label>
-              <input
-                type="text"
-                value={form.customerName}
-                onChange={e => handleChange('customerName', e.target.value)}
-                placeholder="Full name of the customer"
-                className={`form-input ${errors.customerName ? 'border-red-300 focus:ring-red-400' : ''}`}
-              />
-              {errors.customerName && <p className="form-error">{errors.customerName}</p>}
-            </div>
-
-            <div>
-              <label className="form-label">Submitted By</label>
-              <input
-                type="text"
-                value={form.submittedBy}
-                onChange={e => handleChange('submittedBy', e.target.value)}
-                placeholder="Your name (optional)"
-                className="form-input"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Section 2: Product (auto-fills manufacturer + cost) */}
-        <div className="card p-6">
-          <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            Product Information
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
               <label className="form-label">Product <span className="text-red-500">*</span></label>
-              <select
-                value={form.product}
-                onChange={e => handleProductChange(e.target.value)}
-                className={`form-input ${errors.product ? 'border-red-300 focus:ring-red-400' : ''}`}
-              >
+ �3           <select value={form.product} onChange={e => handleProductChange(e.target.value)}
+                className={`form-input ${errors.product ? 'border-red-300' : ''}`}>
                 <option value="">Select a product…</option>
-                {products.map(p => (
-                  <option key={p.id} value={p.name}>{p.name}</option>
-                ))}
+                {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
               </select>
               {errors.product && <p className="form-error">{errors.product}</p>}
             </div>
 
-            {/* Auto-filled fields — read-only */}
-            <div>
-              <label className="form-label">Manufacturer <span className="text-slate-400 font-normal">(auto-filled)</span></label>
-              <input
-                type="text"
-                value={form.manufacturerName}
-                readOnly
-                className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
-                placeholder="Auto-filled from product"
-              />
-            </div>
-
-            <div>
-              <label className="form-label">Unit Cost <span className="text-slate-400 font-normal">(auto-filled)</span></label>
-              <input
-                type="text"
-                value={form.unitCostUSD > 0 ? formatCurrency(form.unitCostUSD) : ''}
-                readOnly
-                className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
-                placeholder="Auto-filled from product"
-              />
-            </div>
-
-            {/* Manufacturer number — select from presets or free text */}
-            <div className="sm:col-span-2">
-              <label className="form-label">Manufacturer Number</label>
-              {selectedProduct && selectedProduct.manufacturerNumbers.length > 0 ? (
-                <select
-                  value={form.manufacturerNumber}
-                  onChange={e => handleChange('manufacturerNumber', e.target.value)}
-                  className="form-input"
-                >
-                  <option value="">Select manufacturer number…</option>
-                  {selectedProduct.manufacturerNumbers.map(n => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={form.manufacturerNumber}
-                  onChange={e => handleChange('manufacturerNumber', e.target.value)}
-                  placeholder="Enter manufacturer number"
-                  className="form-input"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Section 3: Fault Details */}
-        <div className="card p-6">
-          <h2 className="text-sm font-semibold text-slate-900 mb-4 pb-2 border-b border-slate-100">
-            Fault Details
-          </h2>
-          <div className="space-y-4">
+            {/* Row 3: Fault Type */}
             <div>
               <label className="form-label">Fault Type <span className="text-red-500">*</span></label>
-              <select
-                value={form.faultType}
-                onChange={e => handleChange('faultType', e.target.value)}
-                className={`form-input ${errors.faultType ? 'border-red-300 focus:ring-red-400' : ''}`}
-              >
+              <select value={form.faultType} onChange={e => handleChange('faultType', e.target.value)}
+                className={`form-input ${errors.faultType ? 'border-red-300' : ''}`}>
                 <option value="">Select fault type…</option>
-                {faultTypes.map(ft => (
-                  <option key={ft.id} value={ft.name}>{ft.name}</option>
-                ))}
+                {faultTypes.map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
               </select>
               {errors.faultType && <p className="form-error">{errors.faultType}</p>}
             </div>
 
-            <div>
-              <label className="form-label">Fault Notes</label>
-              <textarea
-                value={form.faultNotes}
-                onChange={e => handleChange('faultNotes', e.target.value)}
-                rows={4}
-                placeholder="Describe the fault in detail — what happened, how it was discovered, customer feedback…"
-                className="form-input resize-none"
-              />
+            {/* More Details collapsible */}
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowMoreDetails(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-medium text-slate-700"
+              >
+                <div className="flex items-center gap-2">
+                  <span>More Details</span>
+                  {moreDetailsFilled > 0 && (
+                    <span className="text-[10px] font-semibold bg-brand-600 text-white px-1.5 py-0.5 rounded-full">
+                      {moreDetailsFilled}
+                    </span>
+                  )}
+                </div>
+                {showMoreDetails
+                  ? <ChevronUp size={15} className="text-slate-400" />
+                  : <ChevronDown size={15} className="text-slate-400" />}
+              </button>
+              {showMoreDetails && (
+                <div className="p-4 space-y-4 border-t border-slate-200 bg-white">
+                  <div>
+                    <label className="form-label">Customer Name</label>
+                    <input type="text" value={form.customerName}
+                      onChange={e => handleChange('customerName', e.target.value)}
+                      placeholder="Full name of the customer"
+                      className={`form-input ${errors.customerName ? 'border-red-300' : ''}`} />
+                    {errors.customerName && <p className="form-error">{errors.customerName}</p>}
+                  </div>
+                  <div>
+                    <label className="form-label">Manufacturer <span className="text-slate-400 font-normal">(auto-filled)</span></label>
+                    <input type="text" value={form.manufacturerName} readOnly
+                      className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
+                      placeholder="Auto-filled from product" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="form-label">Unit Cost <span className="text-slate-400 font-normal">(auto-filled)</span></label>
+                      <input type="text" value={form.unitCostUSD > 0 ? formatCurrency(form.unitCostUSD) : ''} readOnly
+                        className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
+    3                   placeholder="Auto-filled from product" />
+                    </div>
+                    <div>
+                      <label className="form-label">Manufacturer Number</label>
+                      {selectedProduct && selectedProduct.manufacturerNumbers.length > 0 ? (
+                        <select value={form.manufacturerNumber}
+                          onChange={e => handleChange('manufacturerNumber', e.target.value)}
+                          className="form-input">
+                          <option value="">Select manufacturer number…</option>
+                          {selectedProduct.manufacturerNumbers.map(n => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input type="text" value={form.manufacturerNumber}
+                          onChange={e => handleChange('manufacturerNumber', e.target.value)}
+                          placeholder="Enter manufacturer number" className="form-input" />
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="form-label">Fault Notes</label>
+                    <textarea value={form.faultNotes}
+                      onChange={e => handleChange('faultNotes', e.target.value)}
+                      rows={3}
+                      placeholder="Describe the fault in detail…"
+                      className="form-input resize-none" />
+                  </div>
+                  <div>
+                    <label className="form-label">Submitted By</label>
+                    <input type="text" value={form.submittedBy}
+                      onChange={e => handleChange('submittedBy', e.target.value)}
+                      placeholder="Your name (optional)" className="form-input" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Section 4: Evidence Upload */}
+        {/* ── Evidence Upload (shared across both modes) ── */}
         <div className="card p-6">
           <h2 className="text-sm font-semibold text-slate-900 mb-1 pb-2 border-b border-slate-100">
             Evidence Upload <span className="text-red-500">*</span>
@@ -366,7 +494,6 @@ export default function NewCasePage() {
           <p className="text-xs text-slate-500 mb-4">
             Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Max 50MB.
           </p>
-
           {!uploadedFile && (
             <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -413,14 +540,12 @@ export default function NewCasePage() {
               />
             </div>
           )}
-
           {errors.file && (
             <div className="flex items-center gap-2 mt-2">
               <AlertCircle size={14} className="text-red-500" />
               <p className="form-error mt-0">{errors.file}</p>
             </div>
           )}
-
           {uploadedFile && (
             <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl mt-3">
               <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -428,31 +553,25 @@ export default function NewCasePage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-emerald-800 truncate">{uploadedFile.name}</p>
-                <a
-                  href={uploadedFile.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-emerald-600 hover:underline"
-                >
+                <a href={uploadedFile.link} target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-emerald-600 hover:underline">
                   View in Google Drive
                 </a>
               </div>
-              <button
-                type="button"
+              <button type="button"
                 onClick={() => {
                   setUploadedFile(null);
                   setForm(f => ({ ...f, evidenceLink: '' }));
                   if (fileInputRef.current) fileInputRef.current.value = '';
                 }}
-                className="text-emerald-500 hover:text-emerald-700 p-1"
-              >
+                className="text-emerald-500 hover:text-emerald-700 p-1">
                 <X size={16} />
               </button>
             </div>
           )}
         </div>
 
-        {/* Submit */}
+        {/* Submit error */}
         {(errors as any).submit && (
           <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
             <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
@@ -461,14 +580,8 @@ export default function NewCasePage() {
         )}
 
         <div className="flex items-center justify-between gap-4 pb-4">
-          <Link href="/cases" className="btn-secondary">
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            disabled={submitting || uploading}
-            className="btn-primary px-8"
-          >
+          <Link href="/cases" className="btn-secondary">Cancel</Link>
+          <button type="submit" disabled={submitting || uploading} className="btn-primary px-8">
             {submitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
