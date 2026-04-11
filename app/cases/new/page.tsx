@@ -55,9 +55,11 @@ export default function NewCasePage() {
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'file' | 'submit', string>>>({});
   const [uploading, setUploading] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; link: string } | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; link: string; previewUrl?: string; fileType?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [duplicates, setDuplicates] = useState<{ id: string; product: string; date: string; faultType: string; claimStatus: string }[]>([]);
+  const [checkingDup, setCheckingDup] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const tempCaseId = useRef(`CASE-${Date.now()}`);
@@ -111,6 +113,8 @@ export default function NewCasePage() {
       setErrors(e => ({ ...e, file: 'Invalid file type. Use images, videos (MP4, MOV, AVI), or PDF.' }));
       return;
     }
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+    const fileType = file.type;
     setUploading(true);
     try {
       const fd = new FormData();
@@ -119,7 +123,7 @@ export default function NewCasePage() {
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-      setUploadedFile({ name: file.name, link: json.data.link });
+      setUploadedFile({ name: file.name, link: json.data.link, previewUrl, fileType });
       setForm(f => ({ ...f, evidenceLink: json.data.link }));
     } catch (err: any) {
       setErrors(e => ({ ...e, file: err.message || 'Upload failed. Please try again.' }));
@@ -265,6 +269,19 @@ export default function NewCasePage() {
                     placeholder="e.g. ORD-12345"
                     className={`form-input ${errors.orderNumber ? 'border-red-300' : ''}`} />
                   {errors.orderNumber && <p className="form-error">{errors.orderNumber}</p>}
+                  {duplicates.length > 0 && (
+                    <div className="mt-1.5 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-xs font-semibold text-amber-800 mb-1">⚠️ Heads up — this order number has {duplicates.length} existing fault{duplicates.length !== 1 ? 's' : ''}:</p>
+                      <ul className="space-y-0.5">
+                        {duplicates.map(d => (
+                          <li key={d.id} className="text-xs text-amber-700">
+                            {d.product} · {d.faultType} · <span className="font-medium">{d.claimStatus}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-amber-600 mt-1">You can still submit if this is a different product or fault.</p>
+                    </div>
+                  )}
                 </div>
                 <div className="sm:col-span-2">
                   <label className="form-label">Customer Name <span className="text-red-500">*</span></label>
@@ -387,7 +404,7 @@ export default function NewCasePage() {
             {/* Row 2: Product */}
             <div>
               <label className="form-label">Product <span className="text-red-500">*</span></label>
- �3           <select value={form.product} onChange={e => handleProductChange(e.target.value)}
+              <select value={form.product} onChange={e => handleProductChange(e.target.value)}
                 className={`form-input ${errors.product ? 'border-red-300' : ''}`}>
                 <option value="">Select a product…</option>
                 {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
@@ -446,7 +463,7 @@ export default function NewCasePage() {
                       <label className="form-label">Unit Cost <span className="text-slate-400 font-normal">(auto-filled)</span></label>
                       <input type="text" value={form.unitCostUSD > 0 ? formatCurrency(form.unitCostUSD) : ''} readOnly
                         className="form-input bg-slate-50 text-slate-500 cursor-not-allowed"
-    3                   placeholder="Auto-filled from product" />
+                        placeholder="Auto-filled from product" />
                     </div>
                     <div>
                       <label className="form-label">Manufacturer Number</label>
@@ -552,6 +569,23 @@ export default function NewCasePage() {
                 <CheckCircle size={18} className="text-emerald-600" />
               </div>
               <div className="flex-1 min-w-0">
+                {uploadedFile.previewUrl && (
+                  <img
+                    src={uploadedFile.previewUrl}
+                    alt="Preview"
+                    className="w-full max-h-44 object-contain rounded-lg mb-2 border border-emerald-200 bg-white"
+                  />
+                )}
+                {uploadedFile.fileType?.startsWith('video/') && (
+                  <div className="w-full h-24 flex items-center justify-center bg-slate-100 rounded-lg mb-2 border border-emerald-200">
+                    <span className="text-3xl">🎬</span>
+                  </div>
+                )}
+                {uploadedFile.fileType === 'application/pdf' && (
+                  <div className="w-full h-24 flex items-center justify-center bg-red-50 rounded-lg mb-2 border border-emerald-200">
+                    <span className="text-3xl">📄</span>
+                  </div>
+                )}
                 <p className="text-sm font-medium text-emerald-800 truncate">{uploadedFile.name}</p>
                 <a href={uploadedFile.link} target="_blank" rel="noopener noreferrer"
                   className="text-xs text-emerald-600 hover:underline">
