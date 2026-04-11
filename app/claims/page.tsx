@@ -5,8 +5,8 @@ import {
   Plus,
   ChevronDown,
   ChevronUp,
-  DollarSign,
-  TrendingUp,
+
+  TrendingUp,  Clock,  FileCheck,
   AlertCircle,
   CheckCircle,
   X,
@@ -52,10 +52,10 @@ export default function ClaimsPage() {
 
   // Totals
   const totals = useMemo(() => ({
-    totalCostAtRisk:      claims.reduce((s, c) => s + c.costAtRisk, 0),
-    totalAmountRecovered: claims.reduce((s, c) => s + c.amountRecovered, 0),
-    totalFaults:          claims.reduce((s, c) => s + c.faultCount, 0),
-    creditReceived:       claims.filter(c => c.status === 'Credit Received').length,
+    claimRaised:    claims.filter(c => c.status === 'Claim Raised').length,
+    acknowledged:   claims.filter(c => c.status === 'Acknowledged').length,
+    totalFaults:    claims.reduce((s, c) => s + c.faultCount, 0),
+    creditReceived: claims.filter(c => c.status === 'Credit Received').length,
   }), [claims]);
 
   // Group claims by manufacturer then year+month
@@ -76,9 +76,7 @@ export default function ClaimsPage() {
       month: MONTHS[new Date().getMonth()],
       year: String(currentYear),
       faultCount: 0,
-      costAtRisk: 0,
-      amountRecovered: 0,
-      status: 'Unsubmitted',
+      status: 'Claim Raised',
       notes: '',
       caseIds: [],
     });
@@ -155,10 +153,10 @@ export default function ClaimsPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Cost at Risk',    value: formatCurrency(totals.totalCostAtRisk),      icon: AlertCircle, color: 'bg-red-500' },
-          { label: 'Amount Recovered',      value: formatCurrency(totals.totalAmountRecovered), icon: DollarSign,  color: 'bg-emerald-500' },
-          { label: 'Total Fault Items',     value: totals.totalFaults,                          icon: TrendingUp,  color: 'bg-brand-600' },
-          { label: 'Claims Fully Resolved', value: totals.creditReceived,                       icon: CheckCircle, color: 'bg-violet-600' },
+          { label: 'Claim Raised',         value: totals.claimRaised,    icon: Clock,       color: 'bg-amber-500' },
+          { label: 'Acknowledged',          value: totals.acknowledged,   icon: FileCheck,   color: 'bg-blue-500' },
+          { label: 'Total Fault Items',     value: totals.totalFaults,    icon: TrendingUp,  color: 'bg-brand-600' },
+          { label: 'Claims Fully Resolved', value: totals.creditReceived, icon: CheckCircle, color: 'bg-violet-600' },
         ].map(card => (
           <div key={card.label} className="card p-5">
             <div className="flex items-start justify-between">
@@ -186,12 +184,7 @@ export default function ClaimsPage() {
               <h2 className="font-semibold text-slate-900">{manufacturer}</h2>
               <div className="flex items-center gap-4 text-xs text-slate-500">
                 <span>{mfrClaims.length} batch{mfrClaims.length !== 1 ? 'es' : ''}</span>
-                <span className="font-semibold text-slate-700">
-                  {formatCurrency(mfrClaims.reduce((s, c) => s + c.costAtRisk, 0))} at risk
-                </span>
-                <span className="font-semibold text-emerald-700">
-                  {formatCurrency(mfrClaims.reduce((s, c) => s + c.amountRecovered, 0))} recovered
-                </span>
+                <span>{mfrClaims.reduce((s, c) => s + c.faultCount, 0)} faults</span>
               </div>
             </div>
 
@@ -200,9 +193,6 @@ export default function ClaimsPage() {
                 <tr>
                   <th>Period</th>
                   <th>Faults</th>
-                  <th>Cost at Risk</th>
-                  <th>Recovered</th>
-                  <th>Recovery %</th>
                   <th>Status</th>
                   <th>Notes</th>
                   <th>Actions</th>
@@ -210,9 +200,6 @@ export default function ClaimsPage() {
               </thead>
               <tbody>
                 {mfrClaims.map(claim => {
-                  const recoveryPct = claim.costAtRisk > 0
-                    ? Math.round((claim.amountRecovered / claim.costAtRisk) * 100)
-                    : 0;
                   return (
                     <tr key={claim.id}>
                       <td className="font-medium whitespace-nowrap">
@@ -220,23 +207,6 @@ export default function ClaimsPage() {
                       </td>
                       <td>
                         <span className="font-semibold">{claim.faultCount}</span> items
-                      </td>
-                      <td className="font-semibold text-red-600">
-                        {formatCurrency(claim.costAtRisk)}
-                      </td>
-                      <td className="font-semibold text-emerald-600">
-                        {formatCurrency(claim.amountRecovered)}
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[60px]">
-                            <div
-                              className={`h-full rounded-full ${recoveryPct === 100 ? 'bg-emerald-500' : recoveryPct > 50 ? 'bg-amber-500' : 'bg-red-400'}`}
-                              style={{ width: `${Math.min(recoveryPct, 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-slate-500 w-8 text-right">{recoveryPct}%</span>
-                        </div>
                       </td>
                       <td>
                         <select
@@ -288,11 +258,17 @@ export default function ClaimsPage() {
                   <label className="form-label">Manufacturer</label>
                   <input
                     type="text"
+                    list="mfr-list"
                     value={formData.manufacturer || ''}
                     onChange={e => setFormData(f => ({...f, manufacturer: e.target.value}))}
                     className="form-input"
                     placeholder="e.g. Acme Corp"
                   />
+                  <datalist id="mfr-list">
+                    {Object.keys(grouped).sort().map(m => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
                 </div>
                 <div>
                   <label className="form-label">Month</label>
@@ -312,16 +288,6 @@ export default function ClaimsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label">Cost at Risk (USD)</label>
-                  <input type="number" step="0.01" value={formData.costAtRisk || ''} onChange={e => setFormData(f => ({...f, costAtRisk: parseFloat(e.target.value)||0}))} className="form-input" min={0} />
-                </div>
-                <div>
-                  <label className="form-label">Amount Recovered (USD)</label>
-                  <input type="number" step="0.01" value={formData.amountRecovered || ''} onChange={e => setFormData(f => ({...f, amountRecovered: parseFloat(e.target.value)||0}))} className="form-input" min={0} />
-                </div>
-              </div>
 
               <div>
                 <label className="form-label">Status</label>
