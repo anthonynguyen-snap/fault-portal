@@ -234,7 +234,7 @@ export default function CaseDetailPage() {
             <h2 className="text-sm font-semibold text-slate-700 mb-3">Evidence</h2>
             {c.evidenceLink ? (
               <div className="space-y-2">
-                {c.evidenceLink.split('',').filter(Boolean).map((link, idx, arr) => (
+                {c.evidenceLink.split(',').filter(Boolean).map((link, idx, arr) => (
                   <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="w-9 h-9 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
                       <FileText size={18} className="text-brand-600" />
