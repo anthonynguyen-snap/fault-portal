@@ -102,9 +102,10 @@ export default function NewCasePage() {
   async function handleFileUpload(file: File) {
     if (!file) return;
     setErrors(e => ({ ...e, file: '' }));
-    const MAX_SIZE = 50 * 1024 * 1024;
+    const MAX_SIZE = 4 * 1024 * 1024; // 4MB — Vercel upload limit
     if (file.size > MAX_SIZE) {
-      setErrors(e => ({ ...e, file: `${file.name}: File too large. Maximum 50MB.` }));
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      setErrors(e => ({ ...e, file: `${file.name} is ${mb}MB — please keep files under 4MB. Compress the image first.` }));
       return;
     }
     const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','video/x-msvideo','video/x-ms-wmv','video/avi','application/pdf'];
@@ -121,8 +122,12 @@ export default function NewCasePage() {
       fd.append('file', file);
       fd.append('caseId', tempCaseId.current);
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
+      let json: any;
+      try { json = await res.json(); } catch {
+        if (res.status === 413) throw new Error('File too large for upload. Please keep files under 4MB.');
+        throw new Error(`Upload failed (HTTP ${res.status}). Please try again.`);
+      }
+      if (!res.ok || json?.error) throw new Error(json?.error || 'Upload failed');
       const newFile = { name: file.name, link: json.data.link, previewUrl, fileType };
       setUploadedFiles(prev => {
         const updated = [...prev, newFile];
@@ -559,7 +564,7 @@ export default function NewCasePage() {
             Evidence Upload <span className="text-red-500">*</span>
           </h2>
           <p className="text-xs text-slate-500 mb-4">
-            Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Max 50MB.
+            Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Max 4MB each.
           </p>
           <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -584,7 +589,7 @@ export default function NewCasePage() {
               <p className="text-sm font-medium text-slate-700">
                 {uploading ? 'Uploading…' : uploadedFiles.length > 0 ? 'Add more files' : 'Drop files here or click to browse'}
               </p>
-              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Max 50MB each · Multiple allowed</p>
+              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Max 4MB each · Multiple allowed</p>
               {uploading && (
                 <div className="mt-3">
                   <div className="w-32 h-1 bg-slate-200 rounded-full mx-auto overflow-hidden">
