@@ -55,7 +55,7 @@ export default function NewCasePage() {
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData | 'file' | 'submit', string>>>({});
   const [uploading, setUploading] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; link: string; previewUrl?: string; fileType?: string } | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; link: string; previewUrl?: string; fileType?: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [duplicates, setDuplicates] = useState<{ id: string; product: string; date: string; faultType: string; claimStatus: string }[]>([]);
@@ -100,11 +100,10 @@ export default function NewCasePage() {
 
   async function handleFileUpload(file: File) {
     if (!file) return;
-    setUploadedFile(null);
     setErrors(e => ({ ...e, file: '' }));
     const MAX_SIZE = 50 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
-      setErrors(e => ({ ...e, file: 'File too large. Maximum 50MB.' }));
+      setErrors(e => ({ ...e, file: `${file.name}: File too large. Maximum 50MB.` }));
       return;
     }
     const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','video/x-msvideo','video/x-ms-wmv','video/avi','application/pdf'];
@@ -123,12 +122,23 @@ export default function NewCasePage() {
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-      setUploadedFile({ name: file.name, link: json.data.link, previewUrl, fileType });
-      setForm(f => ({ ...f, evidenceLink: json.data.link }));
+      const newFile = { name: file.name, link: json.data.link, previewUrl, fileType };
+      setUploadedFiles(prev => {
+        const updated = [...prev, newFile];
+        setForm(f => ({ ...f, evidenceLink: updated.map(u => u.link).join(',') }));
+        return updated;
+      });
     } catch (err: any) {
       setErrors(e => ({ ...e, file: err.message || 'Upload failed. Please try again.' }));
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function handleFilesSelected(files: FileList | null) {
+    if (!files) return;
+    for (const file of Array.from(files)) {
+      await handleFileUpload(file);
     }
   }
 
@@ -511,18 +521,16 @@ export default function NewCasePage() {
           <p className="text-xs text-slate-500 mb-4">
             Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Max 50MB.
           </p>
-          {!uploadedFile && (
-            <div
+          <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={e => {
                 e.preventDefault();
                 setDragOver(false);
-                const file = e.dataTransfer.files[0];
-                if (file) handleFileUpload(file);
+                handleFilesSelected(e.dataTransfer.files);
               }}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
                 dragOver
                   ? 'border-brand-600 bg-brand-50'
                   : errors.file
@@ -530,13 +538,13 @@ export default function NewCasePage() {
                   : 'border-slate-200 hover:border-brand-400 hover:bg-slate-50'
               }`}
             >
-              <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-                <Upload size={24} className="text-slate-400" />
+              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <Upload size={20} className="text-slate-400" />
               </div>
               <p className="text-sm font-medium text-slate-700">
-                {uploading ? 'Uploading…' : 'Drop file here or click to browse'}
+                {uploading ? 'Uploading…' : uploadedFiles.length > 0 ? 'Add more files' : 'Drop files here or click to browse'}
               </p>
-              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Max 50MB</p>
+              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Max 50MB each · Multiple allowed</p>
               {uploading && (
                 <div className="mt-3">
                   <div className="w-32 h-1 bg-slate-200 rounded-full mx-auto overflow-hidden">
@@ -549,58 +557,54 @@ export default function NewCasePage() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*,video/*,.mov,.mp4,.avi,.wmv,.mkv,.pdf"
+                multiple
                 className="hidden"
                 onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
+                  handleFilesSelected(e.target.files);
+                  e.target.value = '';
                 }}
               />
             </div>
-          )}
           {errors.file && (
             <div className="flex items-center gap-2 mt-2">
               <AlertCircle size={14} className="text-red-500" />
               <p className="form-error mt-0">{errors.file}</p>
             </div>
           )}
-          {uploadedFile && (
-            <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl mt-3">
-              <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <CheckCircle size={18} className="text-emerald-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                {uploadedFile.previewUrl && (
-                  <img
-                    src={uploadedFile.previewUrl}
-                    alt="Preview"
-                    className="w-full max-h-44 object-contain rounded-lg mb-2 border border-emerald-200 bg-white"
-                  />
-                )}
-                {uploadedFile.fileType?.startsWith('video/') && (
-                  <div className="w-full h-24 flex items-center justify-center bg-slate-100 rounded-lg mb-2 border border-emerald-200">
-                    <span className="text-3xl">🎬</span>
+          {uploadedFiles.length > 0 && (
+            <div className="space-y-2 mt-3">
+              {uploadedFiles.map((uf, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    {uf.previewUrl
+                      ? <img src={uf.previewUrl} alt="" className="w-9 h-9 object-cover rounded-lg" />
+                      : uf.fileType?.startsWith('video/')
+                      ? <span className="text-lg">🎬</span>
+                      : uf.fileType === 'application/pdf'
+                      ? <span className="text-lg">📄</span>
+                      : <CheckCircle size={18} className="text-emerald-600" />
+                    }
                   </div>
-                )}
-                {uploadedFile.fileType === 'application/pdf' && (
-                  <div className="w-full h-24 flex items-center justify-center bg-red-50 rounded-lg mb-2 border border-emerald-200">
-                    <span className="text-3xl">📄</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-emerald-800 truncate">{uf.name}</p>
+                    <a href={uf.link} target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-emerald-600 hover:underline">
+                      View in Google Drive
+                    </a>
                   </div>
-                )}
-                <p className="text-sm font-medium text-emerald-800 truncate">{uploadedFile.name}</p>
-                <a href={uploadedFile.link} target="_blank" rel="noopener noreferrer"
-                  className="text-xs text-emerald-600 hover:underline">
-                  View in Google Drive
-                </a>
-              </div>
-              <button type="button"
-                onClick={() => {
-                  setUploadedFile(null);
-                  setForm(f => ({ ...f, evidenceLink: '' }));
-                  if (fileInputRef.current) fileInputRef.current.value = '';
-                }}
-                className="text-emerald-500 hover:text-emerald-700 p-1">
-                <X size={16} />
-              </button>
+                  <button type="button"
+                    onClick={() => {
+                      setUploadedFiles(prev => {
+                        const updated = prev.filter((_, i) => i !== idx);
+                        setForm(f => ({ ...f, evidenceLink: updated.map(u => u.link).join(',') }));
+                        return updated;
+                      });
+                    }}
+                    className="text-emerald-500 hover:text-emerald-700 p-1 flex-shrink-0">
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
