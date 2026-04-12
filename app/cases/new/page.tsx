@@ -58,6 +58,7 @@ export default function NewCasePage() {
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; link: string; previewUrl?: string; fileType?: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [submittedCaseId, setSubmittedCaseId] = useState<string>('');
   const [duplicates, setDuplicates] = useState<{ id: string; product: string; date: string; faultType: string; claimStatus: string }[]>([]);
   const [checkingDup, setCheckingDup] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -178,8 +179,8 @@ export default function NewCasePage() {
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
+      setSubmittedCaseId(json.data.id);
       setSuccess(true);
-      setTimeout(() => router.push(`/cases/${json.data.id}`), 1500);
     } catch (err: any) {
       setErrors(e => ({ ...e, submit: err.message }));
     } finally {
@@ -192,15 +193,54 @@ export default function NewCasePage() {
     form.customerName, form.manufacturerNumber, form.faultNotes, form.submittedBy,
   ].filter(Boolean).length;
 
+  function resetForm() {
+    setForm({
+      date: new Date().toISOString().slice(0, 10),
+      orderNumber: '',
+      customerName: '',
+      product: '',
+      manufacturerName: '',
+      manufacturerNumber: '',
+      faultType: '',
+      faultNotes: '',
+      evidenceLink: '',
+      unitCostUSD: 0,
+      submittedBy: form.submittedBy,
+    });
+    setUploadedFiles([]);
+    setErrors({});
+    setSelectedProduct(null);
+    setDuplicates([]);
+    setSuccess(false);
+    setSubmittedCaseId('');
+    tempCaseId.current = `CASE-${Date.now()}`;
+  }
+
   if (success) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
+        <div className="text-center max-w-sm">
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle size={32} className="text-emerald-600" />
           </div>
           <h2 className="text-xl font-bold text-slate-900 mb-1">Case Submitted!</h2>
-          <p className="text-slate-500 text-sm">Redirecting to case details…</p>
+          <p className="text-slate-500 text-sm mb-6">The fault case has been logged successfully.</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={resetForm}
+              className="btn-secondary flex items-center justify-center gap-2"
+            >
+              <PlusCircle size={16} />
+              Submit Another Case
+            </button>
+            <button
+              onClick={() => router.push(`/cases/${submittedCaseId}`)}
+              className="btn-primary flex items-center justify-center gap-2"
+            >
+              <CheckCircle size={16} />
+              View Case
+            </button>
+          </div>
         </div>
       </div>
     );
