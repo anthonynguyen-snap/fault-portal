@@ -128,16 +128,19 @@ export default function NewCasePage() {
       const sessionJson = await sessionRes.json();
       if (!sessionRes.ok || sessionJson.error) throw new Error(sessionJson.error || 'Failed to start upload session');
 
-      // Step 2: Upload file directly to Google Drive (bypasses Vercel entirely)
-      const uploadRes = await fetch(sessionJson.uploadUrl, {
+      // Step 2: Upload through Edge proxy → Google Drive (no CORS issues, no body-size limit)
+      const uploadRes = await fetch('/api/upload/proxy', {
         method: 'PUT',
-        headers: { 'Content-Type': file.type },
+        headers: {
+          'Content-Type': file.type,
+          'X-Upload-Url': sessionJson.uploadUrl,
+        },
         body: file,
       });
-      if (!uploadRes.ok) throw new Error(`Upload to Drive failed (HTTP ${uploadRes.status})`);
       const uploadData = await uploadRes.json();
+      if (!uploadRes.ok || uploadData.error) throw new Error(uploadData.error || `Upload failed (HTTP ${uploadRes.status})`);
       const fileId = uploadData.id;
-      if (!fileId) throw new Error('Upload completed but no file ID returned from Drive');
+      if (!fileId) throw new Error('Upload completed but no file ID returned');
 
       // Step 3: Set permissions and get share link
       const finalizeRes = await fetch('/api/upload/finalize', {
