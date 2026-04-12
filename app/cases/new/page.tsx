@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Upload, X, CheckCircle, AlertCircle, ChevronLeft,
+  Upload, X, CheckCircle, AlertCircle, ChevronLeft, PlusCircle,
   File, Image, Video, Zap, LayoutList, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
