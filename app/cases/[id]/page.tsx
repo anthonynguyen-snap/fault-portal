@@ -233,22 +233,28 @@ export default function CaseDetailPage() {
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">Evidence</h2>
             {c.evidenceLink ? (
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="w-9 h-9 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <FileText size={18} className="text-brand-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800">Evidence File</p>
-                  <p className="text-xs text-slate-400">Stored in Google Drive</p>
-                </div>
-                <a
-                  href={c.evidenceLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary text-xs px-3 py-1.5"
-                >
-                  View <ExternalLink size={11} />
-                </a>
+              <div className="space-y-2">
+                {c.evidenceLink.split('',').filter(Boolean).map((link, idx, arr) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <div className="w-9 h-9 bg-brand-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText size={18} className="text-brand-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800">
+                        {arr.length > 1 ? `Evidence File ${idx + 1}` : 'Evidence File'}
+                      </p>
+                      <p className="text-xs text-slate-400">Stored in Google Drive</p>
+                    </div>
+                    <a
+                      href={link.trim()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary text-xs px-3 py-1.5"
+                    >
+                      View <ExternalLink size={11} />
+                    </a>
+                  </div>
+                ))}
               </div>
             ) : (
               <p className="text-sm text-slate-400">No evidence uploaded.</p>
