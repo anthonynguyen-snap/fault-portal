@@ -436,3 +436,37 @@ export async function updateClaim(
   });
   return updated;
 }
+
+// =========================================================
+// BULK STATUS UPDATE
+// =========================================================
+export async function bulkUpdateCaseStatuses(
+  caseIds: string[],
+  status: ClaimStatus
+): Promise<void> {
+  if (!caseIds.length) return;
+  const sheets = getSheets();
+  const allCases = await getCases();
+
+  const data: { range: string; values: string[][] }[] = [];
+  for (const id of caseIds) {
+    const idx = allCases.findIndex(c => c.id === id);
+    if (idx === -1) continue;
+    const sheetRow = idx + 2;
+    const updated = { ...allCases[idx], claimStatus: status };
+    data.push({
+      range: `Cases!A${sheetRow}:N${sheetRow}`,
+      values: [caseToRow(updated)],
+    });
+  }
+
+  if (!data.length) return;
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: {
+      valueInputOption: 'USER_ENTERED',
+      data,
+    },
+  });
+}

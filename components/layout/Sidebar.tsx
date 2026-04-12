@@ -1,6 +1,6 @@
 'use client';
-
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -10,7 +10,6 @@ import {
   BarChart2,
   Settings,
   ChevronRight,
-  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -50,14 +49,19 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
-
   return (
     <aside className="w-64 bg-slate-900 flex flex-col flex-shrink-0 h-full">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Zap className="w-4.5 h-4.5 text-white" size={18} />
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden bg-white">
+            <Image
+              src="/snap-logo.jpg"
+              alt="SNAP Logo"
+              width={32}
+              height={32}
+              className="object-contain w-full h-full"
+            />
           </div>
           <div>
             <p className="text-white font-bold text-sm leading-tight">Fault Portal</p>
@@ -65,7 +69,6 @@ export function Sidebar() {
           </div>
         </div>
       </div>
-
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
@@ -74,7 +77,6 @@ export function Sidebar() {
             item.href === '/'
               ? pathname === '/'
               : pathname.startsWith(item.href);
-
           return (
             <Link
               key={item.href}
@@ -108,7 +110,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
       {/* Footer */}
       <div className="px-4 py-4 border-t border-slate-800">
         <div className="flex items-center gap-2.5">

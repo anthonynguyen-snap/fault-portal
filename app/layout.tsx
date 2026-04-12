@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Sidebar } from '@/components/layout/Sidebar';
+import Providers from '@/components/Providers';
 
 export const metadata: Metadata = {
   title: 'Fault Portal — Customer Care',
@@ -22,7 +23,7 @@ export default function RootLayout({
           {/* Main Content Area */}
           <main className="flex-1 overflow-y-auto">
             <div className="min-h-full p-6 lg:p-8">
-              {children}
+              <Providers>{children}</Providers>
             </div>
           </main>
         </div>

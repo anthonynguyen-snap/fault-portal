@@ -67,9 +67,12 @@ export async function POST(req: NextRequest) {
       data: { link: driveLink, fileName: file.name },
     });
   } catch (error) {
-    console.error('[POST /api/upload]', error);
+    const msg = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : '';
+    console.error('[POST /api/upload] FULL ERROR:', msg);
+    console.error('[POST /api/upload] STACK:', stack);
     return NextResponse.json(
-      { error: 'Failed to upload file. Please try again.' },
+      { error: 'Failed to upload file. Please try again.', detail: msg },
       { status: 500 }
     );
   }

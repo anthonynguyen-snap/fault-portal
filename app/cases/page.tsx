@@ -1,23 +1,15 @@
 'use client';
-
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  Search,
-  Filter,
-  Plus,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  Download,
+  Search, Filter, Plus, ExternalLink,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
+  Download, CheckSquare, Square, X, RefreshCw,
 } from 'lucide-react';
 import { FaultCase, ClaimStatus } from '@/types';
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES, truncate } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
-
 type SortKey = keyof FaultCase;
 type SortDir = 'asc' | 'desc';
 
@@ -41,6 +33,12 @@ export default function CasesPage() {
   // Pagination
   const [page, setPage] = useState(1);
 
+  // Batch selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchStatus, setBatchStatus] = useState<ClaimStatus | ''>('');
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchError, setBatchError] = useState('');
+
   useEffect(() => {
     fetch('/api/cases')
       .then(r => r.json())
@@ -52,64 +50,41 @@ export default function CasesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Unique manufacturers for filter dropdown
   const manufacturers = useMemo(() => {
     const set = new Set(cases.map(c => c.manufacturerName).filter(Boolean));
     return Array.from(set).sort();
   }, [cases]);
 
-  // Filtered & sorted cases
   const filtered = useMemo(() => {
     let result = [...cases];
-
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(c =>
-        c.orderNumber.toLowerCase().includes(q)     ||
-        c.customerName.toLowerCase().includes(q)    ||
-        c.product.toLowerCase().includes(q)         ||
-        c.manufacturerName.toLowerCase().includes(q)||
+        c.orderNumber.toLowerCase().includes(q)      ||
+        c.customerName.toLowerCase().includes(q)     ||
+        c.product.toLowerCase().includes(q)          ||
+        c.manufacturerName.toLowerCase().includes(q) ||
         c.faultType.toLowerCase().includes(q)
       );
     }
-
-    if (statusFilter) {
-      result = result.filter(c => c.claimStatus === statusFilter);
-    }
-
-    if (manufacturerFilter) {
-      result = result.filter(c => c.manufacturerName === manufacturerFilter);
-    }
-
-    if (fromDate) {
-      result = result.filter(c => c.date >= fromDate);
-    }
-
-    if (toDate) {
-      result = result.filter(c => c.date <= toDate);
-    }
-
-    // Sort
+    if (statusFilter)       result = result.filter(c => c.claimStatus === statusFilter);
+    if (manufacturerFilter) result = result.filter(c => c.manufacturerName === manufacturerFilter);
+    if (fromDate)           result = result.filter(c => c.date >= fromDate);
+    if (toDate)             result = result.filter(c => c.date <= toDate);
     result.sort((a, b) => {
       const av = String(a[sortKey] ?? '');
       const bv = String(b[sortKey] ?? '');
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-
     return result;
   }, [cases, search, statusFilter, manufacturerFilter, fromDate, toDate, sortKey, sortDir]);
 
-  // Paginated
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
-    }
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
     setPage(1);
   }
 
@@ -118,6 +93,50 @@ export default function CasesPage() {
     return sortDir === 'asc'
       ? <ChevronUp size={13} className="text-brand-600" />
       : <ChevronDown size={13} className="text-brand-600" />;
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === paginated.length && paginated.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginated.map(c => c.id)));
+    }
+  }
+
+  async function applyBatchStatus() {
+    if (!batchStatus || selectedIds.size === 0) return;
+    setBatchLoading(true);
+    setBatchError('');
+    try {
+      const ids = Array.from(selectedIds);
+      await Promise.all(
+        ids.map(id =>
+          fetch(`/api/cases/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ claimStatus: batchStatus }),
+          }).then(r => { if (!r.ok) throw new Error(`Failed for ${id}`); })
+        )
+      );
+      // Update local state
+      setCases(prev =>
+        prev.map(c => selectedIds.has(c.id) ? { ...c, claimStatus: batchStatus as ClaimStatus } : c)
+      );
+      setSelectedIds(new Set());
+      setBatchStatus('');
+    } catch (err: any) {
+      setBatchError(err.message);
+    } finally {
+      setBatchLoading(false);
+    }
   }
 
   function exportCsv() {
@@ -148,6 +167,8 @@ export default function CasesPage() {
     );
   }
 
+  const allPageSelected = paginated.length > 0 && paginated.every(c => selectedIds.has(c.id));
+
   return (
     <div className="max-w-7xl mx-auto space-y-5">
       {/* Header */}
@@ -161,15 +182,44 @@ export default function CasesPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={exportCsv} className="btn-secondary">
-            <Download size={14} />
-            Export CSV
+            <Download size={14} /> Export CSV
           </button>
           <Link href="/cases/new" className="btn-primary">
-            <Plus size={15} />
-            Submit Fault
+            <Plus size={15} /> Submit Fault
           </Link>
         </div>
       </div>
+
+      {/* Batch Action Toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="card p-3 bg-brand-50 border border-brand-200 flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium text-brand-800">
+            {selectedIds.size} case{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2 flex-1">
+            <select
+              value={batchStatus}
+              onChange={e => setBatchStatus(e.target.value as ClaimStatus | '')}
+              className="form-input text-sm py-1.5 w-44"
+            >
+              <option value="">Change status to…</option>
+              {CLAIM_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <button
+              onClick={applyBatchStatus}
+              disabled={!batchStatus || batchLoading}
+              className="btn-primary py-1.5 px-3 text-sm disabled:opacity-50"
+            >
+              {batchLoading ? <RefreshCw size={14} className="animate-spin" /> : <CheckSquare size={14} />}
+              Apply
+            </button>
+          </div>
+          {batchError && <p className="text-xs text-red-600">{batchError}</p>}
+          <button onClick={() => setSelectedIds(new Set())} className="btn-ghost p-1.5 ml-auto">
+            <X size={15} className="text-slate-500" />
+          </button>
+        </div>
+      )}
 
       {/* Search + Filter Bar */}
       <div className="card p-4 space-y-3">
@@ -188,65 +238,40 @@ export default function CasesPage() {
             onClick={() => setShowFilters(v => !v)}
             className={`btn-secondary gap-2 ${showFilters ? 'bg-slate-100 border-slate-300' : ''}`}
           >
-            <Filter size={14} />
-            Filters
+            <Filter size={14} /> Filters
             {(statusFilter || manufacturerFilter || fromDate || toDate) && (
               <span className="w-2 h-2 bg-brand-600 rounded-full" />
             )}
           </button>
         </div>
-
         {showFilters && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
             <div>
               <label className="form-label text-xs">Status</label>
-              <select
-                value={statusFilter}
-                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-                className="form-input text-xs"
-              >
+              <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="form-input text-xs">
                 <option value="">All Statuses</option>
-                {CLAIM_STATUSES.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {CLAIM_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div>
               <label className="form-label text-xs">Manufacturer</label>
-              <select
-                value={manufacturerFilter}
-                onChange={e => { setManufacturerFilter(e.target.value); setPage(1); }}
-                className="form-input text-xs"
-              >
+              <select value={manufacturerFilter} onChange={e => { setManufacturerFilter(e.target.value); setPage(1); }} className="form-input text-xs">
                 <option value="">All Manufacturers</option>
-                {manufacturers.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
+                {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
               </select>
             </div>
             <div>
               <label className="form-label text-xs">From Date</label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={e => { setFromDate(e.target.value); setPage(1); }}
-                className="form-input text-xs"
-              />
+              <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1); }} className="form-input text-xs" />
             </div>
             <div>
               <label className="form-label text-xs">To Date</label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={e => { setToDate(e.target.value); setPage(1); }}
-                className="form-input text-xs"
-              />
+              <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1); }} className="form-input text-xs" />
             </div>
           </div>
         )}
       </div>
 
-      {/* Error */}
       {error && (
         <div className="card p-4 border-red-200 bg-red-50">
           <p className="text-sm text-red-700">{error}</p>
@@ -259,25 +284,26 @@ export default function CasesPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th className="w-10">
+                  <button onClick={toggleSelectAll} className="flex items-center justify-center">
+                    {allPageSelected
+                      ? <CheckSquare size={16} className="text-brand-600" />
+                      : <Square size={16} className="text-slate-300" />}
+                  </button>
+                </th>
                 {[
-                  { key: 'date' as SortKey,         label: 'Date'         },
-                  { key: 'orderNumber' as SortKey,  label: 'Order #'      },
-                  { key: 'customerName' as SortKey, label: 'Customer'     },
-                  { key: 'product' as SortKey,      label: 'Product'      },
+                  { key: 'date' as SortKey,             label: 'Date'         },
+                  { key: 'orderNumber' as SortKey,      label: 'Order #'      },
+                  { key: 'customerName' as SortKey,     label: 'Customer'     },
+                  { key: 'product' as SortKey,          label: 'Product'      },
                   { key: 'manufacturerName' as SortKey, label: 'Manufacturer' },
-                  { key: 'faultType' as SortKey,    label: 'Fault Type'   },
-                  { key: 'claimStatus' as SortKey,  label: 'Status'       },
-                  { key: 'unitCostUSD' as SortKey,  label: 'Cost'         },
+                  { key: 'faultType' as SortKey,        label: 'Fault Type'   },
+                  { key: 'claimStatus' as SortKey,      label: 'Status'       },
+                  { key: 'unitCostUSD' as SortKey,      label: 'Cost'         },
                 ].map(col => (
-                  <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    className="cursor-pointer select-none hover:bg-slate-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-1">
-                      {col.label}
-                      <SortIcon col={col.key} />
-                    </div>
+                  <th key={col.key} onClick={() => handleSort(col.key)}
+                    className="cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} /></div>
                   </th>
                 ))}
                 <th>Evidence</th>
@@ -286,17 +312,22 @@ export default function CasesPage() {
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-12 text-slate-400">
+                  <td colSpan={10} className="text-center py-12 text-slate-400">
                     {cases.length === 0 ? 'No cases submitted yet.' : 'No cases match your filters.'}
                   </td>
                 </tr>
               ) : (
                 paginated.map(c => (
-                  <tr key={c.id} className="cursor-pointer" onClick={() => window.location.href = `/cases/${c.id}`}>
-                    <td className="whitespace-nowrap text-xs text-slate-500">{formatDate(c.date)}</td>
-                    <td>
-                      <span className="font-semibold text-brand-600 hover:underline">{c.orderNumber}</span>
+                  <tr key={c.id}
+                    className={`cursor-pointer ${selectedIds.has(c.id) ? 'bg-brand-50' : ''}`}
+                    onClick={() => window.location.href = `/cases/${c.id}`}>
+                    <td onClick={e => { e.stopPropagation(); toggleSelect(c.id); }} className="text-center">
+                      {selectedIds.has(c.id)
+                        ? <CheckSquare size={16} className="text-brand-600 mx-auto" />
+                        : <Square size={16} className="text-slate-300 mx-auto" />}
                     </td>
+                    <td className="whitespace-nowrap text-xs text-slate-500">{formatDate(c.date)}</td>
+                    <td><span className="font-semibold text-brand-600 hover:underline">{c.orderNumber}</span></td>
                     <td className="font-medium">{truncate(c.customerName, 24)}</td>
                     <td className="text-slate-500">{truncate(c.product, 24)}</td>
                     <td className="text-slate-500">{truncate(c.manufacturerName, 20)}</td>
@@ -311,22 +342,14 @@ export default function CasesPage() {
                         {c.claimStatus}
                       </span>
                     </td>
-                    <td className="font-semibold text-slate-900 whitespace-nowrap">
-                      {formatCurrency(c.unitCostUSD)}
-                    </td>
+                    <td className="font-semibold text-slate-900 whitespace-nowrap">{formatCurrency(c.unitCostUSD)}</td>
                     <td onClick={e => e.stopPropagation()}>
                       {c.evidenceLink ? (
-                        <a
-                          href={c.evidenceLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline"
-                        >
+                        <a href={c.evidenceLink} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
                           View <ExternalLink size={11} />
                         </a>
-                      ) : (
-                        <span className="text-slate-300 text-xs">—</span>
-                      )}
+                      ) : <span className="text-slate-300 text-xs">—</span>}
                     </td>
                   </tr>
                 ))
@@ -334,7 +357,6 @@ export default function CasesPage() {
             </tbody>
           </table>
         </div>
-
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
@@ -342,37 +364,20 @@ export default function CasesPage() {
               Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
             </p>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="btn-ghost p-1.5 disabled:opacity-30"
-              >
-                <ChevronLeft size={16} />
-              </button>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                className="btn-ghost p-1.5 disabled:opacity-30"><ChevronLeft size={16} /></button>
               {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                 const p = Math.max(1, page - 2) + i;
                 if (p > totalPages) return null;
                 return (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`w-8 h-8 text-xs rounded-lg font-medium transition-colors ${
-                      page === p
-                        ? 'bg-brand-600 text-white'
-                        : 'text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`w-8 h-8 text-xs rounded-lg font-medium transition-colors ${page === p ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
                     {p}
                   </button>
                 );
               })}
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="btn-ghost p-1.5 disabled:opacity-30"
-              >
-                <ChevronRight size={16} />
-              </button>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                className="btn-ghost p-1.5 disabled:opacity-30"><ChevronRight size={16} /></button>
             </div>
           </div>
         )}

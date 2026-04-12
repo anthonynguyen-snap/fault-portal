@@ -16,7 +16,7 @@ function getAuth() {
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
       client_id: process.env.GOOGLE_CLIENT_ID,
     },
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: ['https://www.googleapis.com/auth/drive'],
   });
 }
 
@@ -49,6 +49,7 @@ export async function uploadFileToDrive(
       body: Readable.from(fileBuffer),
     },
     fields: 'id, webViewLink',
+    supportsAllDrives: true,
   });
 
   const fileId = fileRes.data.id!;
@@ -60,6 +61,7 @@ export async function uploadFileToDrive(
       role: 'reader',
       type: 'anyone',
     },
+    supportsAllDrives: true,
   });
 
   return fileRes.data.webViewLink
@@ -88,6 +90,8 @@ async function getOrCreateFolder(
     q: query,
     fields: 'files(id)',
     pageSize: 1,
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
   });
 
   if (res.data.files && res.data.files.length > 0) {
@@ -102,6 +106,7 @@ async function getOrCreateFolder(
       parents: [parentId],
     },
     fields: 'id',
+    supportsAllDrives: true,
   });
 
   return folder.data.id!;
@@ -126,7 +131,7 @@ export async function getFilesForCase(caseId: string): Promise<
     `trashed=false`,
   ].join(' and ');
 
-  const folderRes = await drive.files.list({ q: query, fields: 'files(id)', pageSize: 1 });
+  const folderRes = await drive.files.list({ q: query, fields: 'files(id)', pageSize: 1, includeItemsFromAllDrives: true, supportsAllDrives: true });
   if (!folderRes.data.files || folderRes.data.files.length === 0) return [];
 
   const folderId = folderRes.data.files[0].id!;
@@ -135,6 +140,8 @@ export async function getFilesForCase(caseId: string): Promise<
   const filesRes = await drive.files.list({
     q: `'${folderId}' in parents and trashed=false`,
     fields: 'files(id, name, webViewLink, mimeType)',
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
   });
 
   return (filesRes.data.files || []).map(f => ({
