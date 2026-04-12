@@ -119,39 +119,55 @@ export default function NewCasePage() {
     const fileType = file.type;
     setUploading(true);
     try {
-      // Step 1: Get a resumable upload URL from our server (no file data sent to Vercel)
-      const sessionRes = await fetch('/api/upload/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size, caseId: tempCaseId.current }),
-      });
-      const sessionJson = await sessionRes.json();
-      if (!sessionRes.ok || sessionJson.error) throw new Error(sessionJson.error || 'Failed to start upload session');
+      // Step 1: Get a resumable upload URL from our server
+      let sessionJson: any;
+      try {
+        const sessionRes = await fetch('/api/upload/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size, caseId: tempCaseId.current }),
+        });
+        sessionJson = await sessionRes.json();
+        if (!sessionRes.ok || sessionJson.error) throw new Error(sessionJson.error || 'server error');
+      } catch (e: any) {
+        throw new Error(`Step 1 (start upload): ${e.message}`);
+      }
 
-      // Step 2: Upload through Edge proxy → Google Drive (no CORS issues, no body-size limit)
-      const uploadRes = await fetch('/api/upload/proxy', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-          'X-Upload-Url': sessionJson.uploadUrl,
-        },
-        body: file,
-      });
-      const uploadData = await uploadRes.json();
-      if (!uploadRes.ok || uploadData.error) throw new Error(uploadData.error || `Upload failed (HTTP ${uploadRes.status})`);
-      const fileId = uploadData.id;
-      if (!fileId) throw new Error('Upload completed but no file ID returned');
+      // Step 2: Upload through Edge proxy → Google Drive
+      let fileId: string;
+      try {
+        const uploadRes = await fetch('/api/upload/proxy', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type,
+            'X-Upload-Url': sessionJson.uploadUrl,
+          },
+          body: file,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok || uploadData.error) throw new Error(uploadData.error || `HTTP ${uploadRes.status}`);
+        fileId = uploadData.id;
+        if (!fileId) throw new Error('no file ID in response');
+      } catch (e: any) {
+        throw new Error(`Step 2 (send file): ${e.message}`);
+      }
 
       // Step 3: Set permissions and get share link
-      const finalizeRes = await fetch('/api/upload/finalize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId }),
-      });
-      const finalizeJson = await finalizeRes.json();
-      if (!finalizeRes.ok || finalizeJson.error) throw new Error(finalizeJson.error || 'Failed to finalize upload');
+      let shareLink: string;
+      try {
+        const finalizeRes = await fetch('/api/upload/finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileId }),
+        });
+        const finalizeJson = await finalizeRes.json();
+        if (!finalizeRes.ok || finalizeJson.error) throw new Error(finalizeJson.error || `HTTP ${finalizeRes.status}`);
+        shareLink = finalizeJson.data.link;
+      } catch (e: any) {
+        throw new Error(`Step 3 (get link): ${e.message}`);
+      }
 
-      const newFile = { name: file.name, link: finalizeJson.data.link, previewUrl, fileType };
+      const newFile = { name: file.name, link: shareLink, previewUrl, fileType };
       setUploadedFiles(prev => {
         const updated = [...prev, newFile];
         setForm(f => ({ ...f, evidenceLink: updated.map(u => u.link).join(',') }));

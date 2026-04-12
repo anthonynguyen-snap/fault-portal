@@ -1,52 +1,45 @@
 import { NextRequest } from 'next/server';
 
-// Edge runtime: no 4.5 MB body-size limit, streams the file
-// body directly to Google Drive without buffering it.
 export const runtime = 'edge';
 
+// Proxy the file upload to Google Drive.
+// Using req.blob() is more reliable in Vercel Edge than streaming with duplex:'half'.
 export async function PUT(req: NextRequest) {
   const uploadUrl = req.headers.get('x-upload-url');
   const contentType = req.headers.get('content-type') || 'application/octet-stream';
-  const contentLength = req.headers.get('content-length');
 
   if (!uploadUrl) {
-    return new Response(JSON.stringify({ error: 'Missing x-upload-url header' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return Response.json({ error: 'Missing x-upload-url header' }, { status: 400 });
   }
 
   try {
-    const driveHeaders: Record<string, string> = { 'Content-Type': contentType };
-    if (contentLength) driveHeaders['Content-Length'] = contentLength;
+    // Buffer the entire body — Edge functions support up to 128MB
+    const blob = await req.blob();
 
     const driveRes = await fetch(uploadUrl, {
       method: 'PUT',
-      headers: driveHeaders,
-      // @ts-ignore – duplex is required for streaming request bodies in some runtimes
-      body: req.body,
-      duplex: 'half',
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': String(blob.size),
+      },
+      body: blob,
     });
 
     const text = await driveRes.text();
 
     if (!driveRes.ok) {
-      return new Response(
-        JSON.stringify({ error: `Drive upload failed: ${driveRes.status}`, detail: text }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } },
+      return Response.json(
+        { error: `Drive upload failed (${driveRes.status})`, detail: text },
+        { status: 500 },
       );
     }
 
-    // Return Drive's JSON response (contains the file id)
     return new Response(text, {
       status: driveRes.status,
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ error: msg }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return Response.json({ error: msg }, { status: 500 });
   }
 }
