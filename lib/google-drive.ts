@@ -151,3 +151,70 @@ export async function getFilesForCase(caseId: string): Promise<
     mimeType: f.mimeType!,
   }));
 }
+
+/**
+ * Initiate a Google Drive resumable upload session (server-side).
+ * Returns the upload URL the client can PUT the file body to directly —
+ * the file data never passes through Vercel.
+ */
+export async function createResumableUploadSession(
+  fileName: string,
+  mimeType: string,
+  fileSize: number,
+  caseId: string,
+): Promise<string> {
+  const auth = getAuth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = await auth.getClient() as any;
+  const tokenRes = await client.getAccessToken();
+  const accessToken: string = tokenRes.token;
+
+  const drive = google.drive({ version: 'v3', auth });
+  const rootFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID!;
+  const caseFolderId = await getOrCreateFolder(drive, caseId, rootFolderId);
+
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,webViewLink',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Upload-Content-Type': mimeType,
+        'X-Upload-Content-Length': String(fileSize),
+      },
+      body: JSON.stringify({ name: fileName, parents: [caseFolderId] }),
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Drive upload session failed: ${res.status} ${text}`);
+  }
+
+  const uploadUrl = res.headers.get('location');
+  if (!uploadUrl) throw new Error('Google Drive did not return an upload URL');
+  return uploadUrl;
+}
+
+/**
+ * After a direct browser-to-Drive upload completes, set the file
+ * to publicly viewable and return the share link.
+ */
+export async function finalizeFilePermissions(fileId: string): Promise<string> {
+  const drive = google.drive({ version: 'v3', auth: getAuth() });
+
+  await drive.permissions.create({
+    fileId,
+    requestBody: { role: 'reader', type: 'anyone' },
+    supportsAllDrives: true,
+  });
+
+  const file = await drive.files.get({
+    fileId,
+    fields: 'id,webViewLink',
+    supportsAllDrives: true,
+  });
+
+  return file.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+}

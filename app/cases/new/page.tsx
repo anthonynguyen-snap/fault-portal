@@ -102,10 +102,11 @@ export default function NewCasePage() {
   async function handleFileUpload(file: File) {
     if (!file) return;
     setErrors(e => ({ ...e, file: '' }));
-    const MAX_SIZE = 4 * 1024 * 1024; // 4MB — Vercel upload limit
+
+    const MAX_SIZE = 500 * 1024 * 1024; // 500MB
     if (file.size > MAX_SIZE) {
-      const mb = (file.size / 1024 / 1024).toFixed(1);
-      setErrors(e => ({ ...e, file: `${file.name} is ${mb}MB — please keep files under 4MB. Compress the image first.` }));
+      const mb = (file.size / 1024 / 1024).toFixed(0);
+      setErrors(e => ({ ...e, file: `${file.name} is ${mb}MB — maximum is 500MB.` }));
       return;
     }
     const allowed = ['image/jpeg','image/png','image/gif','image/webp','video/mp4','video/quicktime','video/x-msvideo','video/x-ms-wmv','video/avi','application/pdf'];
@@ -118,17 +119,36 @@ export default function NewCasePage() {
     const fileType = file.type;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('caseId', tempCaseId.current);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      let json: any;
-      try { json = await res.json(); } catch {
-        if (res.status === 413) throw new Error('File too large for upload. Please keep files under 4MB.');
-        throw new Error(`Upload failed (HTTP ${res.status}). Please try again.`);
-      }
-      if (!res.ok || json?.error) throw new Error(json?.error || 'Upload failed');
-      const newFile = { name: file.name, link: json.data.link, previewUrl, fileType };
+      // Step 1: Get a resumable upload URL from our server (no file data sent to Vercel)
+      const sessionRes = await fetch('/api/upload/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: file.name, fileType: file.type, fileSize: file.size, caseId: tempCaseId.current }),
+      });
+      const sessionJson = await sessionRes.json();
+      if (!sessionRes.ok || sessionJson.error) throw new Error(sessionJson.error || 'Failed to start upload session');
+
+      // Step 2: Upload file directly to Google Drive (bypasses Vercel entirely)
+      const uploadRes = await fetch(sessionJson.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!uploadRes.ok) throw new Error(`Upload to Drive failed (HTTP ${uploadRes.status})`);
+      const uploadData = await uploadRes.json();
+      const fileId = uploadData.id;
+      if (!fileId) throw new Error('Upload completed but no file ID returned from Drive');
+
+      // Step 3: Set permissions and get share link
+      const finalizeRes = await fetch('/api/upload/finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId }),
+      });
+      const finalizeJson = await finalizeRes.json();
+      if (!finalizeRes.ok || finalizeJson.error) throw new Error(finalizeJson.error || 'Failed to finalize upload');
+
+      const newFile = { name: file.name, link: finalizeJson.data.link, previewUrl, fileType };
       setUploadedFiles(prev => {
         const updated = [...prev, newFile];
         setForm(f => ({ ...f, evidenceLink: updated.map(u => u.link).join(',') }));
@@ -564,7 +584,7 @@ export default function NewCasePage() {
             Evidence Upload <span className="text-red-500">*</span>
           </h2>
           <p className="text-xs text-slate-500 mb-4">
-            Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Max 4MB each.
+            Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Images/videos/PDFs · No size limit · Multiple allowed.
           </p>
           <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
@@ -589,7 +609,7 @@ export default function NewCasePage() {
               <p className="text-sm font-medium text-slate-700">
                 {uploading ? 'Uploading…' : uploadedFiles.length > 0 ? 'Add more files' : 'Drop files here or click to browse'}
               </p>
-              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Max 4MB each · Multiple allowed</p>
+              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Images/videos/PDFs · No size limit · Multiple allowed · Multiple allowed</p>
               {uploading && (
                 <div className="mt-3">
                   <div className="w-32 h-1 bg-slate-200 rounded-full mx-auto overflow-hidden">
