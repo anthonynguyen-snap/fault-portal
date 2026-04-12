@@ -133,20 +133,49 @@ export default function NewCasePage() {
         throw new Error(`Step 1 (start upload): ${e.message}`);
       }
 
-      // Step 2: Upload through Edge proxy → Google Drive
-      let fileId: string;
+      // Step 2: Upload in 3 MB chunks through Edge proxy → Google Drive
+      // (Vercel caps request bodies at 4.5 MB, so chunks must stay under that)
+      let fileId: string = '';
       try {
-        const uploadRes = await fetch('/api/upload/proxy', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type,
-            'X-Upload-Url': sessionJson.uploadUrl,
-          },
-          body: file,
-        });
-        const uploadData = await uploadRes.json();
-        if (!uploadRes.ok || uploadData.error) throw new Error(uploadData.error || `HTTP ${uploadRes.status}`);
-        fileId = uploadData.id;
+        const CHUNK = 3 * 1024 * 1024; // 3 MB
+        const total = file.size;
+        let offset = 0;
+        let done = false;
+
+        while (!done) {
+          const end   = Math.min(offset + CHUNK, total);
+          const chunk = file.slice(offset, end);
+          // Content-Range: bytes <start>-<end-1>/<total>
+          const contentRange = `bytes ${offset}-${end - 1}/${total}`;
+
+          const uploadRes = await fetch('/api/upload/proxy', {
+            method: 'PUT',
+            headers: {
+              'Content-Type':    file.type || 'application/octet-stream',
+              'X-Upload-Url':    sessionJson.uploadUrl,
+              'X-Content-Range': contentRange,
+            },
+            body: chunk,
+          });
+
+          const uploadData = await uploadRes.json();
+          if (!uploadRes.ok || uploadData.error) {
+            throw new Error(uploadData.error || `HTTP ${uploadRes.status}`);
+          }
+
+          if (uploadData.status === 'complete') {
+            fileId = uploadData.id;
+            done   = true;
+          } else {
+            // 'incomplete' — advance to next chunk
+            offset = end;
+            if (offset >= total) {
+              // All bytes sent but Google hasn't returned 200 yet (shouldn't happen)
+              throw new Error('All bytes sent but no file ID returned');
+            }
+          }
+        }
+
         if (!fileId) throw new Error('no file ID in response');
       } catch (e: any) {
         throw new Error(`Step 2 (send file): ${e.message}`);
