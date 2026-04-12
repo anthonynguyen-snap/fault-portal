@@ -148,11 +148,11 @@ export default function NewCasePage() {
           // Content-Range: bytes <start>-<end-1>/<total>
           const contentRange = `bytes ${offset}-${end - 1}/${total}`;
 
-          const uploadRes = await fetch('/api/upload/proxy', {
+          const proxyUrl = `/api/upload/proxy?u=${encodeURIComponent(sessionJson.uploadUrl)}`;
+          const uploadRes = await fetch(proxyUrl, {
             method: 'PUT',
             headers: {
               'Content-Type':    file.type || 'application/octet-stream',
-              'X-Upload-Url':    sessionJson.uploadUrl,
               'X-Content-Range': contentRange,
             },
             body: chunk,
@@ -160,7 +160,8 @@ export default function NewCasePage() {
 
           const uploadData = await uploadRes.json();
           if (!uploadRes.ok || uploadData.error) {
-            throw new Error(uploadData.error || `HTTP ${uploadRes.status}`);
+            const detail = uploadData.detail ? ` — ${String(uploadData.detail).slice(0, 300)}` : '';
+            throw new Error((uploadData.error || `HTTP ${uploadRes.status}`) + detail);
           }
 
           if (uploadData.status === 'complete') {

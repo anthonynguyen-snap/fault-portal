@@ -3,24 +3,25 @@ import { NextRequest } from 'next/server';
 export const runtime = 'edge';
 
 // Proxy a single chunk to Google Drive resumable upload.
+// The Google Drive upload URL is passed as a URL-encoded query parameter
+// (?u=...) to avoid header length / encoding issues.
 // Chunks must be <= 3 MB so they stay under Vercel's 4.5 MB body limit.
-// The client sends the Google-Drive upload URL in X-Upload-Url and the
-// byte range in X-Content-Range (e.g. "bytes 0-3145727/10000000").
 export async function PUT(req: NextRequest) {
-  const uploadUrl    = req.headers.get('x-upload-url');
-  const contentType  = req.headers.get('content-type') || 'application/octet-stream';
-  const contentRange = req.headers.get('x-content-range'); // forwarded as Content-Range to Drive
+  // Upload URL passed as query param to avoid header length/encoding issues
+  const uploadUrl   = req.nextUrl.searchParams.get('u');
+  const contentType = req.headers.get('content-type') || 'application/octet-stream';
+  // Content-Range forwarded verbatim (e.g. "bytes 0-3145727/10000000")
+  const contentRange = req.headers.get('x-content-range');
 
   if (!uploadUrl) {
-    return Response.json({ error: 'Missing x-upload-url header' }, { status: 400 });
+    return Response.json({ error: 'Missing ?u= upload URL param' }, { status: 400 });
   }
 
   try {
     const blob = await req.blob();
 
     const driveHeaders: Record<string, string> = {
-      'Content-Type':   contentType,
-      'Content-Length': String(blob.size),
+      'Content-Type': contentType,
     };
     if (contentRange) {
       driveHeaders['Content-Range'] = contentRange;
@@ -45,7 +46,7 @@ export async function PUT(req: NextRequest) {
     if (!driveRes.ok) {
       return Response.json(
         { error: `Drive upload failed (${driveRes.status})`, detail: text },
-        { status: 500 },
+        { status: 502 },
       );
     }
 
