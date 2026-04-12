@@ -3,23 +3,23 @@ import { NextRequest } from 'next/server';
 export const runtime = 'edge';
 
 // Proxy a single chunk to Google Drive resumable upload.
-// Accepts the upload session ID via X-Upload-Id header (short, safe).
-// Reconstructs the full Google Drive upload URL server-side to avoid
-// any client-side URL encoding/decoding corruption.
+// The full Google Drive upload URL is passed as a base64-encoded header
+// (X-Upload-B64) so no URL encoding/decoding can corrupt it.
 export async function PUT(req: NextRequest) {
-  const uploadId    = req.headers.get('x-upload-id');
+  const uploadB64   = req.headers.get('x-upload-b64');
   const contentType = req.headers.get('content-type') || 'application/octet-stream';
   const contentRange = req.headers.get('x-content-range');
 
-  if (!uploadId) {
-    return Response.json({ error: 'Missing x-upload-id header' }, { status: 400 });
+  if (!uploadB64) {
+    return Response.json({ error: 'Missing X-Upload-B64 header' }, { status: 400 });
   }
 
-  // Reconstruct the canonical Drive resumable-upload URL from the session ID.
-  // This avoids passing the full URL through client-side code where it could
-  // get corrupted by encoding/decoding.
-  const driveUploadUrl =
-    `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=${uploadId}`;
+  let uploadUrl: string;
+  try {
+    uploadUrl = atob(uploadB64);
+  } catch {
+    return Response.json({ error: 'Could not decode X-Upload-B64 header' }, { status: 400 });
+  }
 
   try {
     const blob = await req.blob();
@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest) {
       driveHeaders['Content-Range'] = contentRange;
     }
 
-    const driveRes = await fetch(driveUploadUrl, {
+    const driveRes = await fetch(uploadUrl, {
       method: 'PUT',
       headers: driveHeaders,
       body: blob,
@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // 200 / 201 — upload complete; Google returns file metadata JSON
+    // 200 / 201 — upload complete
     let data: any = {};
     try { data = JSON.parse(text); } catch { /* ignore */ }
 

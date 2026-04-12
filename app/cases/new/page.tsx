@@ -152,7 +152,7 @@ export default function NewCasePage() {
             method: 'PUT',
             headers: {
               'Content-Type':    file.type || 'application/octet-stream',
-              'X-Upload-Id':     sessionJson.uploadId,
+              'X-Upload-B64':    btoa(sessionJson.uploadUrl),
               'X-Content-Range': contentRange,
             },
             body: chunk,
