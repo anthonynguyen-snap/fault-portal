@@ -49,7 +49,7 @@ export async function PUT(req: NextRequest) {
 
     if (!driveRes.ok) {
       return Response.json(
-        { error: `Drive upload failed (${driveRes.status})`, detail: text },
+        { error: `Drive upload failed (${driveRes.status})`, detail: text, urlUsed: uploadUrl.slice(0, 150) },
         { status: 502 },
       );
     }

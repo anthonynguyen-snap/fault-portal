@@ -160,8 +160,9 @@ export default function NewCasePage() {
 
           const uploadData = await uploadRes.json();
           if (!uploadRes.ok || uploadData.error) {
-            const detail = uploadData.detail ? ` — ${String(uploadData.detail).slice(0, 300)}` : '';
-            throw new Error((uploadData.error || `HTTP ${uploadRes.status}`) + detail);
+            const detail = uploadData.detail ? ` — ${String(uploadData.detail).slice(0, 200)}` : '';
+            const urlUsed = uploadData.urlUsed ? ` [url:${uploadData.urlUsed}]` : '';
+            throw new Error((uploadData.error || `HTTP ${uploadRes.status}`) + detail + urlUsed);
           }
 
           if (uploadData.status === 'complete') {
