@@ -3,19 +3,23 @@ import { NextRequest } from 'next/server';
 export const runtime = 'edge';
 
 // Proxy a single chunk to Google Drive resumable upload.
-// The Google Drive upload URL is passed as a URL-encoded query parameter
-// (?u=...) to avoid header length / encoding issues.
-// Chunks must be <= 3 MB so they stay under Vercel's 4.5 MB body limit.
+// Accepts the upload session ID via X-Upload-Id header (short, safe).
+// Reconstructs the full Google Drive upload URL server-side to avoid
+// any client-side URL encoding/decoding corruption.
 export async function PUT(req: NextRequest) {
-  // Upload URL passed as query param to avoid header length/encoding issues
-  const uploadUrl   = req.nextUrl.searchParams.get('u');
+  const uploadId    = req.headers.get('x-upload-id');
   const contentType = req.headers.get('content-type') || 'application/octet-stream';
-  // Content-Range forwarded verbatim (e.g. "bytes 0-3145727/10000000")
   const contentRange = req.headers.get('x-content-range');
 
-  if (!uploadUrl) {
-    return Response.json({ error: 'Missing ?u= upload URL param' }, { status: 400 });
+  if (!uploadId) {
+    return Response.json({ error: 'Missing x-upload-id header' }, { status: 400 });
   }
+
+  // Reconstruct the canonical Drive resumable-upload URL from the session ID.
+  // This avoids passing the full URL through client-side code where it could
+  // get corrupted by encoding/decoding.
+  const driveUploadUrl =
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=${uploadId}`;
 
   try {
     const blob = await req.blob();
@@ -27,7 +31,7 @@ export async function PUT(req: NextRequest) {
       driveHeaders['Content-Range'] = contentRange;
     }
 
-    const driveRes = await fetch(uploadUrl, {
+    const driveRes = await fetch(driveUploadUrl, {
       method: 'PUT',
       headers: driveHeaders,
       body: blob,

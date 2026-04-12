@@ -148,11 +148,11 @@ export default function NewCasePage() {
           // Content-Range: bytes <start>-<end-1>/<total>
           const contentRange = `bytes ${offset}-${end - 1}/${total}`;
 
-          const proxyUrl = `/api/upload/proxy?u=${encodeURIComponent(sessionJson.uploadUrl)}`;
-          const uploadRes = await fetch(proxyUrl, {
+          const uploadRes = await fetch('/api/upload/proxy', {
             method: 'PUT',
             headers: {
               'Content-Type':    file.type || 'application/octet-stream',
+              'X-Upload-Id':     sessionJson.uploadId,
               'X-Content-Range': contentRange,
             },
             body: chunk,
