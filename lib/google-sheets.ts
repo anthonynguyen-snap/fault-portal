@@ -216,14 +216,17 @@ export async function updateProduct(
 
 export async function deleteProduct(id: string): Promise<void> {
   const sheets = getSheets();
-  const products = await getProducts();
-  const idx = products.findIndex(p => p.id === id);
-  if (idx === -1) throw new Error(`Product ${id} not found`);
-  const sheetRow = idx + 2;
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId: SHEET_ID,
-    range: `Products!A${sheetRow}:E${sheetRow}`,
-  });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Products!A2:E' });
+  const rows = res.data.values || [];
+  const filtered = rows.filter(r => r[0] !== id);
+  if (filtered.length === rows.length) throw new Error(`Product ${id} not found`);
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'Products!A2:E' });
+  if (filtered.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID, range: 'Products!A2',
+      valueInputOption: 'RAW', requestBody: { values: filtered },
+    });
+  }
 }
 
 // =========================================================
@@ -286,14 +289,17 @@ export async function updateManufacturer(
 
 export async function deleteManufacturer(id: string): Promise<void> {
   const sheets = getSheets();
-  const mfrs = await getManufacturers();
-  const idx = mfrs.findIndex(m => m.id === id);
-  if (idx === -1) throw new Error(`Manufacturer ${id} not found`);
-  const sheetRow = idx + 2;
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId: SHEET_ID,
-    range: `Manufacturers!A${sheetRow}:E${sheetRow}`,
-  });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Manufacturers!A2:E' });
+  const rows = res.data.values || [];
+  const filtered = rows.filter(r => r[0] !== id);
+  if (filtered.length === rows.length) throw new Error(`Manufacturer ${id} not found`);
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'Manufacturers!A2:E' });
+  if (filtered.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID, range: 'Manufacturers!A2',
+      valueInputOption: 'RAW', requestBody: { values: filtered },
+    });
+  }
 }
 
 // =========================================================
@@ -354,14 +360,17 @@ export async function updateFaultType(
 
 export async function deleteFaultType(id: string): Promise<void> {
   const sheets = getSheets();
-  const fts = await getFaultTypes();
-  const idx = fts.findIndex(f => f.id === id);
-  if (idx === -1) throw new Error(`FaultType ${id} not found`);
-  const sheetRow = idx + 2;
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId: SHEET_ID,
-    range: `FaultTypes!A${sheetRow}:C${sheetRow}`,
-  });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'FaultTypes!A2:C' });
+  const rows = res.data.values || [];
+  const filtered = rows.filter(r => r[0] !== id);
+  if (filtered.length === rows.length) throw new Error(`FaultType ${id} not found`);
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'FaultTypes!A2:C' });
+  if (filtered.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID, range: 'FaultTypes!A2',
+      valueInputOption: 'RAW', requestBody: { values: filtered },
+    });
+  }
 }
 
 // =========================================================
