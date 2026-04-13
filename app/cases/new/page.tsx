@@ -134,30 +134,38 @@ export default function NewCasePage() {
       }
 
       // Step 2: Upload chunks via the Node.js serverless proxy.
-      // The session URL travels in the FormData body (not a header/query param)
-      // so it can't be corrupted. The proxy adds the Google Authorization header.
+      // Chunk data is base64-encoded and sent as JSON so there is no
+      // binary multipart encoding — avoids Vercel connection-reset issues.
       let fileId: string = '';
       try {
-        // 3 MB chunks — safely under Vercel's 4.5 MB body limit when combined
-        // with the multipart envelope.
-        const CHUNK = 3 * 1024 * 1024;
+        const CHUNK = 1 * 1024 * 1024; // 1 MB raw -> ~1.33 MB base64 -> well under 4.5 MB
         const total = file.size;
         const mimeType = file.type || 'application/octet-stream';
         let offset = 0;
 
         while (true) {
           const end = Math.min(offset + CHUNK, total);
+          const chunkBlob = file.slice(offset, end);
+          const chunkBuffer = await chunkBlob.arrayBuffer();
+          // Safe base64 encode without spread (avoids stack overflow on large chunks)
+          let binary = '';
+          const bytes = new Uint8Array(chunkBuffer);
+          for (let b = 0; b < bytes.byteLength; b++) binary += String.fromCharCode(bytes[b]);
+          const chunkBase64 = btoa(binary);
           const contentRange = `bytes ${offset}-${end - 1}/${total}`;
 
-          const fd = new FormData();
-          fd.append('sessionUrl',    sessionJson.uploadUrl);
-          fd.append('contentRange',  contentRange);
-          fd.append('mimeType',      mimeType);
-          fd.append('chunk', new Blob([file.slice(offset, end)], { type: mimeType }), file.name);
+          const uploadRes = await fetch('/api/upload/chunk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionUrl: sessionJson.uploadUrl,
+              chunkBase64,
+              contentRange,
+              mimeType,
+            }),
+          });
 
-          const uploadRes = await fetch('/api/upload/chunk', { method: 'POST', body: fd });
           const uploadData = await uploadRes.json();
-
           if (!uploadRes.ok || uploadData.error) {
             throw new Error(uploadData.error || `HTTP ${uploadRes.status}`);
           }

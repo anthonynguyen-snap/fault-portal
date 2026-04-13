@@ -3,30 +3,29 @@ import { uploadChunkToDrive } from '@/lib/google-drive';
 
 export const runtime = 'nodejs';
 
-// Receives one 3MB chunk as multipart FormData:
-//   sessionUrl  — Google Drive resumable upload URL (text)
-//   chunk       — binary file chunk (file field)
-//   contentRange — e.g. "bytes 0-3145727/10000000" (text)
-//   mimeType    — file MIME type (text)
+// Accepts JSON body:
+//   sessionUrl   — Google Drive resumable upload URL
+//   chunkBase64  — base64-encoded chunk bytes
+//   contentRange — e.g. "bytes 0-1048575/5000000"
+//   mimeType     — file MIME type
 //
-// Node.js runtime so it can: (a) access Google credentials for auth,
-// (b) accept up to 4.5MB body (3MB chunk + overhead is safe).
+// Using JSON + base64 (not multipart FormData) avoids binary encoding
+// issues and Vercel infrastructure connection-resets on large bodies.
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const sessionUrl  = formData.get('sessionUrl')  as string | null;
-    const chunkBlob   = formData.get('chunk')        as Blob   | null;
-    const contentRange = formData.get('contentRange') as string | null;
-    const mimeType    = (formData.get('mimeType')    as string | null) || 'application/octet-stream';
+    const { sessionUrl, chunkBase64, contentRange, mimeType } = await req.json();
 
-    if (!sessionUrl) return NextResponse.json({ error: 'Missing sessionUrl' }, { status: 400 });
-    if (!chunkBlob)  return NextResponse.json({ error: 'Missing chunk'      }, { status: 400 });
+    if (!sessionUrl)   return NextResponse.json({ error: 'Missing sessionUrl'  }, { status: 400 });
+    if (!chunkBase64)  return NextResponse.json({ error: 'Missing chunkBase64' }, { status: 400 });
 
-    const chunkBuffer = Buffer.from(await chunkBlob.arrayBuffer());
+    // Decode base64 → Buffer
+    const chunkBuffer = Buffer.from(chunkBase64, 'base64');
+    const mime = mimeType || 'application/octet-stream';
+
     const result = await uploadChunkToDrive(
       sessionUrl,
       chunkBuffer,
-      mimeType,
+      mime,
       contentRange ?? undefined,
     );
 
