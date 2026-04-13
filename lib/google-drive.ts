@@ -229,38 +229,65 @@ export async function uploadChunkToDrive(
   mimeType: string,
   contentRange?: string,
 ): Promise<{ status: 'incomplete' | 'complete'; id: string | null; range: string }> {
+  // Get a fresh Google access token
   const auth = getAuth();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = await auth.getClient() as any;
   const tokenRes = await client.getAccessToken();
   const accessToken: string = tokenRes.token;
 
-  const headers: Record<string, string> = {
-    'Content-Type': mimeType || 'application/octet-stream',
-    'Authorization': `Bearer ${accessToken}`,
-  };
-  if (contentRange) headers['Content-Range'] = contentRange;
+  // Use Node.js https module directly — bypasses any googleapis fetch
+  // interception that rewrites /upload/drive/v3/files?upload_id=X
+  // into /drive/v3/files/X, causing persistent 404 errors.
+  const https = await import('https');
+  const { URL: NodeURL } = await import('url');
 
-  const driveRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    body: chunkBuffer as any,
+  const parsed = new NodeURL(uploadUrl);
+  const reqHeaders: Record<string, string | number> = {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': mimeType || 'application/octet-stream',
+    'Content-Length': chunkBuffer.length,
+  };
+  if (contentRange) reqHeaders['Content-Range'] = contentRange;
+
+  const { statusCode, body, resHeaders } = await new Promise<{
+    statusCode: number;
+    body: string;
+    resHeaders: Record<string, string | string[] | undefined>;
+  }>((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: 'PUT',
+        headers: reqHeaders,
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+        res.on('end', () => resolve({
+          statusCode: res.statusCode ?? 0,
+          body: data,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          resHeaders: res.headers as any,
+        }));
+      },
+    );
+    req.on('error', reject);
+    req.write(chunkBuffer);
+    req.end();
   });
 
-  const text = await driveRes.text();
-
-  // 308 Resume Incomplete = chunk accepted, more needed
-  if (driveRes.status === 308) {
-    return { status: 'incomplete', id: null, range: driveRes.headers.get('range') ?? '' };
+  // 308 Resume Incomplete — chunk received, more needed
+  if (statusCode === 308) {
+    return { status: 'incomplete', id: null, range: (resHeaders['range'] as string) ?? '' };
   }
-
-  if (!driveRes.ok) {
-    throw new Error(`Drive chunk upload failed (${driveRes.status}): ${text.slice(0, 400)}`);
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error(
+      `Drive chunk upload failed (${statusCode}) [url: ${uploadUrl.slice(0, 120)}]: ${body.slice(0, 400)}`,
+    );
   }
-
   let data: { id?: string } = {};
-  try { data = JSON.parse(text); } catch { /* ignore */ }
+  try { data = JSON.parse(body); } catch { /* ignore */ }
   return { status: 'complete', id: data.id ?? null, range: '' };
 }
-
