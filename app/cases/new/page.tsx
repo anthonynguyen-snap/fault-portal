@@ -629,100 +629,45 @@ export default function NewCasePage() {
           </div>
         )}
 
-        {/* ── Evidence Upload (shared across both modes) ── */}
+        {/* Evidence Links */}
         <div className="card p-6">
           <h2 className="text-sm font-semibold text-slate-900 mb-1 pb-2 border-b border-slate-100">
-            Evidence Upload <span className="text-red-500">*</span>
+            Evidence Links <span className="text-red-500">*</span>
           </h2>
-          <p className="text-xs text-slate-500 mb-4">
-            Upload photos, videos (MP4, MOV, AVI), or PDFs of the fault. Images/videos/PDFs · No size limit · Multiple allowed.
+          <p className="text-xs text-slate-500 mb-3">
+            Upload files to{" "}
+            <a href="https://drive.google.com" target="_blank" rel="noopener noreferrer"
+              className="text-brand-600 hover:underline font-medium">Google Drive</a>
+            {", then paste the share link(s) here. Separate multiple links with a comma or new line."}
           </p>
-          <div
-              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={e => {
-                e.preventDefault();
-                setDragOver(false);
-                handleFilesSelected(e.dataTransfer.files);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
-                dragOver
-                  ? 'border-brand-600 bg-brand-50'
-                  : errors.file
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-slate-200 hover:border-brand-400 hover:bg-slate-50'
-              }`}
-            >
-              <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-2">
-                <Upload size={20} className="text-slate-400" />
-              </div>
-              <p className="text-sm font-medium text-slate-700">
-                {uploading ? 'Uploading…' : uploadedFiles.length > 0 ? 'Add more files' : 'Drop files here or click to browse'}
-              </p>
-              <p className="text-xs text-slate-400 mt-1">Images, MP4, PDF · Images/videos/PDFs · No size limit · Multiple allowed · Multiple allowed</p>
-              {uploading && (
-                <div className="mt-3">
-                  <div className="w-32 h-1 bg-slate-200 rounded-full mx-auto overflow-hidden">
-                    <div className="h-full bg-brand-600 rounded-full animate-pulse" style={{ width: '70%' }} />
-                  </div>
-                  <p className="text-xs text-brand-600 mt-1">Uploading to Google Drive…</p>
-                </div>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,video/*,.mov,.mp4,.avi,.wmv,.mkv,.pdf"
-                multiple
-                className="hidden"
-                onChange={e => {
-                  handleFilesSelected(e.target.files);
-                  e.target.value = '';
-                }}
-              />
-            </div>
+          <textarea
+            value={form.evidenceLink}
+            onChange={e => { handleChange('evidenceLink', e.target.value); setErrors(prev => ({ ...prev, file: '' })); }}
+            rows={3}
+            placeholder="https://drive.google.com/file/d/..."
+            className={`form-input resize-none text-xs font-mono ${errors.file ? 'border-red-300' : ''}`}
+          />
           {errors.file && (
             <div className="flex items-center gap-2 mt-2">
               <AlertCircle size={14} className="text-red-500" />
               <p className="form-error mt-0">{errors.file}</p>
             </div>
           )}
-          {uploadedFiles.length > 0 && (
-            <div className="space-y-2 mt-3">
-              {uploadedFiles.map((uf, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    {uf.previewUrl
-                      ? <img src={uf.previewUrl} alt="" className="w-9 h-9 object-cover rounded-lg" />
-                      : uf.fileType?.startsWith('video/')
-                      ? <span className="text-lg">🎬</span>
-                      : uf.fileType === 'application/pdf'
-                      ? <span className="text-lg">📄</span>
-                      : <CheckCircle size={18} className="text-emerald-600" />
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-emerald-800 truncate">{uf.name}</p>
-                    <a href={uf.link} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-emerald-600 hover:underline">
-                      View in Google Drive
-                    </a>
-                  </div>
-                  <button type="button"
-                    onClick={() => {
-                      setUploadedFiles(prev => {
-                        const updated = prev.filter((_, i) => i !== idx);
-                        setForm(f => ({ ...f, evidenceLink: updated.map(u => u.link).join(',') }));
-                        return updated;
-                      });
-                    }}
-                    className="text-emerald-500 hover:text-emerald-700 p-1 flex-shrink-0">
-                    <X size={16} />
-                  </button>
-                </div>
+          {form.evidenceLink.trim() && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {form.evidenceLink.split(/[,\n]/).filter((l: string) => l.trim()).map((link: string, i: number) => (
+                <a key={i} href={link.trim()} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline bg-brand-50 border border-brand-200 px-2 py-1 rounded-lg">
+                  <CheckCircle size={11} /> Link {i + 1}
+                </a>
               ))}
             </div>
           )}
+          <a href="https://drive.google.com" target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 mt-3 text-xs text-slate-400 hover:text-brand-600 transition-colors">
+            <Upload size={12} />
+            Open Google Drive
+          </a>
         </div>
 
         {/* Submit error */}
@@ -735,7 +680,7 @@ export default function NewCasePage() {
 
         <div className="flex items-center justify-between gap-4 pb-4">
           <Link href="/cases" className="btn-secondary">Cancel</Link>
-          <button type="submit" disabled={submitting || uploading} className="btn-primary px-8">
+          <button type="submit" disabled={submitting} className="btn-primary px-8">
             {submitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
