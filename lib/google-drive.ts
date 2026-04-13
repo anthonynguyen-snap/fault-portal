@@ -218,3 +218,49 @@ export async function finalizeFilePermissions(fileId: string): Promise<string> {
 
   return file.data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
 }
+
+/**
+ * Upload one chunk of a resumable upload directly from the server.
+ * Includes the Authorization header so Google accepts the request.
+ */
+export async function uploadChunkToDrive(
+  uploadUrl: string,
+  chunkBuffer: Buffer,
+  mimeType: string,
+  contentRange?: string,
+): Promise<{ status: 'incomplete' | 'complete'; id: string | null; range: string }> {
+  const auth = getAuth();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = await auth.getClient() as any;
+  const tokenRes = await client.getAccessToken();
+  const accessToken: string = tokenRes.token;
+
+  const headers: Record<string, string> = {
+    'Content-Type': mimeType || 'application/octet-stream',
+    'Authorization': `Bearer ${accessToken}`,
+  };
+  if (contentRange) headers['Content-Range'] = contentRange;
+
+  const driveRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    body: chunkBuffer as any,
+  });
+
+  const text = await driveRes.text();
+
+  // 308 Resume Incomplete = chunk accepted, more needed
+  if (driveRes.status === 308) {
+    return { status: 'incomplete', id: null, range: driveRes.headers.get('range') ?? '' };
+  }
+
+  if (!driveRes.ok) {
+    throw new Error(`Drive chunk upload failed (${driveRes.status}): ${text.slice(0, 400)}`);
+  }
+
+  let data: { id?: string } = {};
+  try { data = JSON.parse(text); } catch { /* ignore */ }
+  return { status: 'complete', id: data.id ?? null, range: '' };
+}
+

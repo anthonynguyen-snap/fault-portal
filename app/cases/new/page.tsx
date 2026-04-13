@@ -133,46 +133,45 @@ export default function NewCasePage() {
         throw new Error(`Step 1 (start upload): ${e.message}`);
       }
 
-      // Step 2: Upload in 3 MB chunks through Edge proxy → Google Drive
-      // (Vercel caps request bodies at 4.5 MB, so chunks must stay under that)
+      // Step 2: Upload in 3 MB chunks via Node.js serverless route.
+      // Session URL is sent as a FormData field (not a header) so no
+      // encoding corruption can occur. Node.js runtime includes Google
+      // auth credentials in the Drive PUT request.
       let fileId: string = '';
       try {
-        const CHUNK = 3 * 1024 * 1024; // 3 MB
+        const CHUNK = 3 * 1024 * 1024; // 3 MB — safely under Vercel's 4.5 MB limit
         const total = file.size;
+        const mimeType = file.type || 'application/octet-stream';
         let offset = 0;
         let done = false;
 
         while (!done) {
           const end   = Math.min(offset + CHUNK, total);
-          const chunk = file.slice(offset, end);
-          // Content-Range: bytes <start>-<end-1>/<total>
           const contentRange = `bytes ${offset}-${end - 1}/${total}`;
 
-          const uploadRes = await fetch('/api/upload/proxy', {
-            method: 'PUT',
-            headers: {
-              'Content-Type':    file.type || 'application/octet-stream',
-              'X-Upload-B64':    btoa(sessionJson.uploadUrl),
-              'X-Content-Range': contentRange,
-            },
-            body: chunk,
+          const fd = new FormData();
+          fd.append('sessionUrl',   sessionJson.uploadUrl);
+          fd.append('contentRange', contentRange);
+          fd.append('mimeType',     mimeType);
+          fd.append('chunk', new Blob([file.slice(offset, end)], { type: mimeType }), file.name);
+
+          const uploadRes = await fetch('/api/upload/chunk', {
+            method: 'POST',
+            body: fd,
+            // Note: no Content-Type header — browser sets multipart/form-data with boundary
           });
 
           const uploadData = await uploadRes.json();
           if (!uploadRes.ok || uploadData.error) {
-            const detail = uploadData.detail ? ` — ${String(uploadData.detail).slice(0, 200)}` : '';
-            const urlUsed = uploadData.urlUsed ? ` [url:${uploadData.urlUsed}]` : '';
-            throw new Error((uploadData.error || `HTTP ${uploadRes.status}`) + detail + urlUsed);
+            throw new Error(uploadData.error || `HTTP ${uploadRes.status}`);
           }
 
           if (uploadData.status === 'complete') {
             fileId = uploadData.id;
             done   = true;
           } else {
-            // 'incomplete' — advance to next chunk
             offset = end;
             if (offset >= total) {
-              // All bytes sent but Google hasn't returned 200 yet (shouldn't happen)
               throw new Error('All bytes sent but no file ID returned');
             }
           }
