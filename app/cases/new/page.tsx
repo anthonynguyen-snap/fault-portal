@@ -133,48 +133,42 @@ export default function NewCasePage() {
         throw new Error(`Step 1 (start upload): ${e.message}`);
       }
 
-      // Step 2: Upload chunks directly from browser -> Google Drive.
-      // The resumable session URL is self-authenticating (contains Google's
-      // own upload token) so no Authorization header is needed from the browser.
-      // This completely bypasses Vercel's 4.5 MB body limit.
+      // Step 2: Upload chunks via the Node.js serverless proxy.
+      // The session URL travels in the FormData body (not a header/query param)
+      // so it can't be corrupted. The proxy adds the Google Authorization header.
       let fileId: string = '';
       try {
-        // Google requires chunks to be multiples of 256 KB (except the last).
-        // 5 MB = 20 x 256 KB -- a safe, recommended chunk size.
-        const CHUNK = 5 * 1024 * 1024;
+        // 3 MB chunks — safely under Vercel's 4.5 MB body limit when combined
+        // with the multipart envelope.
+        const CHUNK = 3 * 1024 * 1024;
         const total = file.size;
         const mimeType = file.type || 'application/octet-stream';
         let offset = 0;
 
         while (true) {
           const end = Math.min(offset + CHUNK, total);
-          const chunk = file.slice(offset, end);
           const contentRange = `bytes ${offset}-${end - 1}/${total}`;
 
-          const uploadRes = await fetch(sessionJson.uploadUrl, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': mimeType,
-              'Content-Range': contentRange,
-            },
-            body: chunk,
-          });
+          const fd = new FormData();
+          fd.append('sessionUrl',    sessionJson.uploadUrl);
+          fd.append('contentRange',  contentRange);
+          fd.append('mimeType',      mimeType);
+          fd.append('chunk', new Blob([file.slice(offset, end)], { type: mimeType }), file.name);
 
-          if (uploadRes.status === 308) {
-            // Drive accepted the chunk, wants more
-            offset = end;
-            continue;
+          const uploadRes = await fetch('/api/upload/chunk', { method: 'POST', body: fd });
+          const uploadData = await uploadRes.json();
+
+          if (!uploadRes.ok || uploadData.error) {
+            throw new Error(uploadData.error || `HTTP ${uploadRes.status}`);
           }
 
-          if (!uploadRes.ok) {
-            const text = await uploadRes.text();
-            throw new Error(`Drive upload failed (${uploadRes.status}): ${text.slice(0, 300)}`);
+          if (uploadData.status === 'complete') {
+            fileId = uploadData.id;
+            break;
           }
 
-          // 200 or 201 -- upload complete
-          const data = await uploadRes.json();
-          fileId = data.id;
-          break;
+          offset = end;
+          if (offset >= total) throw new Error('All bytes sent but no file ID returned');
         }
 
         if (!fileId) throw new Error('No file ID returned from Drive');
