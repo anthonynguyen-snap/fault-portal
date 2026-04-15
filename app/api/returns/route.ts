@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import { Return } from '@/types';
 
 export const runtime = 'nodejs';
@@ -28,7 +28,7 @@ function fromRow(row: Record<string, unknown>): Return {
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('returns')
       .select('*')
       .order('created_at', { ascending: false });
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
       processed_by:     processedBy || '',
     };
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('returns')
       .insert(row)
       .select()

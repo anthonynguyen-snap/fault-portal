@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabase } from '@/lib/supabase';
 import { Return } from '@/types';
 
 export const runtime = 'nodejs';
@@ -44,12 +44,13 @@ function toSnake(updates: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('returns')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -60,15 +61,16 @@ export async function GET(_: NextRequest, { params }: { params: { id: string } }
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     const body = await req.json();
     const snakeUpdates = toSnake(body);
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('returns')
       .update(snakeUpdates)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
