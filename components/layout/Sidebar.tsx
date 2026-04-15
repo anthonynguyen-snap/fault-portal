@@ -10,6 +10,7 @@ import {
   BarChart2,
   Settings,
   ChevronRight,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +35,11 @@ const navItems = [
     label: 'Claims',
     href: '/claims',
     icon: FileText,
+  },
+  {
+    label: 'Returns',
+    href: '/returns',
+    icon: RotateCcw,
   },
   {
     label: 'Reports',

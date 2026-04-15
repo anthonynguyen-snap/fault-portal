@@ -104,3 +104,42 @@ export interface ApiResponse<T> {
   error?: string;
   message?: string;
 }
+
+// =========================================================
+// RETURNS
+// =========================================================
+export type ReturnCondition =
+  | 'Sealed'
+  | 'Open - Good Condition'
+  | 'Open - Damaged Packaging'
+  | 'Faulty';
+
+export type ReturnDecision =
+  | 'Full Refund'
+  | 'Exchange'
+  | 'Refund + Restocking Fee'
+  | 'Replacement'
+  | 'Pending';
+
+export type ReturnStatus = 'Received' | 'Inspected' | 'Processed' | 'Closed';
+
+export type FollowUpStatus = 'N/A' | 'Pending' | 'Completed';
+
+export interface Return {
+  id: string;
+  date: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  product: string;
+  condition: ReturnCondition;
+  decision: ReturnDecision;
+  restockingFee: number;        // 0–30 (%)
+  assignedTo: string;
+  followUpStatus: FollowUpStatus;
+  followUpNotes: string;
+  notes: string;
+  status: ReturnStatus;
+  processedBy: string;
+  createdAt: string;
+}
