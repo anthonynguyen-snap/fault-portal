@@ -11,11 +11,6 @@ import {
   FaultType,
   Claim,
   ClaimStatus,
-  Return,
-  ReturnCondition,
-  ReturnDecision,
-  ReturnStatus,
-  FollowUpStatus,
 } from '@/types';
 
 // --- Auth Setup ---
@@ -485,94 +480,4 @@ export async function bulkUpdateCaseStatuses(
   });
 }
 
-// =========================================================
-// RETURNS
-// Columns A-P (16 cols)
-// A:id B:date C:orderNumber D:customerName E:customerEmail
-// F:product G:condition H:decision I:restockingFee
-// J:assignedTo K:followUpStatus L:followUpNotes M:notes
-// N:status O:processedBy P:createdAt
-// =========================================================
-const RETURNS_RANGE = 'Returns!A2:P';
-const RETURNS_COLS  = 'Returns!A:P';
-
-function rowToReturn(row: string[]): Return {
-  return {
-    id:             row[0]  || '',
-    date:           row[1]  || '',
-    orderNumber:    row[2]  || '',
-    customerName:   row[3]  || '',
-    customerEmail:  row[4]  || '',
-    product:        row[5]  || '',
-    condition:      (row[6]  as ReturnCondition)  || 'Sealed',
-    decision:       (row[7]  as ReturnDecision)   || 'Pending',
-    restockingFee:  parseFloat(row[8])  || 0,
-    assignedTo:     row[9]  || '',
-    followUpStatus: (row[10] as FollowUpStatus)   || 'N/A',
-    followUpNotes:  row[11] || '',
-    notes:          row[12] || '',
-    status:         (row[13] as ReturnStatus)     || 'Received',
-    processedBy:    row[14] || '',
-    createdAt:      row[15] || '',
-  };
-}
-
-function returnToRow(r: Return): string[] {
-  return [
-    r.id, r.date, r.orderNumber, r.customerName, r.customerEmail,
-    r.product, r.condition, r.decision, String(r.restockingFee),
-    r.assignedTo, r.followUpStatus, r.followUpNotes, r.notes,
-    r.status, r.processedBy, r.createdAt,
-  ];
-}
-
-export async function getReturns(): Promise<Return[]> {
-  const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID, range: RETURNS_RANGE,
-  });
-  const rows = res.data.values || [];
-  return rows.filter(r => r[0]).map(rowToReturn);
-}
-
-export async function getReturnById(id: string): Promise<Return | null> {
-  const returns = await getReturns();
-  return returns.find(r => r.id === id) ?? null;
-}
-
-export async function createReturn(
-  data: Omit<Return, 'id' | 'createdAt'>
-): Promise<Return> {
-  const sheets = getSheets();
-  const newReturn: Return = {
-    ...data,
-    id: `RET-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-  };
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SHEET_ID,
-    range: RETURNS_COLS,
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [returnToRow(newReturn)] },
-  });
-  return newReturn;
-}
-
-export async function updateReturn(
-  id: string,
-  updates: Partial<Return>
-): Promise<Return> {
-  const sheets = getSheets();
-  const all = await getReturns();
-  const idx = all.findIndex(r => r.id === id);
-  if (idx === -1) throw new Error(`Return ${id} not found`);
-  const updated: Return = { ...all[idx], ...updates };
-  const sheetRow = idx + 2;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: SHEET_ID,
-    range: `Returns!A${sheetRow}:P${sheetRow}`,
-    valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [returnToRow(updated)] },
-  });
-  return updated;
-}
+// Returns module moved to Supabase — see lib/supabase.ts and app/api/returns/
