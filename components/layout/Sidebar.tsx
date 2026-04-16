@@ -70,8 +70,8 @@ export function Sidebar() {
             />
           </div>
           <div>
-            <p className="text-white font-bold text-sm leading-tight">Fault Portal</p>
-            <p className="text-slate-400 text-xs">Customer Care</p>
+            <p className="text-white font-bold text-sm leading-tight">SNAP Customer Care</p>
+            <p className="text-slate-400 text-xs">Internal Portal</p>
           </div>
         </div>
       </div>

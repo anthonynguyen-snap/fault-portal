@@ -4,7 +4,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import Providers from '@/components/Providers';
 
 export const metadata: Metadata = {
-  title: 'Fault Portal — Customer Care',
+  title: 'SNAP Customer Care Portal',
   description: 'Internal fault tracking portal for customer care teams',
 };
 
