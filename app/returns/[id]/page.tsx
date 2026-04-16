@@ -22,6 +22,7 @@ export default function ReturnDetailPage() {
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [followUpStatus, setFollowUpStatus] = useState<FollowUpStatus>('N/A');
   const [status, setStatus] = useState<ReturnStatus>('Received');
+  const [refundAmount, setRefundAmount] = useState<string>('');
 
   useEffect(() => {
     fetch(`/api/returns/${id}`)
@@ -32,6 +33,7 @@ export default function ReturnDetailPage() {
           setFollowUpNotes(json.data.followUpNotes || '');
           setFollowUpStatus(json.data.followUpStatus || 'N/A');
           setStatus(json.data.status || 'Received');
+          setRefundAmount(json.data.refundAmount > 0 ? String(json.data.refundAmount) : '');
         }
         setLoading(false);
       });
@@ -42,7 +44,7 @@ export default function ReturnDetailPage() {
     const res = await fetch(`/api/returns/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ followUpNotes, followUpStatus, status }),
+      body: JSON.stringify({ followUpNotes, followUpStatus, status, refundAmount: parseFloat(refundAmount) || 0 }),
     });
     const json = await res.json();
     if (json.data) { setData(json.data); setSaved(true); setTimeout(() => setSaved(false), 2000); }
@@ -178,6 +180,25 @@ export default function ReturnDetailPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="card p-5">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Refund Amount</h3>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={refundAmount}
+                onChange={e => setRefundAmount(e.target.value)}
+                placeholder="0.00"
+                className="form-input pl-7 text-sm"
+              />
+            </div>
+            {data.refundAmount > 0 && refundAmount === '' && (
+              <p className="text-xs text-slate-400 mt-1.5">Currently: ${data.refundAmount.toFixed(2)}</p>
+            )}
           </div>
 
           <button onClick={save} disabled={saving}
