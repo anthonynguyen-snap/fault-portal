@@ -77,6 +77,7 @@ export default function ReturnsPage() {
   const [filter, setFilter]         = useState<FilterTab>('all');
   const [weekStart, setWeekStart]   = useState<Date>(() => getMondayOf(new Date()));
   const [teamSearch, setTeamSearch] = useState('');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -84,6 +85,18 @@ export default function ReturnsPage() {
     const json = await res.json();
     setAllReturns(json.data || []);
     setLoading(false);
+  }
+
+  async function updateStatus(id: string, newStatus: ReturnStatus) {
+    setUpdatingId(id);
+    // Optimistic update
+    setAllReturns(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+    await fetch(`/api/returns/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    });
+    setUpdatingId(null);
   }
 
   useEffect(() => { load(); }, []);
@@ -246,7 +259,24 @@ export default function ReturnsPage() {
                       <p className="text-xs text-amber-600 mt-0.5">{r.restockingFee}% fee</p>
                     )}
                   </td>
-                  <td className="px-4 py-3">{statusBadge(r.status)}</td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <select
+                      value={r.status}
+                      disabled={updatingId === r.id}
+                      onChange={e => updateStatus(r.id, e.target.value as ReturnStatus)}
+                      className={`text-xs font-medium rounded-full px-2.5 py-1 border-0 cursor-pointer appearance-none focus:ring-2 focus:ring-brand-400 focus:outline-none transition-opacity ${updatingId === r.id ? 'opacity-50' : ''} ${
+                        r.status === 'Received'  ? 'bg-blue-100 text-blue-700' :
+                        r.status === 'Inspected' ? 'bg-amber-100 text-amber-700' :
+                        r.status === 'Processed' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      <option value="Received">Received</option>
+                      <option value="Inspected">Inspected</option>
+                      <option value="Processed">Processed</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  </td>
                   <td className="px-4 py-3">
                     {followUpBadge(r.followUpStatus)}
                     {r.assignedTo && <p className="text-xs text-slate-400 mt-0.5">{r.assignedTo}</p>}
