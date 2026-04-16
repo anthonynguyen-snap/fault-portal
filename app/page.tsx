@@ -257,13 +257,13 @@ export default function DashboardPage() {
         const thisMonday = getMondayOf(new Date());
         const thisSunday = addDays(thisMonday, 6);
         const weekReturns = allReturns.filter(r => r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
-        const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+        const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
         const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
         const sixWeeksData = Array.from({ length: 6 }, (_, i) => {
           const mon = getMondayOf(addDays(new Date(), -(5 - i) * 7));
           const sun = addDays(mon, 6);
           const count = allReturns.filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun)).length;
-          const refunded = allReturns.filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun)).reduce((s, r) => s + (r.refundAmount || 0), 0);
+          const refunded = allReturns.filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun)).reduce((s, r) => s + (r.totalRefundAmount || 0), 0);
           return { label: shortWeekLabel(mon), count, refunded };
         });
         return (

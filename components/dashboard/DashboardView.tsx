@@ -142,7 +142,7 @@ export function DashboardView() {
   const thisMonday = getMondayOf(new Date());
   const thisSunday = addDays(thisMonday, 6);
   const weekReturns = allReturns.filter(r => r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
-  const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+  const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
   const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
 
   // Build 6-week bar chart (most recent week last)
@@ -152,7 +152,7 @@ export function DashboardView() {
     const count = allReturns.filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun)).length;
     const refunded = allReturns
       .filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun))
-      .reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+      .reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
     return { label: shortWeekLabel(mon), count, refunded };
   });
 
