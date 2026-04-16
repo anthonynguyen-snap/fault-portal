@@ -69,7 +69,10 @@ export default function NewReturnPage() {
         const products = new Set<string>();
         for (const ret of json.data || []) {
           for (const item of ret.items || []) {
-            if (item.product) products.add(item.product);
+            // Only include items from the new return_items table (not legacy synthesised ones)
+            if (item.product && !item.id.startsWith('legacy-')) {
+              products.add(item.product);
+            }
           }
         }
         setPastProducts(Array.from(products).sort());
