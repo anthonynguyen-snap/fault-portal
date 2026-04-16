@@ -9,6 +9,8 @@ import {
   RefreshCw,
   ArrowRight,
   Package,
+  RotateCcw,
+  Mail,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -22,8 +24,25 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { DashboardStats } from '@/types';
+import { DashboardStats, Return } from '@/types';
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT } from '@/lib/utils';
+
+// ── Week helpers ──────────────────────────────────────────────────────────────
+function getMondayOf(d: Date): Date {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d); r.setDate(r.getDate() + n); return r;
+}
+function fmtDate(d: Date) { return d.toISOString().slice(0, 10); }
+function shortWeekLabel(mon: Date): string {
+  return mon.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
@@ -60,16 +79,22 @@ function StatCard({
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
   async function loadStats() {
     try {
-      const res = await fetch('/api/dashboard');
-      const json = await res.json();
+      const [dashRes, returnsRes] = await Promise.all([
+        fetch('/api/dashboard'),
+        fetch('/api/returns'),
+      ]);
+      const json = await dashRes.json();
       if (json.error) throw new Error(json.error);
       setStats(json.data);
+      const returnsJson = await returnsRes.json();
+      setAllReturns(returnsJson.data || []);
       setError('');
     } catch (err: any) {
       setError(err.message || 'Failed to load dashboard data');
@@ -226,6 +251,66 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Returns Section ────────────────────────────────────────────────── */}
+      {(() => {
+        const thisMonday = getMondayOf(new Date());
+        const thisSunday = addDays(thisMonday, 6);
+        const weekReturns = allReturns.filter(r => r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
+        const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
+        const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
+        const sixWeeksData = Array.from({ length: 6 }, (_, i) => {
+          const mon = getMondayOf(addDays(new Date(), -(5 - i) * 7));
+          const sun = addDays(mon, 6);
+          const count = allReturns.filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun)).length;
+          const refunded = allReturns.filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun)).reduce((s, r) => s + (r.refundAmount || 0), 0);
+          return { label: shortWeekLabel(mon), count, refunded };
+        });
+        return (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <RotateCcw size={16} className="text-slate-500" />
+                <h2 className="text-base font-semibold text-slate-900">Returns</h2>
+              </div>
+              <Link href="/returns" className="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">
+                View all <ArrowRight size={12} />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <StatCard label="Returns This Week" value={weekReturns.length} sub="logged this week" icon={RotateCcw} color="bg-indigo-500" />
+              <StatCard label="Refunded This Week" value={`$${weekRefunded.toFixed(2)}`} sub="total refunded" icon={DollarSign} color="bg-emerald-500" />
+              <StatCard label="Pending Follow-ups" value={pendingFollowUps} sub="across all time" icon={Mail} color={pendingFollowUps > 0 ? 'bg-amber-500' : 'bg-slate-400'} />
+            </div>
+
+            <div className="card p-5">
+              <h3 className="text-sm font-semibold text-slate-800 mb-1">Returns Volume — Last 6 Weeks</h3>
+              <p className="text-xs text-slate-400 mb-4">Return count and amount refunded per week</p>
+              {allReturns.length === 0 ? (
+                <div className="flex items-center justify-center h-[160px]">
+                  <p className="text-sm text-slate-400">No returns logged yet</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={sixWeeksData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={24} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => `$${v}`} />
+                    <Tooltip
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                      formatter={(v: number, name: string) => [name === 'Refunded ($)' ? `$${v.toFixed(2)}` : v, name]}
+                    />
+                    <Bar yAxisId="left" dataKey="count" name="Returns" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    <Bar yAxisId="right" dataKey="refunded" name="Refunded ($)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
