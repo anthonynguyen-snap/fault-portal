@@ -23,6 +23,7 @@ function fromRow(row: Record<string, unknown>): Return {
     status:          row.status as Return['status'],
     processedBy:      String(row.processed_by ?? ''),
     conversationLink: String(row.conversation_link ?? ''),
+    refundAmount:     Number(row.refund_amount ?? 0),
     createdAt:        String(row.created_at ?? ''),
   };
 }
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
     const {
       orderNumber, customerName, customerEmail, product,
       condition, decision, restockingFee, assignedTo,
-      needsFollowUp, notes, processedBy, date, conversationLink,
+      needsFollowUp, notes, processedBy, date, conversationLink, refundAmount,
     } = body;
 
     if (!orderNumber || !customerName || !product || !condition || !decision) {
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
       status:            'Processed',
       processed_by:      processedBy || '',
       conversation_link: conversationLink || '',
+      refund_amount:     Number(refundAmount) || 0,
     };
 
     const { data, error } = await getSupabase()

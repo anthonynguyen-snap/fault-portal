@@ -22,6 +22,7 @@ function fromRow(row: Record<string, unknown>): Return {
     status:          row.status as Return['status'],
     processedBy:      String(row.processed_by ?? ''),
     conversationLink: String(row.conversation_link ?? ''),
+    refundAmount:     Number(row.refund_amount ?? 0),
     createdAt:        String(row.created_at ?? ''),
   };
 }
@@ -38,6 +39,7 @@ function toSnake(updates: Record<string, unknown>): Record<string, unknown> {
     followUpNotes:    'follow_up_notes',
     processedBy:      'processed_by',
     conversationLink: 'conversation_link',
+    refundAmount:     'refund_amount',
   };
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(updates)) {

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
@@ -21,6 +21,10 @@ const DECISIONS: ReturnDecision[] = [
   'Pending',
 ];
 
+const REFUND_DECISIONS = new Set(['Full Refund', 'Refund + Restocking Fee', 'Refund - Return Label Fee']);
+
+const PROCESSED_BY_KEY = 'returns_processed_by';
+
 interface FormState {
   date: string;
   orderNumber: string;
@@ -30,6 +34,7 @@ interface FormState {
   condition: ReturnCondition;
   decision: ReturnDecision;
   restockingFee: number;
+  refundAmount: number;
   assignedTo: string;
   needsFollowUp: boolean;
   notes: string;
@@ -37,9 +42,8 @@ interface FormState {
   conversationLink: string;
 }
 
-export default function NewReturnPage() {
-  const router = useRouter();
-  const [form, setForm] = useState<FormState>({
+function blankForm(processedBy = ''): FormState {
+  return {
     date: new Date().toISOString().slice(0, 10),
     orderNumber: '',
     customerName: '',
@@ -48,20 +52,35 @@ export default function NewReturnPage() {
     condition: 'Sealed',
     decision: 'Full Refund',
     restockingFee: 0,
+    refundAmount: 0,
     assignedTo: '',
     needsFollowUp: false,
     notes: '',
-    processedBy: '',
+    processedBy,
     conversationLink: '',
-  });
+  };
+}
+
+export default function NewReturnPage() {
+  const router = useRouter();
+  const [form, setForm] = useState<FormState>(blankForm());
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'submit', string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [savedId, setSavedId] = useState('');
 
-  function set(field: keyof FormState, value: string | number) {
+  // Remember Processed By across sessions
+  useEffect(() => {
+    const saved = localStorage.getItem(PROCESSED_BY_KEY);
+    if (saved) setForm(f => ({ ...f, processedBy: saved }));
+  }, []);
+
+  function set(field: keyof FormState, value: string | number | boolean) {
     setForm(f => ({ ...f, [field]: value }));
     setErrors(e => ({ ...e, [field]: '' }));
+    if (field === 'processedBy') {
+      localStorage.setItem(PROCESSED_BY_KEY, String(value));
+    }
   }
 
   function validate() {
@@ -107,7 +126,7 @@ export default function NewReturnPage() {
           <h2 className="text-xl font-bold text-slate-900 mb-1">Return Logged</h2>
           <p className="text-slate-500 text-sm mb-6">The return has been recorded successfully.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={() => { setSuccess(false); setForm({ date: new Date().toISOString().slice(0, 10), orderNumber: '', customerName: '', customerEmail: '', product: '', condition: 'Sealed', decision: 'Full Refund', restockingFee: 0, assignedTo: '', needsFollowUp: false, notes: '', processedBy: form.processedBy, conversationLink: '' }); setSavedId(''); }} className="btn-secondary">
+            <button onClick={() => { setSuccess(false); setForm(blankForm(form.processedBy)); setSavedId(''); }} className="btn-secondary">
               Log Another
             </button>
             <button onClick={() => router.push(`/returns/${savedId}`)} className="btn-primary">
@@ -177,16 +196,10 @@ export default function NewReturnPage() {
             <label className="form-label">Condition <span className="text-red-500">*</span></label>
             <div className="grid grid-cols-2 gap-2 mt-1">
               {CONDITIONS.map(c => (
-                <button key={c} type="button"
-                  onClick={() => set('condition', c)}
+                <button key={c} type="button" onClick={() => set('condition', c)}
                   className={`px-3 py-2.5 rounded-lg border text-sm text-left font-medium transition-all ${
-                    form.condition === c
-                      ? 'border-brand-600 bg-brand-50 text-brand-700'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}
-                >
-                  {c}
-                </button>
+                    form.condition === c ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}>{c}</button>
               ))}
             </div>
           </div>
@@ -195,19 +208,27 @@ export default function NewReturnPage() {
             <label className="form-label">Decision <span className="text-red-500">*</span></label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
               {DECISIONS.map(d => (
-                <button key={d} type="button"
-                  onClick={() => set('decision', d)}
+                <button key={d} type="button" onClick={() => set('decision', d)}
                   className={`px-3 py-2.5 rounded-lg border text-sm text-left font-medium transition-all ${
-                    form.decision === d
-                      ? 'border-brand-600 bg-brand-50 text-brand-700'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}
-                >
-                  {d}
-                </button>
+                    form.decision === d ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}>{d}</button>
               ))}
             </div>
           </div>
+
+          {/* Refund amount — shown for any refund-type decision */}
+          {REFUND_DECISIONS.has(form.decision) && (
+            <div>
+              <label className="form-label">Refund Amount</label>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 font-medium">$</span>
+                <input type="number" min={0} step={0.01} value={form.refundAmount || ''}
+                  onChange={e => set('refundAmount', Number(e.target.value))}
+                  placeholder="0.00" className="form-input w-36" />
+              </div>
+              <p className="text-xs text-slate-400 mt-1">Total amount refunded to the customer</p>
+            </div>
+          )}
 
           {form.decision === 'Refund + Restocking Fee' && (
             <div>
@@ -230,7 +251,7 @@ export default function NewReturnPage() {
           </div>
         </div>
 
-        {/* Assignment */}
+        {/* Team */}
         <div className="card p-6 space-y-4">
           <h2 className="text-sm font-semibold text-slate-900 pb-2 border-b border-slate-100">Team</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -243,15 +264,13 @@ export default function NewReturnPage() {
               <label className="form-label">Processed By</label>
               <input type="text" value={form.processedBy} onChange={e => set('processedBy', e.target.value)}
                 placeholder="Your name" className="form-input" />
+              <p className="text-xs text-slate-400 mt-1">Remembered from last time</p>
             </div>
           </div>
           <label className="flex items-center gap-3 cursor-pointer group w-fit">
-            <input
-              type="checkbox"
-              checked={form.needsFollowUp}
+            <input type="checkbox" checked={form.needsFollowUp}
               onChange={e => setForm(f => ({ ...f, needsFollowUp: e.target.checked }))}
-              className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-            />
+              className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" />
             <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">
               Needs follow-up with customer
             </span>

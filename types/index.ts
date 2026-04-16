@@ -143,5 +143,6 @@ export interface Return {
   status: ReturnStatus;
   processedBy: string;
   conversationLink: string;
+  refundAmount: number;
   createdAt: string;
 }
