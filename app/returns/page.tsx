@@ -89,12 +89,22 @@ export default function ReturnsPage() {
 
   async function updateStatus(id: string, newStatus: ReturnStatus) {
     setUpdatingId(id);
-    // Optimistic update
     setAllReturns(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
     await fetch(`/api/returns/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
+    });
+    setUpdatingId(null);
+  }
+
+  async function updateFollowUp(id: string, newFollowUp: FollowUpStatus) {
+    setUpdatingId(id);
+    setAllReturns(prev => prev.map(r => r.id === id ? { ...r, followUpStatus: newFollowUp } : r));
+    await fetch(`/api/returns/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ followUpStatus: newFollowUp }),
     });
     setUpdatingId(null);
   }
@@ -277,8 +287,21 @@ export default function ReturnsPage() {
                       <option value="Closed">Closed</option>
                     </select>
                   </td>
-                  <td className="px-4 py-3">
-                    {followUpBadge(r.followUpStatus)}
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <select
+                      value={r.followUpStatus}
+                      disabled={updatingId === r.id}
+                      onChange={e => updateFollowUp(r.id, e.target.value as FollowUpStatus)}
+                      className={`text-xs font-medium rounded-full px-2.5 py-1 border-0 cursor-pointer appearance-none focus:ring-2 focus:ring-brand-400 focus:outline-none transition-opacity ${updatingId === r.id ? 'opacity-50' : ''} ${
+                        r.followUpStatus === 'Pending'   ? 'bg-amber-100 text-amber-700' :
+                        r.followUpStatus === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-slate-100 text-slate-500'
+                      }`}
+                    >
+                      <option value="N/A">N/A</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Completed">Completed</option>
+                    </select>
                     {r.assignedTo && <p className="text-xs text-slate-400 mt-0.5">{r.assignedTo}</p>}
                   </td>
                   <td className="px-4 py-3">
