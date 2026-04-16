@@ -258,15 +258,21 @@ export default function ReturnsPage() {
                       </a>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{r.product}</td>
-                  <td className="px-4 py-3">{conditionBadge(r.condition)}</td>
                   <td className="px-4 py-3">
-                    {decisionBadge(r.decision)}
-                    {r.refundAmount > 0 && (
-                      <p className="text-xs text-slate-500 mt-0.5">${r.refundAmount.toFixed(2)}</p>
+                    <p className="text-slate-700 font-medium text-sm">{r.items[0]?.product || '—'}</p>
+                    {r.items.length > 1 && (
+                      <p className="text-xs text-slate-400">+{r.items.length - 1} more item{r.items.length > 2 ? 's' : ''}</p>
                     )}
-                    {r.restockingFee > 0 && (
-                      <p className="text-xs text-amber-600 mt-0.5">{r.restockingFee}% fee</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.items[0] && conditionBadge(r.items[0].condition)}
+                    {r.items.length > 1 && <p className="text-xs text-slate-400 mt-0.5">mixed</p>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {r.items[0] && decisionBadge(r.items[0].decision)}
+                    {r.items.length > 1 && <p className="text-xs text-slate-400 mt-0.5">mixed</p>}
+                    {r.totalRefundAmount > 0 && (
+                      <p className="text-xs text-slate-500 mt-0.5">${r.totalRefundAmount.toFixed(2)}</p>
                     )}
                   </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>

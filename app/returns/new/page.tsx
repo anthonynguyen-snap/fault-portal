@@ -1,45 +1,39 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { ChevronLeft, PlusCircle, Trash2 } from 'lucide-react';
 import { ReturnCondition, ReturnDecision } from '@/types';
 
-const CONDITIONS: ReturnCondition[] = [
-  'Sealed',
-  'Open - Good Condition',
-  'Open - Damaged Packaging',
-  'Faulty',
-];
-
-const DECISIONS: ReturnDecision[] = [
-  'Full Refund',
-  'Exchange',
-  'Refund + Restocking Fee',
-  'Refund - Return Label Fee',
-  'Replacement',
-  'Pending',
-];
-
+const CONDITIONS: ReturnCondition[] = ['Sealed', 'Open - Good Condition', 'Open - Damaged Packaging', 'Faulty'];
+const DECISIONS: ReturnDecision[]   = ['Full Refund', 'Exchange', 'Refund + Restocking Fee', 'Refund - Return Label Fee', 'Replacement', 'Pending'];
 const REFUND_DECISIONS = new Set(['Full Refund', 'Refund + Restocking Fee', 'Refund - Return Label Fee']);
-
 const PROCESSED_BY_KEY = 'returns_processed_by';
+
+interface LineItem {
+  product: string;
+  condition: ReturnCondition;
+  decision: ReturnDecision;
+  refundAmount: string;
+  restockingFee: number;
+}
 
 interface FormState {
   date: string;
   orderNumber: string;
   customerName: string;
   customerEmail: string;
-  product: string;
-  condition: ReturnCondition;
-  decision: ReturnDecision;
-  restockingFee: number;
-  refundAmount: number;
+  items: LineItem[];
   assignedTo: string;
-  needsFollowUp: boolean;
-  notes: string;
   processedBy: string;
+  needsFollowUp: boolean;
+  followUpNotes: string;
+  notes: string;
   conversationLink: string;
+}
+
+function blankItem(): LineItem {
+  return { product: '', condition: 'Sealed', decision: 'Pending', refundAmount: '', restockingFee: 0 };
 }
 
 function blankForm(processedBy = ''): FormState {
@@ -48,15 +42,12 @@ function blankForm(processedBy = ''): FormState {
     orderNumber: '',
     customerName: '',
     customerEmail: '',
-    product: '',
-    condition: 'Sealed',
-    decision: 'Full Refund',
-    restockingFee: 0,
-    refundAmount: 0,
+    items: [blankItem()],
     assignedTo: '',
-    needsFollowUp: false,
-    notes: '',
     processedBy,
+    needsFollowUp: false,
+    followUpNotes: '',
+    notes: '',
     conversationLink: '',
   };
 }
@@ -64,232 +55,232 @@ function blankForm(processedBy = ''): FormState {
 export default function NewReturnPage() {
   const router = useRouter();
   const [form, setForm] = useState<FormState>(blankForm());
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'submit', string>>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [savedId, setSavedId] = useState('');
+  const [error, setError] = useState('');
+  const [pastProducts, setPastProducts] = useState<string[]>([]);
 
-  // Remember Processed By across sessions
   useEffect(() => {
-    const saved = localStorage.getItem(PROCESSED_BY_KEY);
-    if (saved) setForm(f => ({ ...f, processedBy: saved }));
+    const saved = localStorage.getItem(PROCESSED_BY_KEY) || '';
+    setForm(blankForm(saved));
+
+    fetch('/api/returns')
+      .then(r => r.json())
+      .then(json => {
+        const products = new Set<string>();
+        for (const ret of json.data || []) {
+          for (const item of ret.items || []) {
+            if (item.product) products.add(item.product);
+          }
+        }
+        setPastProducts(Array.from(products).sort());
+      })
+      .catch(() => {});
   }, []);
 
-  function set(field: keyof FormState, value: string | number | boolean) {
-    setForm(f => ({ ...f, [field]: value }));
-    setErrors(e => ({ ...e, [field]: '' }));
-    if (field === 'processedBy') {
-      localStorage.setItem(PROCESSED_BY_KEY, String(value));
-    }
+  function set<K extends keyof FormState>(field: K, value: FormState[K]) {
+    setForm(prev => ({ ...prev, [field]: value }));
+    if (field === 'processedBy') localStorage.setItem(PROCESSED_BY_KEY, value as string);
   }
 
-  function validate() {
-    const e: typeof errors = {};
-    if (!form.orderNumber) e.orderNumber = 'Required';
-    if (!form.customerName) e.customerName = 'Required';
-    if (!form.product) e.product = 'Required';
-    if (form.decision === 'Refund + Restocking Fee' && !form.restockingFee) {
-      e.restockingFee = 'Enter a restocking fee %';
-    }
-    setErrors(e);
-    return Object.keys(e).length === 0;
+  function setItemField(index: number, field: keyof LineItem, value: string | number | ReturnCondition | ReturnDecision) {
+    setForm(prev => {
+      const items = [...prev.items];
+      items[index] = { ...items[index], [field]: value };
+      return { ...prev, items };
+    });
+  }
+
+  function addItem() {
+    setForm(prev => ({ ...prev, items: [...prev.items, blankItem()] }));
+  }
+
+  function removeItem(index: number) {
+    setForm(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate()) return;
+    setError('');
+
+    if (!form.orderNumber.trim() || !form.customerName.trim()) {
+      setError('Order number and customer name are required.');
+      return;
+    }
+    if (form.items.some(item => !item.product.trim())) {
+      setError('All items must have a product / SKU filled in.');
+      return;
+    }
+
     setSubmitting(true);
     try {
+      const payload = {
+        ...form,
+        items: form.items.map(item => ({
+          ...item,
+          refundAmount: parseFloat(item.refundAmount) || 0,
+        })),
+      };
       const res = await fetch('/api/returns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || 'Failed to save');
-      setSavedId(json.data.id);
-      setSuccess(true);
+      if (json.error) throw new Error(json.error);
+      router.push('/returns');
     } catch (err: any) {
-      setErrors(e => ({ ...e, submit: err.message }));
+      setError(err.message || 'Failed to submit return.');
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (success) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center max-w-sm">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle size={32} className="text-emerald-600" />
-          </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Return Logged</h2>
-          <p className="text-slate-500 text-sm mb-6">The return has been recorded successfully.</p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={() => { setSuccess(false); setForm(blankForm(form.processedBy)); setSavedId(''); }} className="btn-secondary">
-              Log Another
-            </button>
-            <button onClick={() => router.push(`/returns/${savedId}`)} className="btn-primary">
-              View Return
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="mb-6">
-        <Link href="/returns" className="btn-ghost -ml-2 mb-3 inline-flex">
-          <ChevronLeft size={16} /> Back to Returns
-        </Link>
-        <h1 className="page-title">Log Return</h1>
-        <p className="page-subtitle">Record a customer return received in the office</p>
-      </div>
+      <Link href="/returns" className="btn-ghost -ml-2 mb-4 inline-flex">
+        <ChevronLeft size={16} /> Back to Returns
+      </Link>
+      <h1 className="page-title mb-1">Log Return</h1>
+      <p className="page-subtitle mb-6">Record a new customer return</p>
+
+      <datalist id="past-products">
+        {pastProducts.map(p => <option key={p} value={p} />)}
+      </datalist>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Basic info */}
-        <div className="card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900 pb-2 border-b border-slate-100">Return Details</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+        {/* Order details */}
+        <div className="card p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-700">Order Details</h2>
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Date Received <span className="text-red-500">*</span></label>
-              <input type="date" value={form.date} onChange={e => set('date', e.target.value)} className="form-input" />
+              <label className="form-label">Date</label>
+              <input type="date" value={form.date} onChange={e => set('date', e.target.value)} className="form-input" required />
             </div>
             <div>
-              <label className="form-label">Order Number <span className="text-red-500">*</span></label>
-              <input type="text" value={form.orderNumber} onChange={e => set('orderNumber', e.target.value)}
-                placeholder="e.g. ORD-12345" className={`form-input ${errors.orderNumber ? 'border-red-300' : ''}`} />
-              {errors.orderNumber && <p className="form-error">{errors.orderNumber}</p>}
+              <label className="form-label">Order Number <span className="text-red-400">*</span></label>
+              <input type="text" value={form.orderNumber} onChange={e => set('orderNumber', e.target.value)} placeholder="e.g. #12345" className="form-input" required />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Customer Name <span className="text-red-500">*</span></label>
-              <input type="text" value={form.customerName} onChange={e => set('customerName', e.target.value)}
-                placeholder="Full name" className={`form-input ${errors.customerName ? 'border-red-300' : ''}`} />
-              {errors.customerName && <p className="form-error">{errors.customerName}</p>}
+              <label className="form-label">Customer Name <span className="text-red-400">*</span></label>
+              <input type="text" value={form.customerName} onChange={e => set('customerName', e.target.value)} placeholder="Full name" className="form-input" required />
             </div>
             <div>
               <label className="form-label">Customer Email</label>
-              <input type="email" value={form.customerEmail} onChange={e => set('customerEmail', e.target.value)}
-                placeholder="email@example.com" className="form-input" />
+              <input type="email" value={form.customerEmail} onChange={e => set('customerEmail', e.target.value)} placeholder="email@example.com" className="form-input" />
             </div>
-            <div className="sm:col-span-2">
-              <label className="form-label">Product <span className="text-red-500">*</span></label>
-              <input type="text" value={form.product} onChange={e => set('product', e.target.value)}
-                placeholder="Product name" className={`form-input ${errors.product ? 'border-red-300' : ''}`} />
-              {errors.product && <p className="form-error">{errors.product}</p>}
-            </div>
-            <div className="sm:col-span-2">
-              <label className="form-label">Conversation Link</label>
-              <input type="url" value={form.conversationLink} onChange={e => set('conversationLink', e.target.value)}
-                placeholder="https://..." className="form-input font-mono text-xs" />
-              <p className="text-xs text-slate-400 mt-1">Paste the link to the customer conversation (Commslayer, email, etc.)</p>
-            </div>
+          </div>
+          <div>
+            <label className="form-label">Conversation Link</label>
+            <input type="url" value={form.conversationLink} onChange={e => set('conversationLink', e.target.value)} placeholder="https://..." className="form-input" />
           </div>
         </div>
 
-        {/* Inspection */}
-        <div className="card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900 pb-2 border-b border-slate-100">Inspection</h2>
-          <div>
-            <label className="form-label">Condition <span className="text-red-500">*</span></label>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              {CONDITIONS.map(c => (
-                <button key={c} type="button" onClick={() => set('condition', c)}
-                  className={`px-3 py-2.5 rounded-lg border text-sm text-left font-medium transition-all ${
-                    form.condition === c ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}>{c}</button>
-              ))}
-            </div>
-          </div>
+        {/* Line Items */}
+        <div className="card p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-700">Return Items</h2>
 
-          <div>
-            <label className="form-label">Decision <span className="text-red-500">*</span></label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
-              {DECISIONS.map(d => (
-                <button key={d} type="button" onClick={() => set('decision', d)}
-                  className={`px-3 py-2.5 rounded-lg border text-sm text-left font-medium transition-all ${
-                    form.decision === d ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}>{d}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Refund amount — shown for any refund-type decision */}
-          {REFUND_DECISIONS.has(form.decision) && (
-            <div>
-              <label className="form-label">Refund Amount</label>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-500 font-medium">$</span>
-                <input type="number" min={0} step={0.01} value={form.refundAmount || ''}
-                  onChange={e => set('refundAmount', Number(e.target.value))}
-                  placeholder="0.00" className="form-input w-36" />
+          {form.items.map((item, i) => (
+            <div key={i} className="border border-slate-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Item {i + 1}</span>
+                {form.items.length > 1 && (
+                  <button type="button" onClick={() => removeItem(i)}
+                    className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50">
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
-              <p className="text-xs text-slate-400 mt-1">Total amount refunded to the customer</p>
-            </div>
-          )}
 
-          {form.decision === 'Refund + Restocking Fee' && (
-            <div>
-              <label className="form-label">Restocking Fee % <span className="text-red-500">*</span></label>
-              <div className="flex items-center gap-2">
-                <input type="number" min={0} max={30} value={form.restockingFee}
-                  onChange={e => set('restockingFee', Number(e.target.value))}
-                  className={`form-input w-32 ${errors.restockingFee ? 'border-red-300' : ''}`} />
-                <span className="text-sm text-slate-500">% (max 30%)</span>
+              <div>
+                <label className="form-label">Product / SKU <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  value={item.product}
+                  onChange={e => setItemField(i, 'product', e.target.value)}
+                  placeholder="e.g. PP-UNI2-BLK"
+                  list="past-products"
+                  className="form-input"
+                />
               </div>
-              {errors.restockingFee && <p className="form-error">{errors.restockingFee}</p>}
-            </div>
-          )}
 
-          <div>
-            <label className="form-label">Inspection Notes</label>
-            <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
-              rows={3} placeholder="Condition details, what was missing, customer comments..."
-              className="form-input resize-none" />
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Condition</label>
+                  <select value={item.condition} onChange={e => setItemField(i, 'condition', e.target.value as ReturnCondition)} className="form-input">
+                    {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Decision</label>
+                  <select value={item.decision} onChange={e => setItemField(i, 'decision', e.target.value as ReturnDecision)} className="form-input">
+                    {DECISIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {REFUND_DECISIONS.has(item.decision) && (
+                <div>
+                  <label className="form-label">Refund Amount</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.refundAmount}
+                      onChange={e => setItemField(i, 'refundAmount', e.target.value)}
+                      placeholder="0.00"
+                      className="form-input pl-7"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <button type="button" onClick={addItem}
+            className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600 transition-colors">
+            <PlusCircle size={15} /> Add Another Item
+          </button>
         </div>
 
         {/* Team */}
-        <div className="card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900 pb-2 border-b border-slate-100">Team</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="card p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-700">Team</h2>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="form-label">Team Member</label>
-              <input type="text" value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)}
-                placeholder="Who dealt with the customer?" className="form-input" />
+              <input type="text" value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)} placeholder="Who dealt with customer?" className="form-input" />
             </div>
             <div>
               <label className="form-label">Processed By</label>
-              <input type="text" value={form.processedBy} onChange={e => set('processedBy', e.target.value)}
-                placeholder="Your name" className="form-input" />
-              <p className="text-xs text-slate-400 mt-1">Remembered from last time</p>
+              <input type="text" value={form.processedBy} onChange={e => set('processedBy', e.target.value)} placeholder="Your name" className="form-input" />
             </div>
           </div>
-          <label className="flex items-center gap-3 cursor-pointer group w-fit">
-            <input type="checkbox" checked={form.needsFollowUp}
-              onChange={e => setForm(f => ({ ...f, needsFollowUp: e.target.checked }))}
-              className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer" />
-            <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">
-              Needs follow-up with customer
-            </span>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input type="checkbox" checked={form.needsFollowUp} onChange={e => set('needsFollowUp', e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+            <span className="text-sm text-slate-700">Needs follow-up with customer</span>
           </label>
         </div>
 
-        {(errors as any).submit && (
-          <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl">
-            <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
-            <p className="text-sm text-red-700">{(errors as any).submit}</p>
-          </div>
-        )}
+        {/* Notes */}
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">Notes</h2>
+          <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
+            placeholder="Inspection notes, condition details, anything relevant…"
+            className="form-input resize-none" />
+        </div>
 
-        <div className="flex items-center justify-between pb-4">
-          <Link href="/returns" className="btn-secondary">Cancel</Link>
-          <button type="submit" disabled={submitting} className="btn-primary px-8">
-            {submitting ? (
-              <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</>
-            ) : 'Log Return'}
+        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{error}</p>}
+
+        <div className="flex gap-3 pb-8">
+          <Link href="/returns" className="btn-secondary flex-1 text-center">Cancel</Link>
+          <button type="submit" disabled={submitting} className="btn-primary flex-1">
+            {submitting ? 'Saving…' : 'Log Return'}
           </button>
         </div>
       </form>

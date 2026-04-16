@@ -126,16 +126,24 @@ export type ReturnStatus = 'Received' | 'Inspected' | 'Processed' | 'Closed';
 
 export type FollowUpStatus = 'N/A' | 'Pending' | 'Completed';
 
+export interface ReturnItem {
+  id: string;
+  returnId: string;
+  product: string;
+  condition: ReturnCondition;
+  decision: ReturnDecision;
+  refundAmount: number;
+  restockingFee: number;
+}
+
 export interface Return {
   id: string;
   date: string;
   orderNumber: string;
   customerName: string;
   customerEmail: string;
-  product: string;
-  condition: ReturnCondition;
-  decision: ReturnDecision;
-  restockingFee: number;        // 0–30 (%)
+  items: ReturnItem[];
+  totalRefundAmount: number;    // sum of all item refundAmounts
   assignedTo: string;
   followUpStatus: FollowUpStatus;
   followUpNotes: string;
@@ -143,6 +151,5 @@ export interface Return {
   status: ReturnStatus;
   processedBy: string;
   conversationLink: string;
-  refundAmount: number;
   createdAt: string;
 }
