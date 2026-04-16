@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const {
       orderNumber, customerName, customerEmail, product,
       condition, decision, restockingFee, assignedTo,
-      notes, processedBy, date, conversationLink,
+      needsFollowUp, notes, processedBy, date, conversationLink,
     } = body;
 
     if (!orderNumber || !customerName || !product || !condition || !decision) {
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       decision,
       restocking_fee:   Number(restockingFee) || 0,
       assigned_to:      assignedTo || '',
-      follow_up_status: assignedTo ? 'Pending' : 'N/A',
+      follow_up_status: needsFollowUp ? 'Pending' : 'N/A',
       follow_up_notes:  '',
       notes:            notes || '',
       status:            'Received',

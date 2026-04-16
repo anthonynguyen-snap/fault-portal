@@ -31,6 +31,7 @@ interface FormState {
   decision: ReturnDecision;
   restockingFee: number;
   assignedTo: string;
+  needsFollowUp: boolean;
   notes: string;
   processedBy: string;
   conversationLink: string;
@@ -48,6 +49,7 @@ export default function NewReturnPage() {
     decision: 'Full Refund',
     restockingFee: 0,
     assignedTo: '',
+    needsFollowUp: false,
     notes: '',
     processedBy: '',
     conversationLink: '',
@@ -105,7 +107,7 @@ export default function NewReturnPage() {
           <h2 className="text-xl font-bold text-slate-900 mb-1">Return Logged</h2>
           <p className="text-slate-500 text-sm mb-6">The return has been recorded successfully.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={() => { setSuccess(false); setForm({ date: new Date().toISOString().slice(0, 10), orderNumber: '', customerName: '', customerEmail: '', product: '', condition: 'Sealed', decision: 'Full Refund', restockingFee: 0, assignedTo: '', notes: '', processedBy: form.processedBy, conversationLink: '' }); setSavedId(''); }} className="btn-secondary">
+            <button onClick={() => { setSuccess(false); setForm({ date: new Date().toISOString().slice(0, 10), orderNumber: '', customerName: '', customerEmail: '', product: '', condition: 'Sealed', decision: 'Full Refund', restockingFee: 0, assignedTo: '', needsFollowUp: false, notes: '', processedBy: form.processedBy, conversationLink: '' }); setSavedId(''); }} className="btn-secondary">
               Log Another
             </button>
             <button onClick={() => router.push(`/returns/${savedId}`)} className="btn-primary">
@@ -230,13 +232,12 @@ export default function NewReturnPage() {
 
         {/* Assignment */}
         <div className="card p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900 pb-2 border-b border-slate-100">Follow-up</h2>
+          <h2 className="text-sm font-semibold text-slate-900 pb-2 border-b border-slate-100">Team</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Assign to Team Member</label>
+              <label className="form-label">Team Member</label>
               <input type="text" value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)}
-                placeholder="Team member name (optional)" className="form-input" />
-              <p className="text-xs text-slate-400 mt-1">Leave blank if no follow-up needed</p>
+                placeholder="Who dealt with the customer?" className="form-input" />
             </div>
             <div>
               <label className="form-label">Processed By</label>
@@ -244,6 +245,17 @@ export default function NewReturnPage() {
                 placeholder="Your name" className="form-input" />
             </div>
           </div>
+          <label className="flex items-center gap-3 cursor-pointer group w-fit">
+            <input
+              type="checkbox"
+              checked={form.needsFollowUp}
+              onChange={e => setForm(f => ({ ...f, needsFollowUp: e.target.checked }))}
+              className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+            />
+            <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">
+              Needs follow-up with customer
+            </span>
+          </label>
         </div>
 
         {(errors as any).submit && (
