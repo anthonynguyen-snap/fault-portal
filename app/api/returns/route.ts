@@ -21,8 +21,9 @@ function fromRow(row: Record<string, unknown>): Return {
     followUpNotes:   String(row.follow_up_notes ?? ''),
     notes:           String(row.notes ?? ''),
     status:          row.status as Return['status'],
-    processedBy:     String(row.processed_by ?? ''),
-    createdAt:       String(row.created_at ?? ''),
+    processedBy:      String(row.processed_by ?? ''),
+    conversationLink: String(row.conversation_link ?? ''),
+    createdAt:        String(row.created_at ?? ''),
   };
 }
 
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
     const {
       orderNumber, customerName, customerEmail, product,
       condition, decision, restockingFee, assignedTo,
-      notes, processedBy, date,
+      notes, processedBy, date, conversationLink,
     } = body;
 
     if (!orderNumber || !customerName || !product || !condition || !decision) {
@@ -67,8 +68,9 @@ export async function POST(req: NextRequest) {
       follow_up_status: assignedTo ? 'Pending' : 'N/A',
       follow_up_notes:  '',
       notes:            notes || '',
-      status:           'Received',
-      processed_by:     processedBy || '',
+      status:            'Received',
+      processed_by:      processedBy || '',
+      conversation_link: conversationLink || '',
     };
 
     const { data, error } = await getSupabase()

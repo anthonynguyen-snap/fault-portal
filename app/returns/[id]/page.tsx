@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Mail, Save, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Mail, Save, CheckCircle, ExternalLink } from 'lucide-react';
 import { Return, ReturnStatus, FollowUpStatus } from '@/types';
 
 const STATUS_OPTIONS: ReturnStatus[] = ['Received', 'Inspected', 'Processed', 'Closed'];
@@ -104,6 +104,12 @@ export default function ReturnDetailPage() {
             )}
             <p className="text-sm text-slate-500 mt-2">Order: <span className="font-mono font-medium text-slate-700">{data.orderNumber}</span></p>
             <p className="text-sm text-slate-500">Product: <span className="font-medium text-slate-700">{data.product}</span></p>
+            {data.conversationLink && (
+              <a href={data.conversationLink} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 mt-3 text-sm text-brand-600 hover:underline font-medium">
+                <ExternalLink size={13} /> View Conversation
+              </a>
+            )}
           </div>
 
           <div className="card p-5">

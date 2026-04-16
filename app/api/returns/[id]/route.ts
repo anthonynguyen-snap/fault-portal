@@ -20,22 +20,24 @@ function fromRow(row: Record<string, unknown>): Return {
     followUpNotes:   String(row.follow_up_notes ?? ''),
     notes:           String(row.notes ?? ''),
     status:          row.status as Return['status'],
-    processedBy:     String(row.processed_by ?? ''),
-    createdAt:       String(row.created_at ?? ''),
+    processedBy:      String(row.processed_by ?? ''),
+    conversationLink: String(row.conversation_link ?? ''),
+    createdAt:        String(row.created_at ?? ''),
   };
 }
 
 // camelCase patch → snake_case for Supabase
 function toSnake(updates: Record<string, unknown>): Record<string, unknown> {
   const map: Record<string, string> = {
-    orderNumber:    'order_number',
-    customerName:   'customer_name',
-    customerEmail:  'customer_email',
-    restockingFee:  'restocking_fee',
-    assignedTo:     'assigned_to',
-    followUpStatus: 'follow_up_status',
-    followUpNotes:  'follow_up_notes',
-    processedBy:    'processed_by',
+    orderNumber:      'order_number',
+    customerName:     'customer_name',
+    customerEmail:    'customer_email',
+    restockingFee:    'restocking_fee',
+    assignedTo:       'assigned_to',
+    followUpStatus:   'follow_up_status',
+    followUpNotes:    'follow_up_notes',
+    processedBy:      'processed_by',
+    conversationLink: 'conversation_link',
   };
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(updates)) {

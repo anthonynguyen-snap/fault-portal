@@ -141,5 +141,6 @@ export interface Return {
   notes: string;
   status: ReturnStatus;
   processedBy: string;
+  conversationLink: string;
   createdAt: string;
 }

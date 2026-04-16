@@ -32,6 +32,7 @@ interface FormState {
   assignedTo: string;
   notes: string;
   processedBy: string;
+  conversationLink: string;
 }
 
 export default function NewReturnPage() {
@@ -48,6 +49,7 @@ export default function NewReturnPage() {
     assignedTo: '',
     notes: '',
     processedBy: '',
+    conversationLink: '',
   });
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'submit', string>>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -102,7 +104,7 @@ export default function NewReturnPage() {
           <h2 className="text-xl font-bold text-slate-900 mb-1">Return Logged</h2>
           <p className="text-slate-500 text-sm mb-6">The return has been recorded successfully.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button onClick={() => { setSuccess(false); setForm({ date: new Date().toISOString().slice(0, 10), orderNumber: '', customerName: '', customerEmail: '', product: '', condition: 'Sealed', decision: 'Full Refund', restockingFee: 0, assignedTo: '', notes: '', processedBy: form.processedBy }); setSavedId(''); }} className="btn-secondary">
+            <button onClick={() => { setSuccess(false); setForm({ date: new Date().toISOString().slice(0, 10), orderNumber: '', customerName: '', customerEmail: '', product: '', condition: 'Sealed', decision: 'Full Refund', restockingFee: 0, assignedTo: '', notes: '', processedBy: form.processedBy, conversationLink: '' }); setSavedId(''); }} className="btn-secondary">
               Log Another
             </button>
             <button onClick={() => router.push(`/returns/${savedId}`)} className="btn-primary">
@@ -155,6 +157,12 @@ export default function NewReturnPage() {
               <input type="text" value={form.product} onChange={e => set('product', e.target.value)}
                 placeholder="Product name" className={`form-input ${errors.product ? 'border-red-300' : ''}`} />
               {errors.product && <p className="form-error">{errors.product}</p>}
+            </div>
+            <div className="sm:col-span-2">
+              <label className="form-label">Conversation Link</label>
+              <input type="url" value={form.conversationLink} onChange={e => set('conversationLink', e.target.value)}
+                placeholder="https://..." className="form-input font-mono text-xs" />
+              <p className="text-xs text-slate-400 mt-1">Paste the link to the customer conversation (Commslayer, email, etc.)</p>
             </div>
           </div>
         </div>
