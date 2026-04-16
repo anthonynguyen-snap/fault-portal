@@ -16,6 +16,7 @@ const DECISIONS: ReturnDecision[] = [
   'Full Refund',
   'Exchange',
   'Refund + Restocking Fee',
+  'Refund - Return Label Fee',
   'Replacement',
   'Pending',
 ];

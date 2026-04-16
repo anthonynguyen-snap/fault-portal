@@ -66,11 +66,12 @@ export default function ReturnDetailPage() {
     'Faulty':                  'bg-red-100 text-red-700',
   };
   const decisionColour: Record<string, string> = {
-    'Full Refund':             'bg-emerald-100 text-emerald-700',
-    'Exchange':                'bg-blue-100 text-blue-700',
-    'Refund + Restocking Fee': 'bg-amber-100 text-amber-700',
-    'Replacement':             'bg-purple-100 text-purple-700',
-    'Pending':                 'bg-slate-100 text-slate-600',
+    'Full Refund':              'bg-emerald-100 text-emerald-700',
+    'Exchange':                 'bg-blue-100 text-blue-700',
+    'Refund + Restocking Fee':  'bg-amber-100 text-amber-700',
+    'Refund - Return Label Fee':'bg-orange-100 text-orange-700',
+    'Replacement':              'bg-purple-100 text-purple-700',
+    'Pending':                  'bg-slate-100 text-slate-600',
   };
 
   return (
