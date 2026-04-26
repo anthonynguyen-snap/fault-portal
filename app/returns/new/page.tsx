@@ -57,27 +57,10 @@ export default function NewReturnPage() {
   const [form, setForm] = useState<FormState>(blankForm());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [pastProducts, setPastProducts] = useState<string[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem(PROCESSED_BY_KEY) || '';
     setForm(blankForm(saved));
-
-    fetch('/api/returns')
-      .then(r => r.json())
-      .then(json => {
-        const products = new Set<string>();
-        for (const ret of json.data || []) {
-          for (const item of ret.items || []) {
-            // Only include items from the new return_items table (not legacy synthesised ones)
-            if (item.product && !item.id.startsWith('legacy-')) {
-              products.add(item.product);
-            }
-          }
-        }
-        setPastProducts(Array.from(products).sort());
-      })
-      .catch(() => {});
   }, []);
 
   function set<K extends keyof FormState>(field: K, value: FormState[K]) {
@@ -146,10 +129,6 @@ export default function NewReturnPage() {
       <h1 className="page-title mb-1">Log Return</h1>
       <p className="page-subtitle mb-6">Record a new customer return</p>
 
-      <datalist id="past-products">
-        {pastProducts.map(p => <option key={p} value={p} />)}
-      </datalist>
-
       <form onSubmit={handleSubmit} className="space-y-5">
 
         {/* Order details */}
@@ -204,7 +183,6 @@ export default function NewReturnPage() {
                   value={item.product}
                   onChange={e => setItemField(i, 'product', e.target.value)}
                   placeholder="e.g. PP-UNI2-BLK"
-                  list="past-products"
                   className="form-input"
                 />
               </div>
