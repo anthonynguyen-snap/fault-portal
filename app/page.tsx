@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   TrendingUp,
@@ -915,32 +915,34 @@ function PromoPill({ p, store }: { p: PromoStrip; store: string }) {
 const BOARD_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·×—';
 
 function ScrambleRow({ text, delay = 0 }: { text: string; delay?: number }) {
-  const [display, setDisplay] = useState(() =>
-    text.split('').map(c =>
-      c === ' ' ? ' ' : BOARD_CHARS[Math.floor(Math.random() * BOARD_CHARS.length)]
-    ).join('')
-  );
+  const spanRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    if (!text) { setDisplay(text); return; }
+    const el = spanRef.current;
+    if (!el || !text) return;
+
     const duration = Math.max(900, 700 + text.length * 16);
     let raf: number;
     let t0: number | null = null;
+
+    // Initialise with random chars immediately
+    el.textContent = text.split('').map(c =>
+      c === ' ' ? ' ' : BOARD_CHARS[Math.floor(Math.random() * BOARD_CHARS.length)]
+    ).join('');
 
     const id = setTimeout(() => {
       const step = (ts: number) => {
         if (t0 === null) t0 = ts;
         const pct = Math.min((ts - t0) / duration, 1);
         const resolved = Math.floor(pct * text.length);
-        setDisplay(
-          text.split('').map((c, i) => {
-            if (c === ' ') return ' ';
-            if (i < resolved) return c;
-            return BOARD_CHARS[Math.floor(Math.random() * BOARD_CHARS.length)];
-          }).join('')
-        );
+        // Write directly to DOM — no React state, no re-renders
+        el.textContent = text.split('').map((c, i) => {
+          if (c === ' ') return ' ';
+          if (i < resolved) return c;
+          return BOARD_CHARS[Math.floor(Math.random() * BOARD_CHARS.length)];
+        }).join('');
         if (pct < 1) raf = requestAnimationFrame(step);
-        else setDisplay(text);
+        else el.textContent = text;
       };
       raf = requestAnimationFrame(step);
     }, delay);
@@ -948,7 +950,7 @@ function ScrambleRow({ text, delay = 0 }: { text: string; delay?: number }) {
     return () => { clearTimeout(id); cancelAnimationFrame(raf); };
   }, [text, delay]);
 
-  return <>{display}</>;
+  return <span ref={spanRef} />;
 }
 
 function buildBoardLine(p: PromoStrip): string {
