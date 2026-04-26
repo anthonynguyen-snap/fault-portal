@@ -1063,9 +1063,8 @@ function ActivePromosStrip() {
         {/* Promo rows */}
         <div className="divide-y divide-slate-100">
           {flatRows.map(({ store, p, isFirstInGroup, delay }) => {
-            const meta   = STORE_LABEL[store] ?? { label: store };
-            const line   = buildBoardLine(p);
-            const days   = p.endDate ? daysUntil(p.endDate) : null;
+            const meta     = STORE_LABEL[store] ?? { label: store };
+            const days     = p.endDate ? daysUntil(p.endDate) : null;
             const urgent   = days !== null && days <= 2;
             const expiring = days !== null && days <= 7;
             const storeColor =
@@ -1073,10 +1072,21 @@ function ActivePromosStrip() {
               store === 'US'           ? 'text-sky-600'     :
               store === 'UK-NZ-ROW'    ? 'text-purple-600'  : 'text-brand-600';
 
-            return (
-              <div key={p.id} className="flex items-center hover:bg-brand-50/40 transition-colors">
+            // Build description line parts
+            const discountStr = p.discountValue
+              ? p.discountType === '% Off' ? `${p.discountValue}% OFF`
+              : p.discountType === '$ Off' ? `$${p.discountValue} OFF`
+              : `${p.discountValue} ${p.discountType}`.toUpperCase()
+              : null;
+            const descUpper = p.description ? p.description.toUpperCase() : null;
+            const descHasDiscount = discountStr && descUpper && descUpper.includes(p.discountValue);
+            const showDiscount = descHasDiscount ? null : discountStr;
+            const hasSubline = showDiscount || descUpper || p.code;
 
-                {/* Store column — label shown only for first row of each group */}
+            return (
+              <div key={p.id} className="flex items-stretch hover:bg-brand-50/40 transition-colors">
+
+                {/* Store column */}
                 <div className="w-12 flex-shrink-0 self-stretch flex items-center justify-center border-r border-slate-100">
                   {isFirstInGroup && (
                     <span className={`text-[9px] font-black tracking-widest ${storeColor}`}>
@@ -1085,23 +1095,50 @@ function ActivePromosStrip() {
                   )}
                 </div>
 
-                {/* Scrambling promo text */}
-                <div className="flex-1 px-4 py-3 font-mono text-[11.5px] tracking-wide leading-snug text-slate-700 overflow-hidden">
-                  <ScrambleRow text={line} delay={delay} />
-                </div>
+                {/* Main content block */}
+                <div className="flex-1 px-4 py-2.5 overflow-hidden">
 
-                {/* Days remaining */}
-                <div className="w-14 flex-shrink-0 pr-3 flex items-center justify-end">
-                  {days !== null ? (
-                    <span className={`font-mono text-[10px] font-bold tabular-nums ${
-                      urgent   ? 'text-red-500'   :
-                      expiring ? 'text-amber-500' : 'text-slate-400'
-                    }`}>
-                      {days === 0 ? 'TODAY' : `${days}D`}
-                    </span>
-                  ) : (
-                    <span className="font-mono text-[10px] text-slate-300">—</span>
+                  {/* Line 1: promo name + days remaining */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-mono text-[11.5px] tracking-wide font-semibold text-slate-700 truncate">
+                      <ScrambleRow text={p.name.toUpperCase()} delay={delay} />
+                    </div>
+                    <div className="flex-shrink-0">
+                      {days !== null ? (
+                        <span className={`font-mono text-[10px] font-bold tabular-nums ${
+                          urgent   ? 'text-red-500'   :
+                          expiring ? 'text-amber-500' : 'text-slate-300'
+                        }`}>
+                          {days === 0 ? 'TODAY' : `${days}D`}
+                        </span>
+                      ) : (
+                        <span className="font-mono text-[10px] text-slate-300">—</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Line 2: discount (bold) · description + code */}
+                  {hasSubline && (
+                    <div className="flex items-center justify-between gap-3 mt-0.5">
+                      <p className="font-mono text-[10.5px] tracking-wide leading-snug truncate">
+                        {showDiscount && (
+                          <span className="font-bold text-slate-600">{showDiscount}</span>
+                        )}
+                        {showDiscount && descUpper && (
+                          <span className="text-slate-300">  ·  </span>
+                        )}
+                        {descUpper && (
+                          <span className="text-slate-400">{descUpper}</span>
+                        )}
+                      </p>
+                      {p.code && (
+                        <span className="font-mono text-[10px] text-slate-400 flex-shrink-0">
+                          {p.code.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
                   )}
+
                 </div>
 
               </div>
