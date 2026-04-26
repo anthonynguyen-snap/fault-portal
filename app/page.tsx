@@ -82,11 +82,11 @@ function PairedStatCard({
         </div>
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className={`text-3xl font-bold leading-none ${s.accent}`}>{count}</p>
+            <p className={`text-3xl font-bold font-mono leading-none ${s.accent}`}>{count}</p>
             <p className="text-[11px] text-slate-400 mt-1.5">{countSub}</p>
           </div>
           <div className={`text-right border-l pl-4 ${s.divider}`}>
-            <p className={`text-xl font-bold leading-none ${s.accent}`}>{cost}</p>
+            <p className={`text-xl font-bold font-mono leading-none ${s.accent}`}>{cost}</p>
             <p className="text-[11px] text-slate-400 mt-1.5">{costSub}</p>
           </div>
         </div>
@@ -112,7 +112,7 @@ function StatCard({
         <div className="flex items-start justify-between">
           <div>
             <p className={`text-[11px] font-bold uppercase tracking-widest ${s.label}`}>{label}</p>
-            <p className={`text-3xl font-bold mt-1.5 ${s.accent}`}>{value}</p>
+            <p className={`text-3xl font-bold font-mono mt-1.5 ${s.accent}`}>{value}</p>
             {sub && <p className="text-[11px] text-slate-400 mt-1">{sub}</p>}
           </div>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.iconBg}`}>
