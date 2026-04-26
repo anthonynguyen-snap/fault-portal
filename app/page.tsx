@@ -1003,23 +1003,23 @@ function ActivePromosStrip() {
       </div>
 
       {/* ── Letterboard panel ────────────────────────────────────────────────── */}
-      <div className="mx-4 mb-4 rounded-lg overflow-hidden border border-slate-800/30" style={{ background: 'linear-gradient(180deg, #1e2235 0%, #141624 100%)' }}>
+      <div className="mx-4 mb-4 rounded-lg overflow-hidden border border-slate-200" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
 
         {/* Column header row */}
-        <div className="flex items-center border-b border-slate-700/50">
-          <div className="w-12 flex-shrink-0 border-r border-slate-700/50 py-1.5 flex items-center justify-center">
-            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">STR</span>
+        <div className="flex items-center border-b border-slate-100 bg-slate-50/80">
+          <div className="w-12 flex-shrink-0 border-r border-slate-100 py-1.5 flex items-center justify-center">
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">STR</span>
           </div>
           <div className="flex-1 px-4 py-1.5">
-            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">PROMOTION</span>
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">PROMOTION</span>
           </div>
           <div className="w-14 flex-shrink-0 pr-3 flex items-center justify-end">
-            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">LEFT</span>
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">LEFT</span>
           </div>
         </div>
 
         {/* Promo rows */}
-        <div className="divide-y divide-slate-700/30">
+        <div className="divide-y divide-slate-100">
           {flatRows.map(({ store, p, isFirstInGroup, delay }) => {
             const meta   = STORE_LABEL[store] ?? { label: store };
             const line   = buildBoardLine(p);
@@ -1027,15 +1027,15 @@ function ActivePromosStrip() {
             const urgent   = days !== null && days <= 2;
             const expiring = days !== null && days <= 7;
             const storeColor =
-              store === 'AU (+ Popup)' ? 'text-emerald-400' :
-              store === 'US'           ? 'text-sky-400'     :
-              store === 'UK-NZ-ROW'    ? 'text-purple-400'  : 'text-brand-300';
+              store === 'AU (+ Popup)' ? 'text-emerald-600' :
+              store === 'US'           ? 'text-sky-600'     :
+              store === 'UK-NZ-ROW'    ? 'text-purple-600'  : 'text-brand-600';
 
             return (
-              <div key={p.id} className="flex items-center hover:bg-white/[0.04] transition-colors">
+              <div key={p.id} className="flex items-center hover:bg-brand-50/40 transition-colors">
 
                 {/* Store column — label shown only for first row of each group */}
-                <div className="w-12 flex-shrink-0 self-stretch flex items-center justify-center border-r border-slate-700/40">
+                <div className="w-12 flex-shrink-0 self-stretch flex items-center justify-center border-r border-slate-100">
                   {isFirstInGroup && (
                     <span className={`text-[9px] font-black tracking-widest ${storeColor}`}>
                       {meta.label}
@@ -1044,7 +1044,7 @@ function ActivePromosStrip() {
                 </div>
 
                 {/* Scrambling promo text */}
-                <div className="flex-1 px-4 py-2.5 font-mono text-[11.5px] tracking-wide leading-snug text-amber-300/85 overflow-hidden">
+                <div className="flex-1 px-4 py-2.5 font-mono text-[11.5px] tracking-wide leading-snug text-slate-700 overflow-hidden">
                   <ScrambleRow text={line} delay={delay} />
                 </div>
 
@@ -1052,13 +1052,13 @@ function ActivePromosStrip() {
                 <div className="w-14 flex-shrink-0 pr-3 flex items-center justify-end">
                   {days !== null ? (
                     <span className={`font-mono text-[10px] font-bold tabular-nums ${
-                      urgent   ? 'text-red-400'   :
-                      expiring ? 'text-amber-400' : 'text-slate-500'
+                      urgent   ? 'text-red-500'   :
+                      expiring ? 'text-amber-500' : 'text-slate-400'
                     }`}>
                       {days === 0 ? 'TODAY' : `${days}D`}
                     </span>
                   ) : (
-                    <span className="font-mono text-[10px] text-slate-700">—</span>
+                    <span className="font-mono text-[10px] text-slate-300">—</span>
                   )}
                 </div>
 
