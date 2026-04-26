@@ -48,9 +48,19 @@ function shortWeekLabel(mon: Date): string {
   return mon.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
 
+// ── Card colour schemes ────────────────────────────────────────────────────────
+const CARD_SCHEMES: Record<string, { bg: string; border: string; label: string; accent: string; iconBg: string; iconColor: string; divider: string }> = {
+  slate:  { bg: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: 'border-slate-200',  label: 'text-slate-500',  accent: 'text-slate-900', iconBg: 'bg-slate-100',  iconColor: 'text-slate-500',  divider: 'border-slate-200'  },
+  teal:   { bg: 'linear-gradient(135deg, #f0fdff 0%, #d4f4fb 100%)', border: 'border-brand-200',  label: 'text-brand-600',  accent: 'text-slate-900', iconBg: 'bg-brand-50',   iconColor: 'text-brand-600',  divider: 'border-brand-100'  },
+  indigo: { bg: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', border: 'border-indigo-100', label: 'text-indigo-600', accent: 'text-slate-900', iconBg: 'bg-indigo-50',  iconColor: 'text-indigo-500', divider: 'border-indigo-100' },
+  purple: { bg: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)', border: 'border-purple-100', label: 'text-purple-600', accent: 'text-slate-900', iconBg: 'bg-purple-50',  iconColor: 'text-purple-500', divider: 'border-purple-100' },
+  green:  { bg: 'linear-gradient(135deg, #f0fdf4 0%, #d1fae5 100%)', border: 'border-green-100',  label: 'text-green-600',  accent: 'text-slate-900', iconBg: 'bg-green-50',   iconColor: 'text-green-500',  divider: 'border-green-100'  },
+  amber:  { bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: 'border-amber-100',  label: 'text-amber-600',  accent: 'text-slate-900', iconBg: 'bg-amber-50',   iconColor: 'text-amber-500',  divider: 'border-amber-100'  },
+};
+
 // ── Paired Stat Card ───────────────────────────────────────────────────────────
 function PairedStatCard({
-  label, count, countSub, cost, costSub, icon: Icon, gradient,
+  label, count, countSub, cost, costSub, icon: Icon, color = 'slate',
 }: {
   label: string;
   count: string | number;
@@ -58,25 +68,26 @@ function PairedStatCard({
   cost: string;
   costSub: string;
   icon: LucideIcon;
-  gradient: string;
+  color?: string;
 }) {
+  const s = CARD_SCHEMES[color] ?? CARD_SCHEMES.slate;
   return (
-    <div className="rounded-xl overflow-hidden shadow-sm" style={{ background: gradient }}>
+    <div className={`rounded-xl border ${s.border}`} style={{ background: s.bg, boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.06)' }}>
       <div className="p-5">
         <div className="flex items-start justify-between mb-5">
-          <p className="text-[11px] font-bold text-white/60 uppercase tracking-widest">{label}</p>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-white/15">
-            <Icon size={17} className="text-white" />
+          <p className={`text-[11px] font-bold uppercase tracking-widest ${s.label}`}>{label}</p>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${s.iconBg}`}>
+            <Icon size={17} className={s.iconColor} />
           </div>
         </div>
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-3xl font-bold text-white leading-none">{count}</p>
-            <p className="text-[11px] text-white/55 mt-1.5">{countSub}</p>
+            <p className={`text-3xl font-bold leading-none ${s.accent}`}>{count}</p>
+            <p className="text-[11px] text-slate-400 mt-1.5">{countSub}</p>
           </div>
-          <div className="text-right border-l border-white/20 pl-4">
-            <p className="text-xl font-bold text-white/90 leading-none">{cost}</p>
-            <p className="text-[11px] text-white/55 mt-1.5">{costSub}</p>
+          <div className={`text-right border-l pl-4 ${s.divider}`}>
+            <p className={`text-xl font-bold leading-none ${s.accent}`}>{cost}</p>
+            <p className="text-[11px] text-slate-400 mt-1.5">{costSub}</p>
           </div>
         </div>
       </div>
@@ -86,25 +97,26 @@ function PairedStatCard({
 
 // ── Simple Stat Card (for returns) ────────────────────────────────────────────
 function StatCard({
-  label, value, sub, icon: Icon, gradient,
+  label, value, sub, icon: Icon, color = 'slate',
 }: {
   label: string;
   value: string | number;
   sub?: string;
   icon: LucideIcon;
-  gradient: string;
+  color?: string;
 }) {
+  const s = CARD_SCHEMES[color] ?? CARD_SCHEMES.slate;
   return (
-    <div className="rounded-xl overflow-hidden shadow-sm" style={{ background: gradient }}>
+    <div className={`rounded-xl border ${s.border}`} style={{ background: s.bg, boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.06)' }}>
       <div className="p-5">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[11px] font-bold text-white/60 uppercase tracking-widest">{label}</p>
-            <p className="text-3xl font-bold text-white mt-1.5">{value}</p>
-            {sub && <p className="text-[11px] text-white/55 mt-1">{sub}</p>}
+            <p className={`text-[11px] font-bold uppercase tracking-widest ${s.label}`}>{label}</p>
+            <p className={`text-3xl font-bold mt-1.5 ${s.accent}`}>{value}</p>
+            {sub && <p className="text-[11px] text-slate-400 mt-1">{sub}</p>}
           </div>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/15">
-            <Icon size={20} className="text-white" />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.iconBg}`}>
+            <Icon size={20} className={s.iconColor} />
           </div>
         </div>
       </div>
@@ -292,14 +304,14 @@ export default function DashboardPage() {
       {/* Paired stat cards */}
       {(() => {
         const card2 = periodView === 'thisWeek'
-          ? { label: 'This Week',  count: stats.faultsThisWeek,  cost: formatCurrency(stats.costLostThisWeek),  countSub: 'faults this week',  costSub: 'cost at risk', icon: Calendar,   gradient: 'linear-gradient(135deg, #1591b3 0%, #0b5572 100%)' }
+          ? { label: 'This Week',  count: stats.faultsThisWeek,  cost: formatCurrency(stats.costLostThisWeek),  countSub: 'faults this week',  costSub: 'cost at risk', icon: Calendar,   color: 'teal'   }
           : periodView === 'lastWeek'
-          ? { label: 'Last Week',  count: stats.faultsLastWeek,  cost: formatCurrency(stats.costLostLastWeek),  countSub: 'faults last week',  costSub: 'cost at risk', icon: Calendar,   gradient: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)' }
-          : { label: 'This Month', count: stats.faultsThisMonth, cost: formatCurrency(stats.costLostThisMonth), countSub: 'faults this month', costSub: 'cost at risk', icon: TrendingUp, gradient: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' };
+          ? { label: 'Last Week',  count: stats.faultsLastWeek,  cost: formatCurrency(stats.costLostLastWeek),  countSub: 'faults last week',  costSub: 'cost at risk', icon: Calendar,   color: 'indigo' }
+          : { label: 'This Month', count: stats.faultsThisMonth, cost: formatCurrency(stats.costLostThisMonth), countSub: 'faults this month', costSub: 'cost at risk', icon: TrendingUp, color: 'purple' };
 
         const card3 = periodView === 'thisMonth'
-          ? { label: stats.lastMonthLabel, count: stats.faultsLastMonth, cost: formatCurrency(stats.costLostLastMonth), countSub: 'faults last month', costSub: 'cost at risk', icon: Calendar,   gradient: 'linear-gradient(135deg, #0891b2 0%, #0e7490 100%)' }
-          : { label: 'This Month',         count: stats.faultsThisMonth, cost: formatCurrency(stats.costLostThisMonth), countSub: 'faults this month', costSub: 'cost at risk', icon: TrendingUp, gradient: 'linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)' };
+          ? { label: stats.lastMonthLabel, count: stats.faultsLastMonth, cost: formatCurrency(stats.costLostLastMonth), countSub: 'faults last month', costSub: 'cost at risk', icon: Calendar,   color: 'teal'   }
+          : { label: 'This Month',         count: stats.faultsThisMonth, cost: formatCurrency(stats.costLostThisMonth), countSub: 'faults this month', costSub: 'cost at risk', icon: TrendingUp, color: 'purple' };
 
         return (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -310,7 +322,7 @@ export default function DashboardPage() {
               cost={formatCurrency(stats.costFY)}
               costSub="cost at risk this FY"
               icon={AlertTriangle}
-              gradient="linear-gradient(135deg, #1e293b 0%, #0f172a 100%)"
+              color="slate"
             />
             <PairedStatCard
               label={card2.label}
@@ -319,7 +331,7 @@ export default function DashboardPage() {
               cost={card2.cost}
               costSub={card2.costSub}
               icon={card2.icon}
-              gradient={card2.gradient}
+              color={card2.color}
             />
             <PairedStatCard
               label={card3.label}
@@ -328,7 +340,7 @@ export default function DashboardPage() {
               cost={card3.cost}
               costSub={card3.costSub}
               icon={card3.icon}
-              gradient={card3.gradient}
+              color={card3.color}
             />
           </div>
         );
@@ -545,9 +557,9 @@ export default function DashboardPage() {
 
       {/* Returns stat cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <StatCard label="Returns This Week" value={weekReturns.length} sub="logged this week" icon={RotateCcw} gradient="linear-gradient(135deg, #6366f1 0%, #4338ca 100%)" />
-        <StatCard label="Refunded This Week" value={`$${weekRefunded.toFixed(2)}`} sub="total refunded" icon={DollarSign} gradient="linear-gradient(135deg, #10b981 0%, #059669 100%)" />
-        <StatCard label="Pending Follow-ups" value={pendingFollowUps} sub="across all returns" icon={Mail} gradient={pendingFollowUps > 0 ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'} />
+        <StatCard label="Returns This Week" value={weekReturns.length} sub="logged this week" icon={RotateCcw} color="indigo" />
+        <StatCard label="Refunded This Week" value={`$${weekRefunded.toFixed(2)}`} sub="total refunded" icon={DollarSign} color="green" />
+        <StatCard label="Pending Follow-ups" value={pendingFollowUps} sub="across all returns" icon={Mail} color={pendingFollowUps > 0 ? 'amber' : 'slate'} />
       </div>
 
       {/* Returns volume chart */}
