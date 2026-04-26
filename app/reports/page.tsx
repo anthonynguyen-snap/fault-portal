@@ -10,6 +10,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
+import { StatCardsSkeleton } from '@/components/ui/Skeleton';
 
 const COLORS = ['#1591b3','#2ab0d9','#94D8EE','#059669','#d97706','#dc2626'];
 
@@ -182,11 +183,7 @@ export default function ReportsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <StatCardsSkeleton count={4} />;
   }
 
   const isExternal = reportType === 'external';

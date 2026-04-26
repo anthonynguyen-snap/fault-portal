@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Product, FaultType } from '@/types';
+
+interface StaffMember { id: string; name: string; }
 import { formatCurrency } from '@/lib/utils';
 
 type Mode = 'standard' | 'quick';
@@ -35,6 +37,7 @@ export default function NewCasePage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [faultTypes, setFaultTypes] = useState<FaultType[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [mode, setMode] = useState<Mode>('standard');
   const [showMoreDetails, setShowMoreDetails] = useState(false);
@@ -69,9 +72,11 @@ export default function NewCasePage() {
     Promise.all([
       fetch('/api/products').then(r => r.json()),
       fetch('/api/fault-types').then(r => r.json()),
-    ]).then(([pRes, ftRes]) => {
+      fetch('/api/staff').then(r => r.json()),
+    ]).then(([pRes, ftRes, sRes]) => {
       setProducts(pRes.data || []);
       setFaultTypes(ftRes.data || []);
+      setStaff(sRes.data || []);
     });
   }, []);
 
@@ -221,6 +226,7 @@ export default function NewCasePage() {
 
   function validate(): boolean {
     const newErrors: typeof errors = {};
+    if (!form.submittedBy)  newErrors.submittedBy = 'Please select your name';
     if (!form.date)         newErrors.date = 'Date is required';
     if (!form.orderNumber)  newErrors.orderNumber = 'Order number is required';
     if (!form.product)      newErrors.product = 'Product is required';
@@ -372,6 +378,27 @@ export default function NewCasePage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
+        {/* ── Submitted By — always visible, always required ── */}
+        <div className={`card p-4 flex items-center gap-4 ${errors.submittedBy ? 'border-red-300 bg-red-50' : 'bg-slate-50'}`}>
+          <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Who is submitting this? <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={form.submittedBy}
+              onChange={e => handleChange('submittedBy', e.target.value)}
+              className={`form-input ${errors.submittedBy ? 'border-red-300' : ''}`}
+            >
+              <option value="">Select your name…</option>
+              {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+            {errors.submittedBy && <p className="form-error">{errors.submittedBy}</p>}
+          </div>
+        </div>
+
         {/* ── STANDARD MODE ── */}
         {mode === 'standard' && (
           <>
@@ -416,12 +443,6 @@ export default function NewCasePage() {
                     placeholder="Full name of the customer"
                     className={`form-input ${errors.customerName ? 'border-red-300' : ''}`} />
                   {errors.customerName && <p className="form-error">{errors.customerName}</p>}
-                </div>
-                <div>
-                  <label className="form-label">Submitted By</label>
-                  <input type="text" value={form.submittedBy}
-                    onChange={e => handleChange('submittedBy', e.target.value)}
-                    placeholder="Your name (optional)" className="form-input" />
                 </div>
               </div>
             </div>
@@ -616,12 +637,6 @@ export default function NewCasePage() {
                       rows={3}
                       placeholder="Describe the fault in detail…"
                       className="form-input resize-none" />
-                  </div>
-                  <div>
-                    <label className="form-label">Submitted By</label>
-                    <input type="text" value={form.submittedBy}
-                      onChange={e => handleChange('submittedBy', e.target.value)}
-                      placeholder="Your name (optional)" className="form-input" />
                   </div>
                 </div>
               )}

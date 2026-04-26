@@ -11,8 +11,11 @@ import {
   CheckCircle,
   X,
 } from 'lucide-react';
-import { Claim, ClaimStatus } from '@/types';
+import { Claim, ClaimStatus, FaultCase } from '@/types';
 import { formatCurrency, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { useToast } from '@/components/ui/Toast';
 
 const MONTHS = [
   'January','February','March','April','May','June',
@@ -24,6 +27,7 @@ const YEARS = [currentYear, currentYear - 1, currentYear - 2].map(String);
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>([]);
+  const [cases, setCases] = useState<FaultCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -33,22 +37,59 @@ export default function ClaimsPage() {
   const [formData, setFormData] = useState<Partial<Claim>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const { success, error: toastError } = useToast();
 
-  useEffect(() => { loadClaims(); }, []);
+  useEffect(() => { loadData(); }, []);
 
-  async function loadClaims() {
+  async function loadData() {
     setLoading(true);
     try {
-      const res = await fetch('/api/claims');
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      setClaims(json.data || []);
+      const [claimsRes, casesRes] = await Promise.all([
+        fetch('/api/claims'),
+        fetch('/api/cases'),
+      ]);
+      const claimsJson = await claimsRes.json();
+      if (claimsJson.error) throw new Error(claimsJson.error);
+      setClaims(claimsJson.data || []);
+      const casesJson = await casesRes.json();
+      setCases(casesJson.data || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
   }
+
+  async function loadClaims() {
+    try {
+      const res = await fetch('/api/claims');
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setClaims(json.data || []);
+    } catch { /* silent */ }
+  }
+
+  // Unique manufacturers derived from actual fault cases
+  const manufacturers = useMemo(() => {
+    const names = new Set(cases.map(c => c.manufacturerName).filter(Boolean));
+    return Array.from(names).sort();
+  }, [cases]);
+
+  // Auto-calculate matching cases for selected manufacturer + month + year
+  const matchingCases = useMemo(() => {
+    if (!formData.manufacturer || !formData.month || !formData.year) return [];
+    const targetMonthIndex = MONTHS.indexOf(formData.month); // 0-based
+    const targetYear = parseInt(formData.year);
+    return cases.filter(c => {
+      if (c.manufacturerName !== formData.manufacturer) return false;
+      try {
+        // Parse as local date by appending T00:00:00 (no Z) so JS treats it as local time
+        const dateStr = c.date.includes('T') ? c.date : c.date + 'T00:00:00';
+        const d = new Date(dateStr);
+        return d.getMonth() === targetMonthIndex && d.getFullYear() === targetYear;
+      } catch { return false; }
+    });
+  }, [cases, formData.manufacturer, formData.month, formData.year]);
 
   // Totals
   const totals = useMemo(() => ({
@@ -75,7 +116,6 @@ export default function ClaimsPage() {
       manufacturer: '',
       month: MONTHS[new Date().getMonth()],
       year: String(currentYear),
-      faultCount: 0,
       status: 'Claim Raised',
       notes: '',
       caseIds: [],
@@ -92,11 +132,20 @@ export default function ClaimsPage() {
   }
 
   async function handleSave() {
+    if (!formData.manufacturer) { setSaveError('Please select a manufacturer.'); return; }
     setSaving(true);
     setSaveError('');
     try {
       const method = editingClaim ? 'PATCH' : 'POST';
-      const body = editingClaim ? { ...formData, id: editingClaim.id } : formData;
+      // For new claims, inject auto-calculated values from matching cases
+      const autoFields = !editingClaim ? {
+        faultCount: matchingCases.length,
+        costAtRisk: matchingCases.reduce((s, c) => s + c.unitCostUSD, 0),
+        caseIds: matchingCases.map(c => c.id),
+      } : {};
+      const body = editingClaim
+        ? { ...formData, id: editingClaim.id }
+        : { ...formData, ...autoFields };
 
       const res = await fetch('/api/claims', {
         method,
@@ -108,8 +157,10 @@ export default function ClaimsPage() {
 
       setShowModal(false);
       await loadClaims();
+      success(editingClaim ? 'Claim updated' : 'Claim batch created', editingClaim ? 'Changes saved successfully.' : `Batch for ${formData.manufacturer} logged.`);
     } catch (err: any) {
       setSaveError(err.message || 'Failed to save. Please try again.');
+      toastError('Save failed', err.message);
     } finally {
       setSaving(false);
     }
@@ -130,8 +181,18 @@ export default function ClaimsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-7 w-24 bg-slate-200 rounded animate-pulse" />
+            <div className="h-4 w-64 bg-slate-200 rounded animate-pulse" />
+          </div>
+          <div className="h-9 w-36 bg-slate-200 rounded-lg animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="card p-5 space-y-3"><div className="h-3 w-24 bg-slate-200 rounded animate-pulse" /><div className="h-8 w-12 bg-slate-200 rounded animate-pulse" /></div>)}
+        </div>
+        <TableSkeleton rows={6} cols={5} />
       </div>
     );
   }
@@ -174,8 +235,13 @@ export default function ClaimsPage() {
 
       {/* Claims by Manufacturer */}
       {Object.keys(grouped).length === 0 ? (
-        <div className="card p-12 text-center">
-          <p className="text-slate-400 text-sm">No claim batches yet. Click "New Claim Batch" to get started.</p>
+        <div className="card overflow-hidden">
+          <EmptyState
+            icon={FileCheck}
+            title="No claim batches yet"
+            description="Create your first batch to start tracking manufacturer claims and recoveries."
+            action={{ label: 'New Claim Batch', onClick: openNew }}
+          />
         </div>
       ) : (
         Object.entries(grouped).map(([manufacturer, mfrClaims]) => (
@@ -253,23 +319,19 @@ export default function ClaimsPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-3">
-                  <label className="form-label">Manufacturer</label>
-                  <input
-                    type="text"
-                    list="mfr-list"
-                    value={formData.manufacturer || ''}
-                    onChange={e => setFormData(f => ({...f, manufacturer: e.target.value}))}
-                    className="form-input"
-                    placeholder="e.g. Acme Corp"
-                  />
-                  <datalist id="mfr-list">
-                    {Object.keys(grouped).sort().map(m => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
-                </div>
+              <div>
+                <label className="form-label">Manufacturer</label>
+                <select
+                  value={formData.manufacturer || ''}
+                  onChange={e => setFormData(f => ({ ...f, manufacturer: e.target.value }))}
+                  className="form-input"
+                >
+                  <option value="">Select manufacturer…</option>
+                  {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Month</label>
                   <select value={formData.month || ''} onChange={e => setFormData(f => ({...f, month: e.target.value}))} className="form-input">
@@ -282,11 +344,35 @@ export default function ClaimsPage() {
                     {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="form-label">Fault Count</label>
-                  <input type="number" value={formData.faultCount || ''} onChange={e => setFormData(f => ({...f, faultCount: parseInt(e.target.value)||0}))} className="form-input" min={0} />
-                </div>
               </div>
+
+              {/* Auto-calculated preview */}
+              {!editingClaim && formData.manufacturer && (
+                <div className={`rounded-xl p-4 border ${matchingCases.length > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                  {matchingCases.length > 0 ? (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-800">
+                          {matchingCases.length} fault{matchingCases.length !== 1 ? 's' : ''} found
+                        </p>
+                        <p className="text-xs text-emerald-600 mt-0.5">
+                          {formData.manufacturer} · {formData.month} {formData.year}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-emerald-800">
+                          {formatCurrency(matchingCases.reduce((s, c) => s + c.unitCostUSD, 0))}
+                        </p>
+                        <p className="text-xs text-emerald-600">cost at risk</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 text-center">
+                      No fault cases found for {formData.manufacturer} in {formData.month} {formData.year}
+                    </p>
+                  )}
+                </div>
+              )}
 
 
               <div>

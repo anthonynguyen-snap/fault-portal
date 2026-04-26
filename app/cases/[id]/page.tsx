@@ -18,7 +18,7 @@ import {
   Clock,
   CheckCircle,
 } from 'lucide-react';
-import { FaultCase, ClaimStatus } from '@/types';
+import { FaultCase, ClaimStatus, Product } from '@/types';
 import { formatCurrency, formatDate, formatDateTime, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
 
 function InfoRow({ icon: Icon, label, value, href }: {
@@ -58,14 +58,21 @@ export default function CaseDetailPage() {
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState<Partial<FaultCase>>({});
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  // Derived — which product is selected in the edit form
+  const editingProduct = products.find(p => p.name === (editForm.product ?? ''));
 
   useEffect(() => {
-    fetch(`/api/cases/${id}`)
-      .then(r => r.json())
-      .then(json => {
-        if (json.error) throw new Error(json.error);
-        setCaseData(json.data);
-        setEditForm(json.data);
+    Promise.all([
+      fetch(`/api/cases/${id}`).then(r => r.json()),
+      fetch('/api/products').then(r => r.json()),
+    ])
+      .then(([caseJson, prodJson]) => {
+        if (caseJson.error) throw new Error(caseJson.error);
+        setCaseData(caseJson.data);
+        setEditForm(caseJson.data);
+        setProducts(prodJson.data ?? []);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -189,6 +196,7 @@ export default function CaseDetailPage() {
                 <InfoRow icon={Hash}       label="Order Number" value={c.orderNumber} />
                 <InfoRow icon={User}       label="Customer"     value={c.customerName} />
                 <InfoRow icon={Clock}      label="Submitted"    value={formatDateTime(c.createdAt)} />
+                {c.submittedBy && <InfoRow icon={User} label="Submitted By" value={c.submittedBy} />}
               </>
             )}
           </div>
@@ -196,10 +204,69 @@ export default function CaseDetailPage() {
           {/* Product Info */}
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">Product Information</h2>
-            <InfoRow icon={Package}   label="Product"              value={c.product} />
-            <InfoRow icon={Building2} label="Manufacturer"         value={c.manufacturerName} />
-            <InfoRow icon={Hash}      label="Manufacturer Number"  value={c.manufacturerNumber || '—'} />
-            <InfoRow icon={DollarSign} label="Unit Cost"           value={formatCurrency(c.unitCostUSD)} />
+            {editing ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="form-label">Product</label>
+                  <select
+                    value={editForm.product ?? c.product}
+                    onChange={e => {
+                      const prod = products.find(p => p.name === e.target.value);
+                      setEditForm(f => ({
+                        ...f,
+                        product:            e.target.value,
+                        manufacturerName:   prod?.manufacturerName ?? f.manufacturerName,
+                        manufacturerNumber: '',
+                        unitCostUSD:        prod?.unitCostUSD ?? f.unitCostUSD,
+                      }));
+                    }}
+                    className="form-input"
+                  >
+                    <option value="">Select product…</option>
+                    {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Manufacturer</label>
+                  <input
+                    type="text"
+                    value={editForm.manufacturerName ?? c.manufacturerName}
+                    onChange={e => setEditForm(f => ({ ...f, manufacturerName: e.target.value }))}
+                    className="form-input"
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Manufacturer Number</label>
+                  {editingProduct && editingProduct.manufacturerNumbers.length > 0 ? (
+                    <select
+                      value={editForm.manufacturerNumber ?? c.manufacturerNumber}
+                      onChange={e => setEditForm(f => ({ ...f, manufacturerNumber: e.target.value }))}
+                      className="form-input"
+                    >
+                      <option value="">Select number…</option>
+                      {editingProduct.manufacturerNumbers.map(n => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editForm.manufacturerNumber ?? c.manufacturerNumber}
+                      onChange={e => setEditForm(f => ({ ...f, manufacturerNumber: e.target.value }))}
+                      placeholder="e.g. MN-001"
+                      className="form-input"
+                    />
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <InfoRow icon={Package}    label="Product"             value={c.product} />
+                <InfoRow icon={Building2}  label="Manufacturer"        value={c.manufacturerName} />
+                <InfoRow icon={Hash}       label="Manufacturer Number" value={c.manufacturerNumber || '—'} />
+                <InfoRow icon={DollarSign} label="Unit Cost"           value={formatCurrency(c.unitCostUSD)} />
+              </>
+            )}
           </div>
 
           {/* Fault Details */}

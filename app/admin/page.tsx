@@ -11,11 +11,13 @@ import {
   Package,
   Building2,
   Tag,
+  Users,
+  Target,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 
 // Generic CRUD panel used for all three entity types
-type Tab = 'products' | 'manufacturers' | 'faultTypes';
+type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'kpiTargets';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('products');
@@ -24,6 +26,8 @@ export default function AdminPage() {
     { key: 'products',      label: 'Products',      icon: Package   },
     { key: 'manufacturers', label: 'Manufacturers', icon: Building2 },
     { key: 'faultTypes',    label: 'Fault Types',   icon: Tag       },
+    { key: 'staff',         label: 'Staff',         icon: Users     },
+    { key: 'kpiTargets',    label: 'KPI Targets',   icon: Target    },
   ];
 
   return (
@@ -54,6 +58,8 @@ export default function AdminPage() {
       {activeTab === 'products'      && <ProductsPanel />}
       {activeTab === 'manufacturers' && <ManufacturersPanel />}
       {activeTab === 'faultTypes'    && <FaultTypesPanel />}
+      {activeTab === 'staff'         && <StaffPanel />}
+      {activeTab === 'kpiTargets'    && <KpiTargetsPanel />}
     </div>
   );
 }
@@ -395,6 +401,132 @@ function FaultTypesPanel() {
   );
 }
 
+// ─── Staff Panel ───────────────────────────────────────────────────────────────
+
+function StaffPanel() {
+  const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch('/api/staff');
+    const json = await res.json();
+    setStaff(json.data || []);
+    setLoading(false);
+  }
+
+  async function handleAdd() {
+    if (!newName.trim()) { setError('Name is required'); return; }
+    setSaving(true); setError('');
+    try {
+      const res = await fetch('/api/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setNewName('');
+      setSuccess('Staff member added.');
+      setTimeout(() => setSuccess(''), 3000);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string, name: string) {
+    if (!confirm(`Remove "${name}" from the team list?`)) return;
+    await fetch(`/api/staff?id=${id}`, { method: 'DELETE' });
+    await load();
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-slate-900">Staff Members</h2>
+          <p className="text-xs text-slate-500">Names available in the fault submission dropdown</p>
+        </div>
+        {success && (
+          <span className="flex items-center gap-1.5 text-emerald-700 text-xs font-medium">
+            <CheckCircle size={13} /> {success}
+          </span>
+        )}
+      </div>
+
+      {/* Add new */}
+      <div className="card p-4">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Add Team Member</p>
+        <div className="flex gap-2">
+          <input
+            value={newName}
+            onChange={e => { setNewName(e.target.value); setError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            placeholder="e.g. Sarah Johnson"
+            className="form-input flex-1"
+          />
+          <button onClick={handleAdd} disabled={saving} className="btn-primary px-4">
+            <Plus size={15} /> Add
+          </button>
+        </div>
+        {error && (
+          <div className="flex items-center gap-2 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle size={13} className="text-red-500" />
+            <p className="text-xs text-red-700">{error}</p>
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="card overflow-hidden">
+        {loading ? (
+          <div className="py-12 text-center">
+            <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          </div>
+        ) : staff.length === 0 ? (
+          <div className="py-12 text-center">
+            <Users size={28} className="text-slate-300 mx-auto mb-2" />
+            <p className="text-sm text-slate-400">No staff members added yet.</p>
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th className="w-20">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {staff.map(member => (
+                <tr key={member.id}>
+                  <td className="font-medium text-slate-800">{member.name}</td>
+                  <td>
+                    <button
+                      onClick={() => handleDelete(member.id, member.name)}
+                      className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Shared Components ─────────────────────────────────────────────────────────
 
 function CrudPanel({
@@ -458,6 +590,190 @@ function Modal({
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={onSave} disabled={saving} className="btn-primary">
             {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI Targets Panel ─────────────────────────────────────────────────────────
+
+interface KPIConfig {
+  repliesPerDay: number;
+  resolveRate: number;
+  csat: number;
+}
+
+function KpiTargetsPanel() {
+  const [config, setConfig] = useState<KPIConfig>({ repliesPerDay: 60, resolveRate: 30, csat: 3.0 });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/config');
+      const json = await res.json();
+      setConfig(json);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function validateField(key: string, value: string): boolean {
+    const num = parseFloat(value);
+    if (isNaN(num) || num <= 0) {
+      setFieldErrors(e => ({ ...e, [key]: 'Must be a positive number' }));
+      return false;
+    }
+    setFieldErrors(e => ({ ...e, [key]: '' }));
+    return true;
+  }
+
+  async function handleSave() {
+    setError('');
+    setFieldErrors({});
+
+    // Validate all fields
+    const isValid =
+      validateField('repliesPerDay', String(config.repliesPerDay)) &&
+      validateField('resolveRate', String(config.resolveRate)) &&
+      validateField('csat', String(config.csat));
+
+    if (!isValid) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+
+      setSuccess('KPI targets updated');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="card p-12 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-slate-900">KPI Targets</h2>
+          <p className="text-xs text-slate-500">Configure performance targets for team metrics</p>
+        </div>
+        {success && (
+          <span className="flex items-center gap-1.5 text-emerald-700 text-xs font-medium">
+            <CheckCircle size={13} /> {success}
+          </span>
+        )}
+      </div>
+
+      <div className="card p-6">
+        <div className="space-y-5">
+          {/* Daily Replies Target */}
+          <div>
+            <label className="form-label">Daily Replies Target</label>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={config.repliesPerDay}
+                  onChange={e => setConfig(c => ({ ...c, repliesPerDay: parseFloat(e.target.value) || 0 }))}
+                  className={`form-input ${fieldErrors.repliesPerDay ? 'border-red-300' : ''}`}
+                />
+                <p className="text-xs text-slate-400 mt-1.5">Minimum messages sent per agent per day</p>
+                {fieldErrors.repliesPerDay && (
+                  <p className="text-xs text-red-600 mt-1">{fieldErrors.repliesPerDay}</p>
+                )}
+              </div>
+              <span className="text-sm text-slate-500 font-medium">replies/day</span>
+            </div>
+          </div>
+
+          {/* One-Touch Resolution Rate */}
+          <div>
+            <label className="form-label">One-Touch Resolution Rate</label>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  value={config.resolveRate}
+                  onChange={e => setConfig(c => ({ ...c, resolveRate: parseFloat(e.target.value) || 0 }))}
+                  className={`form-input ${fieldErrors.resolveRate ? 'border-red-300' : ''}`}
+                />
+                <p className="text-xs text-slate-400 mt-1.5">Percentage of tickets resolved in one reply</p>
+                {fieldErrors.resolveRate && (
+                  <p className="text-xs text-red-600 mt-1">{fieldErrors.resolveRate}</p>
+                )}
+              </div>
+              <span className="text-sm text-slate-500 font-medium">%</span>
+            </div>
+          </div>
+
+          {/* Minimum CSAT Score */}
+          <div>
+            <label className="form-label">Minimum CSAT Score</label>
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <input
+                  type="number"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  value={config.csat}
+                  onChange={e => setConfig(c => ({ ...c, csat: parseFloat(e.target.value) || 0 }))}
+                  className={`form-input ${fieldErrors.csat ? 'border-red-300' : ''}`}
+                />
+                <p className="text-xs text-slate-400 mt-1.5">Average customer satisfaction rating target</p>
+                {fieldErrors.csat && (
+                  <p className="text-xs text-red-600 mt-1">{fieldErrors.csat}</p>
+                )}
+              </div>
+              <span className="text-sm text-slate-500 font-medium">/ 5.0</span>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle size={14} className="text-red-500" />
+            <p className="text-xs text-red-700">{error}</p>
+          </div>
+        )}
+
+        <div className="flex justify-end mt-6">
+          <button onClick={handleSave} disabled={saving} className="btn-primary">
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>

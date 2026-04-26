@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Sidebar } from '@/components/layout/Sidebar';
+import Header from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 
 export const metadata: Metadata = {
@@ -21,11 +22,14 @@ export default function RootLayout({
           <Sidebar />
 
           {/* Main Content Area */}
-          <main className="flex-1 overflow-y-auto">
-            <div className="min-h-full p-6 lg:p-8">
-              <Providers>{children}</Providers>
-            </div>
-          </main>
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Header />
+            <main className="flex-1 overflow-y-auto">
+              <div className="min-h-full p-6 lg:p-8">
+                <Providers>{children}</Providers>
+              </div>
+            </main>
+          </div>
         </div>
       </body>
     </html>

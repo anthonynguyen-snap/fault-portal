@@ -127,7 +127,12 @@ export default function NewReturnPage() {
         <ChevronLeft size={16} /> Back to Returns
       </Link>
       <h1 className="page-title mb-1">Log Return</h1>
-      <p className="page-subtitle mb-6">Record a new customer return</p>
+      <p className="page-subtitle mb-4">Record a new customer return</p>
+
+      <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
+        <span className="text-amber-500 text-base">⚠️</span>
+        <p className="text-sm text-amber-800 font-medium">This form is for Anthony only. If you're not Anthony, please don't proceed.</p>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
 

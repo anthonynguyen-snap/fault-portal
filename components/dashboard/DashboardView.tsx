@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { DashboardStats, FaultCase, Return } from '@/types';
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, truncate } from '@/lib/utils';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 // ── Week helpers (for Returns widget) ────────────────────────────────────────
 function getMondayOf(d: Date): Date {
@@ -108,14 +109,7 @@ export function DashboardView() {
   useEffect(() => { load(); }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="w-10 h-10 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-500 text-sm">Loading dashboard…</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {

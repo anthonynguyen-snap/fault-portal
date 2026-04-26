@@ -3,6 +3,8 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft, Mail, Search } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
 function getMondayOf(d: Date): Date {
@@ -27,6 +29,25 @@ function weekLabel(mon: Date): string {
   const isThisWeek = fmtDate(mon) === fmtDate(getMondayOf(new Date()));
   if (isThisWeek) return 'This Week';
   return `${mon.toLocaleDateString('en-AU', opts)} – ${sun.toLocaleDateString('en-AU', opts)}`;
+}
+
+// ── Age helpers ───────────────────────────────────────────────────────────────
+function daysSince(dateStr: string): number {
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+  return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function FollowUpAgePill({ date }: { date: string }) {
+  const days = daysSince(date);
+  if (days < 3) return null;
+  const cls = days >= 7
+    ? 'bg-red-100 text-red-700'
+    : 'bg-amber-100 text-amber-700';
+  return (
+    <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${cls}`}>
+      {days}d pending
+    </span>
+  );
 }
 
 // ── Badges ───────────────────────────────────────────────────────────────────
@@ -213,26 +234,36 @@ export default function ReturnsPage() {
       </div>
 
       {loading ? (
-        <div className="card p-12 flex items-center justify-center">
-          <div className="w-6 h-6 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <TableSkeleton rows={6} cols={6} />
       ) : displayed.length === 0 ? (
-        <div className="card p-12 text-center">
-          <RotateCcw size={32} className="text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium">
-            {filter === 'follow-up' ? 'No pending follow-ups' : `No returns for ${weekLabel(weekStart).toLowerCase()}`}
-          </p>
-          {isThisWeek && filter !== 'follow-up' && (
-            <Link href="/returns/new" className="btn-primary mt-4 inline-flex items-center gap-2">
-              <PlusCircle size={15} /> Log Return
-            </Link>
+        <div className="card overflow-clip">
+          {filter === 'follow-up' ? (
+            <EmptyState
+              icon={RotateCcw}
+              title="No pending follow-ups"
+              description="All follow-ups are resolved — nice work!"
+            />
+          ) : filter !== 'all' ? (
+            <EmptyState
+              icon={RotateCcw}
+              title={`No ${filter.toLowerCase()} returns this week`}
+              description="No returns match this status for the selected week."
+              action={{ label: 'View all returns', onClick: () => setFilter('all') }}
+            />
+          ) : (
+            <EmptyState
+              icon={RotateCcw}
+              title={`No returns for ${weekLabel(weekStart).toLowerCase()}`}
+              description={isThisWeek ? 'Log a return to get started.' : 'No returns were logged for this week.'}
+              action={isThisWeek ? { label: 'Log Return', href: '/returns/new' } : undefined}
+            />
           )}
         </div>
       ) : (
-        <div className="card overflow-hidden">
+        <div className="card overflow-clip">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50">
+              <tr className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Date / Order</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
@@ -243,12 +274,13 @@ export default function ReturnsPage() {
                 <th className="px-4 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
-              {displayed.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50 transition-colors group">
+            <tbody>
+              {displayed.map((r, idx) => (
+                <tr key={r.id} className={`transition-colors group border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa]`}>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-800">{r.date}</p>
                     <p className="text-xs text-slate-400 font-mono">{r.orderNumber}</p>
+                    {r.followUpStatus === 'Pending' && <FollowUpAgePill date={r.date} />}
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-800">{r.customerName}</p>

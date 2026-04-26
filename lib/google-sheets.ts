@@ -374,6 +374,48 @@ export async function deleteFaultType(id: string): Promise<void> {
 }
 
 // =========================================================
+// STAFF
+// =========================================================
+
+export interface StaffMember { id: string; name: string; }
+
+export async function getStaff(): Promise<StaffMember[]> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: 'Staff!A2:B',
+  });
+  const rows = res.data.values || [];
+  return rows.filter(r => r[0] && r[1]).map(r => ({ id: r[0], name: r[1] }));
+}
+
+export async function createStaff(name: string): Promise<StaffMember> {
+  const sheets = getSheets();
+  const member: StaffMember = { id: `STAFF-${Date.now()}`, name: name.trim() };
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: 'Staff!A:B',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[member.id, member.name]] },
+  });
+  return member;
+}
+
+export async function deleteStaff(id: string): Promise<void> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Staff!A2:B' });
+  const rows = res.data.values || [];
+  const filtered = rows.filter(r => r[0] !== id);
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'Staff!A2:B' });
+  if (filtered.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID, range: 'Staff!A2',
+      valueInputOption: 'RAW', requestBody: { values: filtered },
+    });
+  }
+}
+
+// =========================================================
 // CLAIMS
 // =========================================================
 

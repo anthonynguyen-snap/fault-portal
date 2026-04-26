@@ -130,3 +130,35 @@ export function truncate(str: string, length: number): string {
   if (!str) return '';
   return str.length > length ? str.slice(0, length) + '…' : str;
 }
+
+// Fault type badge colour — keyword-based matching on free-form strings
+export function faultTypeBadge(faultType: string): string {
+  const ft = faultType.toLowerCase();
+
+  // Charging / power failures → red
+  if (ft.includes('not recharge') || ft.includes('does not charge') || ft.includes('wont charge'))
+    return 'bg-red-100 text-red-700';
+
+  // Wireless charging or battery drain → orange
+  if (ft.includes('wireless') || ft.includes('charging') || ft.includes('battery'))
+    return 'bg-orange-100 text-orange-700';
+
+  // Cable issues → amber
+  if (ft.includes('cable') || ft.includes('usb') || ft.includes('lightning') || ft.includes('cord'))
+    return 'bg-amber-100 text-amber-700';
+
+  // Physical damage / broken → rose/red
+  if (ft === 'broken' || ft.includes('crack') || ft.includes('smash') || ft.includes('shatter') || ft.includes('damaged'))
+    return 'bg-rose-100 text-rose-700';
+
+  // Mechanical / retract / extend → purple
+  if (ft.includes('retract') || ft.includes('extend') || ft.includes('hinge') || ft.includes('mechanical'))
+    return 'bg-purple-100 text-purple-700';
+
+  // Connectivity → blue
+  if (ft.includes('connect') || ft.includes('bluetooth') || ft.includes('wifi') || ft.includes('sync'))
+    return 'bg-blue-100 text-blue-700';
+
+  // Other / catch-all → slate
+  return 'bg-slate-100 text-slate-600';
+}

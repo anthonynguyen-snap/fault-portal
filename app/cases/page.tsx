@@ -2,16 +2,20 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  Search, Filter, Plus, ExternalLink,
+  Search, Filter, Plus, ExternalLink, AlertTriangle,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
-  Download, CheckSquare, Square, X, RefreshCw,
+  Download, CheckSquare, Square, X, RefreshCw, Pencil,
 } from 'lucide-react';
 import { FaultCase, ClaimStatus } from '@/types';
-import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES, truncate } from '@/lib/utils';
+import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge } from '@/lib/utils';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { useToast } from '@/components/ui/Toast';
 
 const PAGE_SIZE = 20;
 type SortKey = keyof FaultCase;
 type SortDir = 'asc' | 'desc';
+
 
 export default function CasesPage() {
   const [cases, setCases] = useState<FaultCase[]>([]);
@@ -38,6 +42,7 @@ export default function CasesPage() {
   const [batchStatus, setBatchStatus] = useState<ClaimStatus | ''>('');
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchError, setBatchError] = useState('');
+  const { success, error: toastError } = useToast();
 
   useEffect(() => {
     fetch('/api/cases')
@@ -130,14 +135,27 @@ export default function CasesPage() {
       setCases(prev =>
         prev.map(c => selectedIds.has(c.id) ? { ...c, claimStatus: batchStatus as ClaimStatus } : c)
       );
+      success(`${ids.length} case${ids.length !== 1 ? 's' : ''} updated`, `Status set to "${batchStatus}"`);
       setSelectedIds(new Set());
       setBatchStatus('');
     } catch (err: any) {
       setBatchError(err.message);
+      toastError('Batch update failed', err.message);
     } finally {
       setBatchLoading(false);
     }
   }
+
+  function clearFilters() {
+    setSearch('');
+    setStatusFilter('');
+    setManufacturerFilter('');
+    setFromDate('');
+    setToDate('');
+    setPage(1);
+  }
+
+  const isFiltered = !!(search || statusFilter || manufacturerFilter || fromDate || toDate);
 
   function exportCsv() {
     const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Fault Type','Status','Cost USD','Evidence'];
@@ -154,15 +172,21 @@ export default function CasesPage() {
     a.download = `fault-cases-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    success('Export ready', `${filtered.length} cases exported to CSV`);
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <div className="w-10 h-10 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-slate-500 text-sm">Loading cases...</p>
+      <div className="max-w-7xl mx-auto space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-7 w-28 bg-slate-200 rounded animate-pulse" />
+            <div className="h-4 w-40 bg-slate-200 rounded animate-pulse" />
+          </div>
+          <div className="h-9 w-32 bg-slate-200 rounded-lg animate-pulse" />
         </div>
+        <div className="h-12 w-full bg-slate-200 rounded-xl animate-pulse" />
+        <TableSkeleton rows={10} cols={8} />
       </div>
     );
   }
@@ -279,7 +303,7 @@ export default function CasesPage() {
       )}
 
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-clip">
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead>
@@ -298,7 +322,7 @@ export default function CasesPage() {
                   { key: 'product' as SortKey,          label: 'Product'      },
                   { key: 'manufacturerName' as SortKey, label: 'Manufacturer' },
                   { key: 'faultType' as SortKey,        label: 'Fault Type'   },
-                  { key: 'claimStatus' as SortKey,      label: 'Status'       },
+                  { key: 'submittedBy' as SortKey,      label: 'Submitted By' },
                   { key: 'unitCostUSD' as SortKey,      label: 'Cost'         },
                 ].map(col => (
                   <th key={col.key} onClick={() => handleSort(col.key)}
@@ -307,13 +331,28 @@ export default function CasesPage() {
                   </th>
                 ))}
                 <th>Evidence</th>
+                <th className="w-10"></th>
               </tr>
             </thead>
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-12 text-slate-400">
-                    {cases.length === 0 ? 'No cases submitted yet.' : 'No cases match your filters.'}
+                  <td colSpan={11}>
+                    {cases.length === 0 ? (
+                      <EmptyState
+                        icon={AlertTriangle}
+                        title="No cases yet"
+                        description="Submit your first fault case to get started."
+                        action={{ label: 'Submit Fault', href: '/cases/new' }}
+                      />
+                    ) : (
+                      <EmptyState
+                        icon={AlertTriangle}
+                        title="No matching cases"
+                        description={`No cases match your current ${isFiltered ? 'filters' : 'search'}. Try broadening your criteria.`}
+                        action={{ label: 'Clear filters', onClick: clearFilters }}
+                      />
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -328,19 +367,21 @@ export default function CasesPage() {
                     </td>
                     <td className="whitespace-nowrap text-xs text-slate-500">{formatDate(c.date)}</td>
                     <td><span className="font-semibold text-brand-600 hover:underline">{c.orderNumber}</span></td>
-                    <td className="font-medium">{truncate(c.customerName, 24)}</td>
-                    <td className="text-slate-500">{truncate(c.product, 24)}</td>
-                    <td className="text-slate-500">{truncate(c.manufacturerName, 20)}</td>
+                    <td className="font-medium" title={c.customerName}>{truncate(c.customerName, 24)}</td>
+                    <td className="text-slate-500" title={c.product}>{truncate(c.product, 24)}</td>
+                    <td className="text-slate-500" title={c.manufacturerName}>{truncate(c.manufacturerName, 20)}</td>
                     <td>
-                      <span className="inline-block text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>
                         {c.faultType}
                       </span>
+                      {c.faultType === 'Other' && c.faultNotes && (
+                        <p className="text-xs text-slate-400 mt-1 max-w-[180px] truncate" title={c.faultNotes}>
+                          {c.faultNotes}
+                        </p>
+                      )}
                     </td>
-                    <td>
-                      <span className={`badge ${STATUS_STYLES[c.claimStatus]}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[c.claimStatus]}`} />
-                        {c.claimStatus}
-                      </span>
+                    <td className="text-sm text-slate-600">
+                      {c.submittedBy || <span className="text-slate-300">—</span>}
                     </td>
                     <td className="font-semibold text-slate-900 whitespace-nowrap">{formatCurrency(c.unitCostUSD)}</td>
                     <td onClick={e => e.stopPropagation()}>
@@ -350,6 +391,15 @@ export default function CasesPage() {
                           View <ExternalLink size={11} />
                         </a>
                       ) : <span className="text-slate-300 text-xs">—</span>}
+                    </td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <Link
+                        href={`/cases/${c.id}`}
+                        className="btn-ghost p-1.5 text-slate-400 hover:text-brand-600"
+                        title="Edit case"
+                      >
+                        <Pencil size={13} />
+                      </Link>
                     </td>
                   </tr>
                 ))

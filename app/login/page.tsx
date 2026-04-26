@@ -1,46 +1,111 @@
-"use client";
-import { signIn, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+'use client';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Lock, Eye, EyeOff, RefreshCw } from 'lucide-react';
 
-export default function LoginPage() {
-  const { data: session, status } = useSession();
+function LoginForm() {
+  const [password, setPassword] = useState('');
+  const [error,    setError]    = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [showPw,   setShowPw]   = useState(false);
   const router = useRouter();
+  const params = useSearchParams();
 
-  useEffect(() => {
-    if (status === "authenticated") router.replace("/dashboard");
-  }, [status, router]);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!password) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ password }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setError(json.error ?? 'Incorrect password. Try again.');
+        return;
+      }
+      router.push(params.get('from') ?? '/');
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center">
-      <div className="card w-full max-w-sm p-8 text-center">
-        {/* Logo / Icon */}
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white text-3xl shadow">
-          🔧
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
+               style={{ backgroundColor: '#1591b3' }}>
+            <Lock size={24} className="text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900">SNAP Customer Care</h1>
+          <p className="text-sm text-slate-500 mt-1">Enter the team password to continue</p>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">SNAP Customer Care Portal</h1>
-        <p className="text-sm text-gray-500 mb-8">
-          Customer Care — Internal Tool
-        </p>
+        {/* Form */}
+        <form onSubmit={submit} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter team password"
+                className="w-full px-3 py-2.5 pr-10 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                tabIndex={-1}
+              >
+                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
 
-        <button
-          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-          className="btn-primary w-full text-base py-3"
-        >
-          <svg className="h-5 w-5" viewBox="0 0 24 24">
-            <path fill="#fff" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#fff" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#fff" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#fff" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          Sign in with Google
-        </button>
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded-lg">
+              {error}
+            </div>
+          )}
 
-        <p className="mt-6 text-xs text-gray-400">
-          Access restricted to authorised staff only.
+          <button
+            type="submit"
+            disabled={loading || !password}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white transition-all disabled:opacity-50"
+            style={{ backgroundColor: '#1591b3' }}
+          >
+            {loading
+              ? <RefreshCw size={14} className="animate-spin" />
+              : <Lock size={14} />}
+            {loading ? 'Signing in…' : 'Sign In'}
+          </button>
+        </form>
+
+        <p className="text-center text-xs text-slate-400 mt-5">
+          SNAP Wireless · Internal use only
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
