@@ -735,8 +735,20 @@ function MajorSaleBanner() {
           p.productsCovered || null,
         ].filter(Boolean).join('  ·  ');
 
+        // Build letterboard rows
+        const boardRow1 = ['⭐ MAJOR SALE', p.platform ? p.platform.toUpperCase() : null].filter(Boolean).join('  ·  ');
+        const boardRow2 = p.name.toUpperCase();
+        const boardRow3 = [
+          p.discountValue ? (p.discountType === '% Off' ? `${p.discountValue}% OFF` : p.discountType === '$ Off' ? `$${p.discountValue} OFF` : `${p.discountValue} ${p.discountType}`.toUpperCase()) : null,
+          p.description ? p.description.toUpperCase() : null,
+        ].filter(Boolean).join('  ·  ');
+        const boardRow4 = [
+          p.code || null,
+          `${fmtShort(p.startDate).toUpperCase()} – ${p.endDate ? fmtShort(p.endDate).toUpperCase() : 'ONGOING'}`,
+        ].filter(Boolean).join('  ·  ');
+
         return (
-          <div key={p.id} className="overflow-hidden rounded-xl border border-amber-300 shadow-sm">
+          <div key={p.id} className="overflow-hidden rounded-xl border border-amber-200 shadow-sm">
 
             {/* ── Scrolling ticker bar ───────────────────────────────────────── */}
             <div className="overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 h-9 flex items-center">
@@ -751,39 +763,49 @@ function MajorSaleBanner() {
               </div>
             </div>
 
-            {/* ── Main body ─────────────────────────────────────────────────── */}
-            <div className="bg-gradient-to-br from-amber-50 via-orange-50/60 to-yellow-50 px-5 py-4 flex items-center gap-6">
+            {/* ── Letterboard body ──────────────────────────────────────────── */}
+            <div className="flex items-stretch" style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fefce8 100%)' }}>
 
-              {/* Left: meta */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600">⭐ Major Sale</span>
-                  {p.platform && (
-                    <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
-                      {p.platform}
-                    </span>
+              {/* Left: letterboard panel */}
+              <div className="flex-1 min-w-0 p-4">
+                <div className="rounded-lg overflow-hidden border border-amber-100" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #fffdf5 100%)' }}>
+
+                  {/* Column header */}
+                  <div className="flex items-center border-b border-amber-100 bg-amber-50/60 px-4 py-1.5">
+                    <span className="text-[8px] font-bold text-amber-400 uppercase tracking-widest">SALE DETAILS</span>
+                  </div>
+
+                  {/* Row 1: label + platform */}
+                  <div className="px-4 py-2 border-b border-amber-50 font-mono text-[11px] tracking-wide font-bold text-amber-600">
+                    <ScrambleRow text={boardRow1} delay={0} />
+                  </div>
+
+                  {/* Row 2: sale name — larger */}
+                  <div className="px-4 py-3 border-b border-amber-50 font-mono text-[15px] tracking-wide font-bold text-slate-800">
+                    <ScrambleRow text={boardRow2} delay={180} />
+                  </div>
+
+                  {/* Row 3: discount + description */}
+                  {boardRow3 && (
+                    <div className="px-4 py-2.5 border-b border-amber-50 font-mono text-[12px] tracking-wide text-slate-600">
+                      <ScrambleRow text={boardRow3} delay={360} />
+                    </div>
+                  )}
+
+                  {/* Row 4: code + dates */}
+                  {boardRow4 && (
+                    <div className="px-4 py-2.5 font-mono text-[11px] tracking-wide text-slate-500">
+                      <ScrambleRow text={boardRow4} delay={540} />
+                    </div>
                   )}
                 </div>
-                <h3 className="text-2xl font-extrabold text-slate-900 leading-tight tracking-tight">{p.name}</h3>
-                {p.description && <p className="text-sm text-slate-500 mt-1">{p.description}</p>}
-                {p.productsCovered && <p className="text-xs text-slate-400 mt-0.5">{p.productsCovered}</p>}
-                <div className="flex items-center gap-3 mt-2.5 flex-wrap">
-                  {p.code && (
-                    <span className="font-mono text-sm font-bold bg-white border border-amber-300 text-amber-800 px-3 py-1 rounded-lg tracking-wider shadow-sm">
-                      {p.code}
-                    </span>
-                  )}
-                  <span className="text-xs text-slate-400">
-                    {fmtShort(p.startDate)} – {p.endDate ? fmtShort(p.endDate) : 'ongoing'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-amber-600/70 italic mt-3">
+                <p className="text-[10px] text-amber-600/60 italic mt-2.5 px-0.5">
                   ⚠️ During a major sale, all other promo codes and discounts are overridden.
                 </p>
               </div>
 
-              {/* Right: discount + countdown */}
-              <div className="flex items-center gap-4 flex-shrink-0">
+              {/* Right: discount badge + countdown */}
+              <div className="flex items-center gap-4 flex-shrink-0 pr-5">
                 {p.discountValue && (
                   <div className="text-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl px-5 py-3 shadow-md text-white">
                     <p className="text-4xl font-black leading-none">
