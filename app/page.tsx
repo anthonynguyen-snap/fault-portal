@@ -735,12 +735,18 @@ function MajorSaleBanner() {
           p.productsCovered || null,
         ].filter(Boolean).join('  ·  ');
 
-        // Build letterboard rows
-        const boardRow1 = ['⭐ MAJOR SALE', p.platform ? p.platform.toUpperCase() : null].filter(Boolean).join('  ·  ');
+        // Build letterboard rows — no emojis in scrambled text, no discount duplication
+        const discountStr = p.discountValue
+          ? (p.discountType === '% Off' ? `${p.discountValue}% OFF` : p.discountType === '$ Off' ? `$${p.discountValue} OFF` : `${p.discountValue} ${p.discountType}`.toUpperCase())
+          : null;
+        const boardRow1 = ['MAJOR SALE', p.platform ? p.platform.toUpperCase() : null].filter(Boolean).join('  ·  ');
         const boardRow2 = p.name.toUpperCase();
+        // Avoid repeating discount if description already contains the value
+        const descUpper = p.description ? p.description.toUpperCase() : null;
+        const descAlreadyHasDiscount = descUpper && discountStr && descUpper.includes(p.discountValue);
         const boardRow3 = [
-          p.discountValue ? (p.discountType === '% Off' ? `${p.discountValue}% OFF` : p.discountType === '$ Off' ? `$${p.discountValue} OFF` : `${p.discountValue} ${p.discountType}`.toUpperCase()) : null,
-          p.description ? p.description.toUpperCase() : null,
+          descAlreadyHasDiscount ? null : discountStr,
+          descUpper,
         ].filter(Boolean).join('  ·  ');
         const boardRow4 = [
           p.code || null,
@@ -771,30 +777,30 @@ function MajorSaleBanner() {
                 <div className="rounded-lg overflow-hidden border border-amber-100" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #fffdf5 100%)' }}>
 
                   {/* Column header */}
-                  <div className="flex items-center border-b border-amber-100 bg-amber-50/60 px-4 py-1.5">
+                  <div className="flex items-center border-b border-amber-100 bg-amber-50/70 px-4 py-1.5">
                     <span className="text-[8px] font-bold text-amber-400 uppercase tracking-widest">SALE DETAILS</span>
                   </div>
 
                   {/* Row 1: label + platform */}
-                  <div className="px-4 py-2 border-b border-amber-50 font-mono text-[11px] tracking-wide font-bold text-amber-600">
-                    <ScrambleRow text={boardRow1} delay={0} />
+                  <div className="px-4 py-2 border-b border-amber-100 font-mono text-[11px] tracking-wide font-bold text-amber-500">
+                    ★ <ScrambleRow text={boardRow1} delay={0} />
                   </div>
 
                   {/* Row 2: sale name — larger */}
-                  <div className="px-4 py-3 border-b border-amber-50 font-mono text-[15px] tracking-wide font-bold text-slate-800">
+                  <div className="px-4 py-2.5 border-b border-amber-100 font-mono text-[15px] tracking-wide font-bold text-slate-800">
                     <ScrambleRow text={boardRow2} delay={180} />
                   </div>
 
                   {/* Row 3: discount + description */}
                   {boardRow3 && (
-                    <div className="px-4 py-2.5 border-b border-amber-50 font-mono text-[12px] tracking-wide text-slate-600">
+                    <div className="px-4 py-2 border-b border-amber-100 font-mono text-[11.5px] tracking-wide text-slate-600">
                       <ScrambleRow text={boardRow3} delay={360} />
                     </div>
                   )}
 
                   {/* Row 4: code + dates */}
                   {boardRow4 && (
-                    <div className="px-4 py-2.5 font-mono text-[11px] tracking-wide text-slate-500">
+                    <div className="px-4 py-2 font-mono text-[11px] tracking-wide text-slate-400">
                       <ScrambleRow text={boardRow4} delay={540} />
                     </div>
                   )}
@@ -1066,7 +1072,7 @@ function ActivePromosStrip() {
                 </div>
 
                 {/* Scrambling promo text */}
-                <div className="flex-1 px-4 py-2.5 font-mono text-[11.5px] tracking-wide leading-snug text-slate-700 overflow-hidden">
+                <div className="flex-1 px-4 py-3 font-mono text-[11.5px] tracking-wide leading-snug text-slate-700 overflow-hidden">
                   <ScrambleRow text={line} delay={delay} />
                 </div>
 
