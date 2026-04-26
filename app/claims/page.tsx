@@ -268,11 +268,11 @@ export default function ClaimsPage() {
                 {mfrClaims.map(claim => {
                   return (
                     <tr key={claim.id}>
-                      <td className="font-medium whitespace-nowrap">
+                      <td className="font-medium font-mono whitespace-nowrap">
                         {claim.month} {claim.year}
                       </td>
                       <td>
-                        <span className="font-semibold">{claim.faultCount}</span> items
+                        <span className="font-semibold font-mono">{claim.faultCount}</span> items
                       </td>
                       <td>
                         <select

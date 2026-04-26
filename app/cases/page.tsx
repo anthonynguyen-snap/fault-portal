@@ -365,8 +365,8 @@ export default function CasesPage() {
                         ? <CheckSquare size={16} className="text-brand-600 mx-auto" />
                         : <Square size={16} className="text-slate-300 mx-auto" />}
                     </td>
-                    <td className="whitespace-nowrap text-xs text-slate-500">{formatDate(c.date)}</td>
-                    <td><span className="font-semibold text-brand-600 hover:underline">{c.orderNumber}</span></td>
+                    <td className="whitespace-nowrap text-xs text-slate-500 font-mono">{formatDate(c.date)}</td>
+                    <td><span className="font-semibold font-mono text-brand-600 hover:underline">{c.orderNumber}</span></td>
                     <td className="font-medium" title={c.customerName}>{truncate(c.customerName, 24)}</td>
                     <td className="text-slate-500" title={c.product}>{truncate(c.product, 24)}</td>
                     <td className="text-slate-500" title={c.manufacturerName}>{truncate(c.manufacturerName, 20)}</td>
@@ -383,7 +383,7 @@ export default function CasesPage() {
                     <td className="text-sm text-slate-600">
                       {c.submittedBy || <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="font-semibold text-slate-900 whitespace-nowrap">{formatCurrency(c.unitCostUSD)}</td>
+                    <td className="font-semibold font-mono text-slate-900 whitespace-nowrap">{formatCurrency(c.unitCostUSD)}</td>
                     <td onClick={e => e.stopPropagation()}>
                       {c.evidenceLink ? (
                         <a href={c.evidenceLink} target="_blank" rel="noopener noreferrer"

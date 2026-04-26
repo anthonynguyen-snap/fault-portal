@@ -530,12 +530,12 @@ export default function DashboardPage() {
               {stats.recentCases.slice(0, 8).map((c) => (
                 <Link key={c.id} href={`/cases/${c.id}`} legacyBehavior>
                   <tr className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors">
-                    <td className="py-2.5 pr-4 font-semibold text-brand-600">{c.orderNumber}</td>
+                    <td className="py-2.5 pr-4 font-semibold font-mono text-brand-600">{c.orderNumber}</td>
                     <td className="py-2.5 pr-4 text-slate-600 max-w-[160px] truncate" title={c.product}>{c.product}</td>
                     <td className="py-2.5 pr-4">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>{c.faultType}</span>
                     </td>
-                    <td className="py-2.5 pr-4 text-slate-400 text-xs whitespace-nowrap">{formatDate(c.date)}</td>
+                    <td className="py-2.5 pr-4 text-slate-400 text-xs font-mono whitespace-nowrap">{formatDate(c.date)}</td>
                     <td className="py-2.5">
                       <span className={`badge text-[10px] ${STATUS_STYLES[c.claimStatus]}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[c.claimStatus]}`} />

@@ -284,7 +284,7 @@ function RefundsInner() {
             <Clock size={18} className="text-amber-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-900">{pending.length}</p>
+            <p className="text-2xl font-bold font-mono text-slate-900">{pending.length}</p>
             <p className="text-xs text-slate-500">Pending requests</p>
           </div>
         </div>
@@ -293,7 +293,7 @@ function RefundsInner() {
             <CreditCard size={18} className="text-red-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-900">{fmt(pendingTotal)}</p>
+            <p className="text-2xl font-bold font-mono text-slate-900">{fmt(pendingTotal)}</p>
             <p className="text-xs text-slate-500">Amount pending</p>
           </div>
         </div>
@@ -302,7 +302,7 @@ function RefundsInner() {
             <CheckCircle size={18} className="text-emerald-500" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-900">{processedThisWeek.length}</p>
+            <p className="text-2xl font-bold font-mono text-slate-900">{processedThisWeek.length}</p>
             <p className="text-xs text-slate-500">Processed this week</p>
             {processedThisWeekTotal > 0 && (
               <p className="text-xs text-emerald-600 font-medium">{fmt(processedThisWeekTotal)}</p>
@@ -314,13 +314,13 @@ function RefundsInner() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs text-blue-600 font-medium">💵 Cash</span>
-              <span className="text-xs font-semibold text-slate-800">
+              <span className="text-xs font-semibold font-mono text-slate-800">
                 {cashRefundThisWeek.length > 0 ? fmt(cashRefundTotal) : '—'}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-purple-600 font-medium">🎁 Store Credit</span>
-              <span className="text-xs font-semibold text-slate-800">
+              <span className="text-xs font-semibold font-mono text-slate-800">
                 {storeCreditThisWeek.length > 0 ? fmt(storeCreditTotal) : '—'}
               </span>
             </div>
@@ -379,7 +379,7 @@ function RefundsInner() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-slate-800">{req.customerName}</span>
-                        <span className="text-xs text-slate-400">#{req.orderNumber}</span>
+                        <span className="text-xs text-slate-400 font-mono">#{req.orderNumber}</span>
                         <StatusBadge status={req.status} />
                         {req.status === 'Processed' && req.resolution !== 'Pending' && (
                           <ResolutionBadge resolution={req.resolution} />
@@ -422,7 +422,7 @@ function RefundsInner() {
 
                     {/* Amount + actions */}
                     <div className="flex-shrink-0 text-right space-y-2">
-                      <p className="text-lg font-bold text-slate-900">{fmt(req.amount)}</p>
+                      <p className="text-lg font-bold font-mono text-slate-900">{fmt(req.amount)}</p>
                       <div className="flex items-center gap-1.5 justify-end">
                         <button
                           onClick={() => openEdit(req)}

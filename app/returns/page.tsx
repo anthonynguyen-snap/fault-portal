@@ -278,7 +278,7 @@ export default function ReturnsPage() {
               {displayed.map((r, idx) => (
                 <tr key={r.id} className={`transition-colors group border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa]`}>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-800">{r.date}</p>
+                    <p className="font-medium font-mono text-slate-800">{r.date}</p>
                     <p className="text-xs text-slate-400 font-mono">{r.orderNumber}</p>
                     {r.followUpStatus === 'Pending' && <FollowUpAgePill date={r.date} />}
                   </td>
@@ -304,7 +304,7 @@ export default function ReturnsPage() {
                     {r.items[0] && decisionBadge(r.items[0].decision)}
                     {r.items.length > 1 && <p className="text-xs text-slate-400 mt-0.5">mixed</p>}
                     {r.totalRefundAmount > 0 && (
-                      <p className="text-xs text-slate-500 mt-0.5">${r.totalRefundAmount.toFixed(2)}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 font-mono">${r.totalRefundAmount.toFixed(2)}</p>
                     )}
                   </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
