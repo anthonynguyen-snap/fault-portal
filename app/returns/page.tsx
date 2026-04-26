@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft, Mail, Search } from 'lucide-react';
+import { PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Mail, Search, Copy, Check } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -91,6 +91,8 @@ function statusBadge(s: ReturnStatus) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 type FilterTab = 'all' | ReturnStatus | 'follow-up';
+type ReturnSortKey = 'date' | 'customerName' | 'totalRefundAmount' | 'status';
+type SortDir = 'asc' | 'desc';
 
 export default function ReturnsPage() {
   const [allReturns, setAllReturns] = useState<Return[]>([]);
@@ -99,6 +101,9 @@ export default function ReturnsPage() {
   const [weekStart, setWeekStart]   = useState<Date>(() => getMondayOf(new Date()));
   const [teamSearch, setTeamSearch] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [sortKey, setSortKey]       = useState<ReturnSortKey>('date');
+  const [sortDir, setSortDir]       = useState<SortDir>('desc');
+  const [copiedId, setCopiedId]     = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -148,12 +153,44 @@ export default function ReturnsPage() {
 
   const pendingFollowUp = teamFiltered(allReturns).filter(r => r.followUpStatus === 'Pending');
 
+  function handleSort(key: ReturnSortKey) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  }
+
+  function SortIcon({ col }: { col: ReturnSortKey }) {
+    if (sortKey !== col) return <ChevronDown size={12} className="text-slate-300" />;
+    return sortDir === 'asc'
+      ? <ChevronUp size={12} className="text-brand-600" />
+      : <ChevronDown size={12} className="text-brand-600" />;
+  }
+
+  function copyOrder(e: React.MouseEvent, id: string, value: string) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  }
+
   const displayed = useMemo(() => {
-    if (filter === 'follow-up') return pendingFollowUp;
-    const base = teamFiltered(weekReturns);
-    if (filter === 'all') return base;
-    return base.filter(r => r.status === filter);
-  }, [filter, weekReturns, teamSearch, allReturns]);
+    let base: Return[];
+    if (filter === 'follow-up') base = pendingFollowUp;
+    else {
+      const filtered = teamFiltered(weekReturns);
+      base = filter === 'all' ? filtered : filtered.filter(r => r.status === filter);
+    }
+    return [...base].sort((a, b) => {
+      let av: string | number = '';
+      let bv: string | number = '';
+      if (sortKey === 'date')             { av = a.date; bv = b.date; }
+      else if (sortKey === 'customerName') { av = a.customerName.toLowerCase(); bv = b.customerName.toLowerCase(); }
+      else if (sortKey === 'totalRefundAmount') { av = a.totalRefundAmount; bv = b.totalRefundAmount; }
+      else if (sortKey === 'status')      { av = a.status; bv = b.status; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filter, weekReturns, teamSearch, allReturns, sortKey, sortDir]);
 
   const counts = {
     all:        teamFiltered(weekReturns).length,
@@ -264,12 +301,25 @@ export default function ReturnsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Date / Order</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
+                {([
+                  { key: 'date' as ReturnSortKey,             label: 'Date / Order' },
+                  { key: 'customerName' as ReturnSortKey,     label: 'Customer'     },
+                ] as { key: ReturnSortKey; label: string }[]).map(col => (
+                  <th key={col.key} onClick={() => handleSort(col.key)}
+                    className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                    <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} /></div>
+                  </th>
+                ))}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Condition</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Decision</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                <th onClick={() => handleSort('totalRefundAmount')}
+                  className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                  <div className="flex items-center gap-1">Decision<SortIcon col="totalRefundAmount" /></div>
+                </th>
+                <th onClick={() => handleSort('status')}
+                  className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                  <div className="flex items-center gap-1">Status<SortIcon col="status" /></div>
+                </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Follow-up</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -279,7 +329,15 @@ export default function ReturnsPage() {
                 <tr key={r.id} className={`transition-colors group border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa]`}>
                   <td className="px-4 py-3">
                     <p className="font-medium font-mono text-slate-800">{r.date}</p>
-                    <p className="text-xs text-slate-400 font-mono">{r.orderNumber}</p>
+                    <span className="group/copy inline-flex items-center gap-1">
+                      <span className="text-xs text-slate-400 font-mono">{r.orderNumber}</span>
+                      <button
+                        onClick={e => copyOrder(e, r.id, r.orderNumber)}
+                        title="Copy order number"
+                        className="opacity-0 group-hover/copy:opacity-100 transition-opacity text-slate-400 hover:text-brand-600 p-0.5 rounded">
+                        {copiedId === r.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                      </button>
+                    </span>
                     {r.followUpStatus === 'Pending' && <FollowUpAgePill date={r.date} />}
                   </td>
                   <td className="px-4 py-3">

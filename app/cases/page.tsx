@@ -5,6 +5,7 @@ import {
   Search, Filter, Plus, ExternalLink, AlertTriangle,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   Download, CheckSquare, Square, X, RefreshCw, Pencil,
+  Copy, Check,
 } from 'lucide-react';
 import { FaultCase, ClaimStatus } from '@/types';
 import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge } from '@/lib/utils';
@@ -98,6 +99,25 @@ export default function CasesPage() {
     return sortDir === 'asc'
       ? <ChevronUp size={13} className="text-brand-600" />
       : <ChevronDown size={13} className="text-brand-600" />;
+  }
+
+  function CopyOrderNumber({ value }: { value: string }) {
+    const [copied, setCopied] = useState(false);
+    function copy(e: React.MouseEvent) {
+      e.stopPropagation();
+      navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+    return (
+      <span className="group/copy inline-flex items-center gap-1">
+        <span className="font-semibold font-mono text-brand-600">{value}</span>
+        <button onClick={copy} title="Copy order number"
+          className="opacity-0 group-hover/copy:opacity-100 transition-opacity text-slate-400 hover:text-brand-600 p-0.5 rounded">
+          {copied ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+        </button>
+      </span>
+    );
   }
 
   function toggleSelect(id: string) {
@@ -366,7 +386,7 @@ export default function CasesPage() {
                         : <Square size={16} className="text-slate-300 mx-auto" />}
                     </td>
                     <td className="whitespace-nowrap text-xs text-slate-500 font-mono">{formatDate(c.date)}</td>
-                    <td><span className="font-semibold font-mono text-brand-600 hover:underline">{c.orderNumber}</span></td>
+                    <td><CopyOrderNumber value={c.orderNumber} /></td>
                     <td className="font-medium" title={c.customerName}>{truncate(c.customerName, 24)}</td>
                     <td className="text-slate-500" title={c.product}>{truncate(c.product, 24)}</td>
                     <td className="text-slate-500" title={c.manufacturerName}>{truncate(c.manufacturerName, 20)}</td>

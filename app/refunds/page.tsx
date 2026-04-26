@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   CreditCard, Plus, X, RefreshCw, CheckCircle, XCircle,
   ExternalLink, Clock, ChevronDown, ChevronUp, AlertTriangle, Pencil,
+  Copy, Check, ArrowUpDown,
 } from 'lucide-react';
 import { RefundRequest, RefundResolution, REFUND_REASONS } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -95,6 +96,24 @@ function RefundsInner() {
 
   // Filter
   const [filter, setFilter]       = useState<'Pending' | 'All'>('Pending');
+
+  // Sort
+  type RefundSortKey = 'createdAt' | 'amount' | 'customerName' | 'status';
+  const [sortKey, setSortKey] = useState<RefundSortKey>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function handleSort(key: RefundSortKey) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  }
+
+  function copyOrder(e: React.MouseEvent, id: string, value: string) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(value);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  }
 
   async function load() {
     setLoading(true);
@@ -244,9 +263,21 @@ function RefundsInner() {
   const storeCreditTotal    = useMemo(() => storeCreditThisWeek.reduce((s, r) => s + r.amount, 0), [storeCreditThisWeek]);
   const cashRefundTotal     = useMemo(() => cashRefundThisWeek.reduce((s, r)  => s + r.amount, 0), [cashRefundThisWeek]);
 
-  const displayed = useMemo(() =>
-    filter === 'Pending' ? pending : requests,
-    [filter, pending, requests]
+  const displayed = useMemo(() => {
+    const base = filter === 'Pending' ? pending : requests;
+    return [...base].sort((a, b) => {
+      let av: string | number = '';
+      let bv: string | number = '';
+      if (sortKey === 'createdAt')      { av = a.createdAt; bv = b.createdAt; }
+      else if (sortKey === 'amount')    { av = a.amount; bv = b.amount; }
+      else if (sortKey === 'customerName') { av = a.customerName.toLowerCase(); bv = b.customerName.toLowerCase(); }
+      else if (sortKey === 'status')    { av = a.status; bv = b.status; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  },
+    [filter, pending, requests, sortKey, sortDir]
   );
 
   return (
@@ -331,7 +362,27 @@ function RefundsInner() {
       {/* Queue */}
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="text-sm font-semibold text-slate-800">Requests</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-slate-800">Requests</h2>
+            {/* Sort controls */}
+            <div className="flex items-center gap-1">
+              {([
+                { key: 'createdAt' as const, label: 'Date' },
+                { key: 'amount' as const, label: 'Amount' },
+                { key: 'customerName' as const, label: 'Name' },
+              ]).map(s => (
+                <button key={s.key} onClick={() => handleSort(s.key)}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    sortKey === s.key ? 'bg-brand-50 text-brand-700' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                  }`}>
+                  {s.label}
+                  {sortKey === s.key
+                    ? (sortDir === 'asc' ? <ChevronUp size={11} /> : <ChevronDown size={11} />)
+                    : <ArrowUpDown size={10} className="opacity-40" />}
+                </button>
+              ))}
+            </div>
+          </div>
           {/* Filter toggle */}
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
             {(['Pending', 'All'] as const).map(f => (
@@ -379,7 +430,13 @@ function RefundsInner() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-semibold text-slate-800">{req.customerName}</span>
-                        <span className="text-xs text-slate-400 font-mono">#{req.orderNumber}</span>
+                        <span className="group/copy inline-flex items-center gap-1">
+                          <span className="text-xs text-slate-400 font-mono">#{req.orderNumber}</span>
+                          <button onClick={e => copyOrder(e, req.id, req.orderNumber)} title="Copy order number"
+                            className="opacity-0 group-hover/copy:opacity-100 transition-opacity text-slate-400 hover:text-brand-600 p-0.5 rounded">
+                            {copiedId === req.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                          </button>
+                        </span>
                         <StatusBadge status={req.status} />
                         {req.status === 'Processed' && req.resolution !== 'Pending' && (
                           <ResolutionBadge resolution={req.resolution} />
