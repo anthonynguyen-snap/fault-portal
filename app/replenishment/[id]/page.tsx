@@ -44,10 +44,14 @@ export default function ReplenishmentDetailPage() {
   // Split dispatch panels
   const [showStoreroomDispatch, setShowStoreroomDispatch] = useState(false);
   const [showTplDispatch, setShowTplDispatch]             = useState(false);
-  const [storeroomTracking, setStoreroomTracking]         = useState('');
   const [storeroomDate, setStoreroomDate]                 = useState(new Date().toISOString().slice(0, 10));
   const [tplTracking, setTplTracking]                     = useState('');
   const [tplDate, setTplDate]                             = useState(new Date().toISOString().slice(0, 10));
+
+  // Inline tracking update for 3PL card (post-dispatch)
+  const [editTplTracking, setEditTplTracking]   = useState(false);
+  const [tplTrackingInput, setTplTrackingInput] = useState('');
+  const [savingTracking, setSavingTracking]     = useState(false);
 
   // Legacy single dispatch (kept for fallback)
   const [showDispatch, setShowDispatch] = useState(false);
@@ -152,7 +156,7 @@ export default function ReplenishmentDetailPage() {
   async function handleSplitDispatch(dispatchSource: 'Storeroom' | '3PL') {
     if (!request) return;
     setSaving(true);
-    const tracking = dispatchSource === 'Storeroom' ? storeroomTracking : tplTracking;
+    const tracking = dispatchSource === 'Storeroom' ? '' : tplTracking;
     const date     = dispatchSource === 'Storeroom' ? storeroomDate     : tplDate;
     try {
       const itemUpdates = request.items.map(item => ({
@@ -177,6 +181,24 @@ export default function ReplenishmentDetailPage() {
     } catch (err: unknown) {
       toastError('Dispatch failed', err instanceof Error ? err.message : String(err));
     } finally { setSaving(false); }
+  }
+
+  async function saveTplTracking() {
+    if (!request) return;
+    setSavingTracking(true);
+    try {
+      const res = await fetch(`/api/replenishment/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tplTracking: tplTrackingInput }),
+      });
+      if (!res.ok) throw new Error();
+      success('Tracking saved');
+      await load();
+      setEditTplTracking(false);
+    } catch {
+      toastError('Failed to save tracking');
+    } finally { setSavingTracking(false); }
   }
 
   if (loading) {
@@ -288,9 +310,6 @@ export default function ReplenishmentDetailPage() {
                 {request.storeroomDispatched ? (
                   <>
                     <p className="text-xs text-emerald-600 mt-0.5">Date: {request.storeroomDispatchDate}</p>
-                    {request.storeroomTracking && (
-                      <p className="text-xs font-mono text-emerald-600 truncate">Tracking: {request.storeroomTracking}</p>
-                    )}
                     <p className="text-xs text-emerald-600 mt-0.5">Stock deducted ✓</p>
                   </>
                 ) : (
@@ -312,8 +331,37 @@ export default function ReplenishmentDetailPage() {
                 {request.tplDispatched ? (
                   <>
                     <p className="text-xs text-sky-600 mt-0.5">Date: {request.tplDispatchDate}</p>
-                    {request.tplTracking && (
-                      <p className="text-xs font-mono text-sky-600 truncate">Ref: {request.tplTracking}</p>
+                    {request.tplTracking ? (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <p className="text-xs font-mono text-sky-700 truncate">{request.tplTracking}</p>
+                        <button
+                          onClick={() => { setTplTrackingInput(request.tplTracking); setEditTplTracking(true); }}
+                          className="text-[10px] text-sky-400 hover:text-sky-600 underline transition-colors"
+                        >edit</button>
+                      </div>
+                    ) : editTplTracking ? (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <input
+                          autoFocus
+                          value={tplTrackingInput}
+                          onChange={e => setTplTrackingInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveTplTracking(); if (e.key === 'Escape') setEditTplTracking(false); }}
+                          placeholder="Enter tracking ref…"
+                          className="text-xs font-mono border border-sky-300 rounded px-2 py-1 w-40 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                        />
+                        <button onClick={saveTplTracking} disabled={savingTracking || !tplTrackingInput}
+                          className="text-xs bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded transition-colors disabled:opacity-40">
+                          {savingTracking ? '…' : 'Save'}
+                        </button>
+                        <button onClick={() => setEditTplTracking(false)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setTplTrackingInput(''); setEditTplTracking(true); }}
+                        className="mt-1 flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors"
+                      >
+                        <AlertTriangle size={11} /> Add tracking number
+                      </button>
                     )}
                   </>
                 ) : (
@@ -567,11 +615,6 @@ export default function ReplenishmentDetailPage() {
               <button onClick={() => setShowStoreroomDispatch(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
             </div>
             <div className="p-6 space-y-4">
-              <div>
-                <label className="form-label">Auspost Tracking Number</label>
-                <input value={storeroomTracking} onChange={e => setStoreroomTracking(e.target.value)}
-                  className="form-input font-mono" placeholder="e.g. 33EMV343987801000931505" />
-              </div>
               <div>
                 <label className="form-label">Dispatch Date</label>
                 <input type="date" value={storeroomDate} onChange={e => setStoreroomDate(e.target.value)} className="form-input" />

@@ -70,6 +70,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.store         !== undefined) headerUpdates.store          = body.store;
     if (body.orderNumber   !== undefined) headerUpdates.order_number   = body.orderNumber;
     if (body.trackingNumber !== undefined) headerUpdates.tracking_number = body.trackingNumber;
+    if (body.tplTracking   !== undefined) headerUpdates.tpl_tracking   = body.tplTracking;
     if (body.dispatchDate  !== undefined) headerUpdates.dispatch_date  = body.dispatchDate;
     if (body.notes         !== undefined) headerUpdates.notes          = body.notes;
     if (body.requestedBy   !== undefined) headerUpdates.requested_by   = body.requestedBy;
