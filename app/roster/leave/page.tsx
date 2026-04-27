@@ -2,10 +2,93 @@
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw } from 'lucide-react';
-import { RosterAgent, RosterLeave, LeaveType } from '@/types';
+import { RosterAgent, RosterLeave, RosterConfig, LeaveType, ShiftType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 
 const LEAVE_LABELS: Record<LeaveType, string>  = { sick: 'Sick', makeup: 'Make-up', other: 'Other' };
+
+// ── Shift helpers (mirrored from roster page) ─────────────────────────────
+const SHIFT_DAYS: Record<ShiftType, number[]> = {
+  'mon-fri': [1, 2, 3, 4, 5],
+  'tue-sat': [2, 3, 4, 5, 6],
+  'sun-thu': [0, 1, 2, 3, 4],
+};
+function getMonday(d: Date): Date {
+  const date = new Date(d);
+  const day  = date.getDay();
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+function getAgentShiftForWeek(agent: RosterAgent, weekDate: Date, config: RosterConfig): ShiftType {
+  if (agent.shiftType === 'mon-fri') return 'mon-fri';
+  const startMonday  = getMonday(new Date(config.rotationStartDate));
+  const weeksElapsed = Math.round((getMonday(weekDate).getTime() - startMonday.getTime()) / (7 * 86400000));
+  const isSwapped    = ((weeksElapsed % 2) + 2) % 2 === 1;
+  if (!isSwapped) return agent.shiftType as ShiftType;
+  return agent.shiftType === 'tue-sat' ? 'sun-thu' : 'tue-sat';
+}
+function hexToRgba(hex: string, a: number): string {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ── Today Status Bar ──────────────────────────────────────────────────────
+function TodayStatusBar({ agents, config, todayLeave }: {
+  agents: RosterAgent[];
+  config: RosterConfig | null;
+  todayLeave: RosterLeave[];
+}) {
+  if (!config || !agents.length) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const statuses = agents.map(agent => {
+    const agentLeave = todayLeave.find(l => l.agentId === agent.id);
+    let state: 'online' | 'leave' | 'off';
+    if (agentLeave) {
+      state = 'leave';
+    } else {
+      const shift = getAgentShiftForWeek(agent, today, config);
+      state = SHIFT_DAYS[shift].includes(today.getDay()) ? 'online' : 'off';
+    }
+    return { agent, state, leaveType: agentLeave?.leaveType };
+  });
+
+  return (
+    <div className="card px-4 py-3 flex items-center gap-2 flex-wrap">
+      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mr-1 flex-shrink-0">Today</span>
+      {statuses.map(({ agent, state, leaveType }) => {
+        const bgColor  = state === 'online' ? hexToRgba(agent.colour, 0.08) : state === 'leave' ? '#fef2f2' : '#f8fafc';
+        const brdColor = state === 'online' ? hexToRgba(agent.colour, 0.30) : state === 'leave' ? '#fecaca' : '#e2e8f0';
+        const txtColor = state === 'online' ? agent.colour : state === 'leave' ? '#dc2626' : '#94a3b8';
+        return (
+          <div key={agent.id}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border"
+            style={{ backgroundColor: bgColor, borderColor: brdColor }}>
+            {state === 'online' ? (
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70"
+                  style={{ backgroundColor: agent.colour }} />
+                <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: agent.colour }} />
+              </span>
+            ) : state === 'leave' ? (
+              <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-slate-300 flex-shrink-0" />
+            )}
+            <span className="text-xs font-semibold" style={{ color: txtColor }}>{agent.name}</span>
+            {state === 'leave' && leaveType && (
+              <span className="text-[9px] font-bold text-red-400">{LEAVE_LABELS[leaveType].toUpperCase()}</span>
+            )}
+            {state === 'off' && (
+              <span className="text-[9px] text-slate-400">OFF</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 const LEAVE_BADGE: Record<LeaveType, string> = {
   sick:   'bg-red-100 text-red-700',
   makeup: 'bg-amber-100 text-amber-700',
@@ -21,6 +104,7 @@ export default function LeavePage() {
   const { success: toastSuccess, error: toastError } = useToast();
 
   const [agents, setAgents]   = useState<RosterAgent[]>([]);
+  const [config, setConfig]   = useState<RosterConfig | null>(null);
   const [records, setRecords] = useState<RosterLeave[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,13 +138,16 @@ export default function LeavePage() {
   async function load() {
     setLoading(true);
     try {
-      const [agentRes, leaveRes] = await Promise.all([
+      const [agentRes, configRes, leaveRes] = await Promise.all([
         fetch('/api/roster/agents'),
+        fetch('/api/roster/config'),
         fetch('/api/roster/leave'),
       ]);
-      const agentData = await agentRes.json();
-      const leaveData = await leaveRes.json();
+      const agentData  = await agentRes.json();
+      const configData = await configRes.json();
+      const leaveData  = await leaveRes.json();
       setAgents(agentData.data ?? []);
+      setConfig(configData.data ?? null);
       setRecords(leaveData.data ?? []);
     } catch {
       toastError('Failed to load leave records');
@@ -223,6 +310,13 @@ export default function LeavePage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-5">
+        {/* Today's status */}
+        <TodayStatusBar
+          agents={agents}
+          config={config}
+          todayLeave={records.filter(r => r.date === new Date().toISOString().slice(0, 10))}
+        />
+
         {/* Make-up hours summary */}
         {makeupSummary.owed > 0 && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">

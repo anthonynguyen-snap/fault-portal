@@ -125,6 +125,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (error) throw error;
     }
 
+    // Append-only note to the notes log
+    if (body.appendNote) {
+      const { data: current } = await getSupabase()
+        .from('replenishment_requests')
+        .select('notes')
+        .eq('id', id)
+        .single();
+      let log: { text: string; ts: string }[] = [];
+      try {
+        const raw = String(current?.notes ?? '');
+        if (raw.startsWith('[')) log = JSON.parse(raw);
+        else if (raw.trim()) log = [{ text: raw, ts: '' }]; // wrap legacy plain text
+      } catch { /* ignore */ }
+      log.push({ text: String(body.appendNote), ts: new Date().toISOString() });
+      const { error } = await getSupabase()
+        .from('replenishment_requests')
+        .update({ notes: JSON.stringify(log) })
+        .eq('id', id);
+      if (error) throw error;
+    }
+
     const { data: full } = await getSupabase()
       .from('replenishment_requests')
       .select('*, replenishment_items(*)')

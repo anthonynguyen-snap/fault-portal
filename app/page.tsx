@@ -13,6 +13,12 @@ import {
   LucideIcon,
   Sparkles,
   Tag,
+  Truck,
+  Package,
+  Bell,
+  Clock,
+  CheckCircle,
+  Send,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -27,7 +33,7 @@ import {
   Line,
   Legend,
 } from 'recharts';
-import { DashboardStats, Return } from '@/types';
+import { DashboardStats, Return, ReplenishmentRequest, ReplenishmentStatus } from '@/types';
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge } from '@/lib/utils';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
@@ -585,10 +591,139 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Replenishment */}
+      <ReplenishmentSection sectionHeader={<SectionHeader icon={Truck} title="Replenishment" href="/replenishment" linkLabel="View all" />} />
+
       {/* AI Briefing */}
       <AiBriefingCard />
 
     </div>
+  );
+}
+
+// ── Replenishment Section ─────────────────────────────────────────────────────
+const REPL_STATUS_STYLES: Record<ReplenishmentStatus, string> = {
+  'Pending':              'bg-amber-100 text-amber-700',
+  'Ordered':              'bg-blue-100 text-blue-700',
+  'Partially Dispatched': 'bg-orange-100 text-orange-700',
+  'Dispatched':           'bg-emerald-100 text-emerald-700',
+  'Delivered':            'bg-slate-100 text-slate-600',
+};
+const REPL_STATUS_ICONS: Record<ReplenishmentStatus, React.ReactNode> = {
+  'Pending':              <Clock size={10} />,
+  'Ordered':              <Package size={10} />,
+  'Partially Dispatched': <Send size={10} />,
+  'Dispatched':           <Send size={10} />,
+  'Delivered':            <CheckCircle size={10} />,
+};
+
+function ReplenishmentSection({ sectionHeader }: { sectionHeader: React.ReactNode }) {
+  const [requests, setRequests] = useState<ReplenishmentRequest[]>([]);
+  const [alertCount, setAlertCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/replenishment').then(r => r.json()),
+      fetch('/api/replenishment/alerts').then(r => r.json()),
+    ]).then(([reqJson, alertJson]) => {
+      setRequests(reqJson.data ?? []);
+      setAlertCount(alertJson.count ?? 0);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <>
+      {sectionHeader}
+      <div className="grid grid-cols-3 gap-4">
+        {[1,2,3].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />)}
+      </div>
+    </>
+  );
+
+  const pending = requests.filter(r => r.status === 'Pending').length;
+  const active  = requests.filter(r => ['Ordered','Partially Dispatched'].includes(r.status)).length;
+  const recent  = requests
+    .filter(r => ['Pending','Ordered','Partially Dispatched'].includes(r.status))
+    .slice(0, 5);
+
+  if (!requests.length) return null;
+
+  return (
+    <>
+      {sectionHeader}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="card p-4 flex items-center gap-3"
+          style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' }}>
+          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <Clock size={16} className="text-amber-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold font-mono text-slate-900">{pending}</p>
+            <p className="text-xs text-amber-600 font-medium">Pending orders</p>
+          </div>
+        </div>
+        <div className="card p-4 flex items-center gap-3"
+          style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' }}>
+          <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <Truck size={16} className="text-blue-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold font-mono text-slate-900">{active}</p>
+            <p className="text-xs text-blue-600 font-medium">In transit</p>
+          </div>
+        </div>
+        <div className={`card p-4 flex items-center gap-3 ${alertCount > 0 ? 'border-orange-200' : ''}`}
+          style={{ background: alertCount > 0 ? 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${alertCount > 0 ? 'bg-orange-100' : 'bg-slate-100'}`}>
+            <Bell size={16} className={alertCount > 0 ? 'text-orange-500' : 'text-slate-400'} />
+          </div>
+          <div>
+            <p className={`text-2xl font-bold font-mono ${alertCount > 0 ? 'text-orange-700' : 'text-slate-400'}`}>{alertCount}</p>
+            <p className={`text-xs font-medium ${alertCount > 0 ? 'text-orange-600' : 'text-slate-400'}`}>
+              3PL tracking needed
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {recent.length > 0 && (
+        <div className="card overflow-clip" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
+          <div className="px-5 py-3 border-b border-slate-100">
+            <h3 className="text-sm font-semibold text-slate-800">Active Orders</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Pending and in-progress replenishment requests</p>
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {recent.map(r => (
+                <Link key={r.id} href={`/replenishment/${r.id}`} legacyBehavior>
+                  <tr className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors">
+                    <td className="px-5 py-2.5 font-mono text-xs text-slate-400">{r.date}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        r.store === 'Adelaide Popup' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'
+                      }`}>{r.store}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">
+                      <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                        {r.items.length} items
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${REPL_STATUS_STYLES[r.status as ReplenishmentStatus]}`}>
+                        {REPL_STATUS_ICONS[r.status as ReplenishmentStatus]}
+                        {r.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-slate-400"><ArrowRight size={13} /></td>
+                  </tr>
+                </Link>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
 

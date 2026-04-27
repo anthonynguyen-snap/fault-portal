@@ -339,7 +339,11 @@ function ReplenishmentPageInner() {
                     }`}>{r.store}</span>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.orderNumber || <span className="text-slate-300">—</span>}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.items.length}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+                      {r.items.length} <span className="text-slate-400">items</span>
+                    </span>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-800">{totalUnits(r)}</td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{r.requestedBy || <span className="text-slate-300">—</span>}</td>
                   <td className="px-4 py-3"><StatusBadge status={r.status as ReplenishmentStatus} /></td>

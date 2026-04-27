@@ -54,6 +54,70 @@ function isWorkingDay(shift: ShiftType, date: Date): boolean {
   return SHIFT_DAYS[shift].includes(date.getDay());
 }
 
+// ── Today Status Bar ───────────────────────────────────────────────────────
+function TodayStatusBar({
+  agents, config, leaveToday, overrideMap,
+}: {
+  agents: RosterAgent[];
+  config: RosterConfig | null;
+  leaveToday: RosterLeave[];
+  overrideMap: Record<string, RosterOverride>;
+}) {
+  if (!config || !agents.length) return null;
+  const today    = new Date(); today.setHours(0,0,0,0);
+  const todayStr = toDateStr(today);
+
+  const statuses = agents.map(agent => {
+    const agentLeave = leaveToday.find(l => l.agentId === agent.id);
+    const ov = overrideMap[`${agent.id}:${todayStr}`];
+    let state: 'online' | 'leave' | 'off';
+    if (agentLeave) {
+      state = 'leave';
+    } else if (ov) {
+      state = ov.isWorking ? 'online' : 'off';
+    } else {
+      const shift = getAgentShiftForWeek(agent, today, config);
+      state = isWorkingDay(shift, today) ? 'online' : 'off';
+    }
+    return { agent, state, leaveType: agentLeave?.leaveType };
+  });
+
+  return (
+    <div className="card px-4 py-3 flex items-center gap-2 flex-wrap">
+      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mr-1 flex-shrink-0">Today</span>
+      {statuses.map(({ agent, state, leaveType }) => {
+        const bgColor  = state === 'online' ? hexToRgba(agent.colour, 0.08) : state === 'leave' ? '#fef2f2' : '#f8fafc';
+        const brdColor = state === 'online' ? hexToRgba(agent.colour, 0.30) : state === 'leave' ? '#fecaca' : '#e2e8f0';
+        const txtColor = state === 'online' ? agent.colour : state === 'leave' ? '#dc2626' : '#94a3b8';
+        return (
+          <div key={agent.id}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-colors"
+            style={{ backgroundColor: bgColor, borderColor: brdColor }}>
+            {state === 'online' ? (
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-70"
+                  style={{ backgroundColor: agent.colour }} />
+                <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: agent.colour }} />
+              </span>
+            ) : state === 'leave' ? (
+              <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-slate-300 flex-shrink-0" />
+            )}
+            <span className="text-xs font-semibold" style={{ color: txtColor }}>{agent.name}</span>
+            {state === 'leave' && leaveType && (
+              <span className="text-[9px] font-bold text-red-400">{LEAVE_LABELS[leaveType].toUpperCase()}</span>
+            )}
+            {state === 'off' && (
+              <span className="text-[9px] text-slate-400">OFF</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 function RosterPageInner() {
   const searchParams = useSearchParams();
@@ -280,6 +344,14 @@ function RosterPageInner() {
           </button>
         </div>
       </div>
+
+      {/* Today's status */}
+      <TodayStatusBar
+        agents={agents}
+        config={config}
+        leaveToday={leaveByDate[toDateStr(today)] ?? []}
+        overrideMap={overrideMap}
+      />
 
       {/* Controls row */}
       <div className="flex flex-wrap items-center justify-between gap-3">

@@ -68,8 +68,12 @@ export default function ReplenishmentDetailPage() {
 
   // Status edit
   const [editStatus, setEditStatus]     = useState<ReplenishmentStatus | null>(null);
-  const [editNotes, setEditNotes]       = useState('');
   const [editOrderNum, setEditOrderNum] = useState('');
+
+  // Notes log (append-only)
+  const [notesLog, setNotesLog]   = useState<{ text: string; ts: string }[]>([]);
+  const [newNote,  setNewNote]    = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   const [editStore, setEditStore]       = useState<typeof STORES[number]>('Adelaide Popup');
 
   // Allow editing even after dispatch
@@ -102,8 +106,14 @@ export default function ReplenishmentDetailPage() {
       setTracking(req.trackingNumber ?? '');
       setDispatchDate(req.dispatchDate ?? new Date().toISOString().slice(0, 10));
       setEditStatus(req.status as ReplenishmentStatus);
-      setEditNotes(req.notes ?? '');
       setEditOrderNum(req.orderNumber ?? '');
+      // Parse notes as append-only log (backward compat with plain text)
+      try {
+        const raw = req.notes ?? '';
+        if (raw.startsWith('[')) setNotesLog(JSON.parse(raw));
+        else if (raw.trim()) setNotesLog([{ text: raw, ts: '' }]);
+        else setNotesLog([]);
+      } catch { setNotesLog([]); }
       setEditStore((req.store as typeof STORES[number]) ?? 'Adelaide Popup');
     } catch { /* silent */ }
     finally { setLoading(false); }
@@ -118,7 +128,7 @@ export default function ReplenishmentDetailPage() {
       const res = await fetch(`/api/replenishment/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: editStatus, notes: editNotes, orderNumber: editOrderNum, store: editStore }),
+        body: JSON.stringify({ status: editStatus, orderNumber: editOrderNum, store: editStore }),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -242,6 +252,35 @@ export default function ReplenishmentDetailPage() {
     } catch {
       toastError('Failed to add item');
     } finally { setAddItemSaving(false); }
+  }
+
+  async function appendNote() {
+    if (!newNote.trim()) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/replenishment/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appendNote: newNote.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      const entry = { text: newNote.trim(), ts: new Date().toISOString() };
+      setNotesLog(prev => [...prev, entry]);
+      setNewNote('');
+      success('Note added');
+    } catch {
+      toastError('Failed to add note');
+    } finally { setSavingNote(false); }
+  }
+
+  function fmtNoteTs(ts: string) {
+    if (!ts) return null;
+    try {
+      return new Date(ts).toLocaleString('en-AU', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return null; }
   }
 
   if (loading) {
@@ -590,11 +629,51 @@ export default function ReplenishmentDetailPage() {
         )}
       </div>
 
-      {/* Notes */}
-      <div className="card p-5">
-        <label className="form-label">Notes</label>
-        <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
-          rows={2} className="form-input resize-none" placeholder="Any context or follow-up notes…" />
+      {/* Notes log */}
+      <div className="card overflow-clip">
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-800">Notes</h2>
+          {notesLog.length > 0 && (
+            <span className="text-[10px] font-medium text-slate-400">{notesLog.length} entr{notesLog.length === 1 ? 'y' : 'ies'}</span>
+          )}
+        </div>
+        {notesLog.length > 0 && (
+          <div className="divide-y divide-slate-50">
+            {notesLog.map((entry, i) => (
+              <div key={i} className="px-5 py-3 flex gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-300 flex-shrink-0 mt-1.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-slate-700 leading-relaxed">{entry.text}</p>
+                  {fmtNoteTs(entry.ts) && (
+                    <p className="text-[10px] text-slate-400 mt-1 font-mono">{fmtNoteTs(entry.ts)}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {notesLog.length === 0 && (
+          <div className="px-5 py-4">
+            <p className="text-xs text-slate-400 italic">No notes yet.</p>
+          </div>
+        )}
+        {/* Append input */}
+        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center gap-2">
+          <input
+            value={newNote}
+            onChange={e => setNewNote(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); appendNote(); } }}
+            placeholder="Add a note…"
+            className="form-input text-sm py-1.5 flex-1"
+          />
+          <button
+            onClick={appendNote}
+            disabled={savingNote || !newNote.trim()}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40"
+          >
+            {savingNote ? '…' : 'Add'}
+          </button>
+        </div>
       </div>
 
       {/* Actions */}
