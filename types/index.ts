@@ -266,6 +266,39 @@ export interface RefundRequest {
 }
 
 // =========================================================
+// REPLENISHMENT
+// =========================================================
+export type ReplenishmentStatus = 'Pending' | 'Ordered' | 'Dispatched' | 'Delivered';
+export type ReplenishmentStore  = 'Adelaide Popup' | 'Sydney Store';
+export type ReplenishmentSource = 'Storeroom' | '3PL';
+
+export interface ReplenishmentLineItem {
+  id: string;
+  requestId: string;
+  stockItemId: string;
+  stockItemName: string;
+  sku: string;
+  quantityRequested: number;
+  quantityOnHand: number;    // snapshot at time of creation
+  quantitySent: number;
+  source: ReplenishmentSource;
+}
+
+export interface ReplenishmentRequest {
+  id: string;
+  store: ReplenishmentStore | string;
+  orderNumber: string;
+  requestedBy: string;
+  date: string;
+  status: ReplenishmentStatus;
+  items: ReplenishmentLineItem[];
+  trackingNumber: string;
+  dispatchDate: string | null;
+  notes: string;
+  createdAt: string;
+}
+
+// =========================================================
 // CORPORATE / WHOLESALE
 // =========================================================
 export type CorporateStatus =

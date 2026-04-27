@@ -19,6 +19,7 @@ import {
   LogOut,
   Users2,
   ShoppingBag,
+  Truck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -89,8 +90,9 @@ const navGroups = [
       { label: 'Returns',     href: '/returns',     icon: RotateCcw },
       { label: 'Refunds',     href: '/refunds',     icon: CreditCard },
       { label: 'Promotions',  href: '/promotions',  icon: Tag },
-      { label: 'Stock Room',  href: '/stock',       icon: Package },
-      { label: 'Corporate',   href: '/corporate',   icon: Briefcase },
+      { label: 'Stock Room',     href: '/stock',          icon: Package },
+      { label: 'Replenishment', href: '/replenishment',  icon: Truck },
+      { label: 'Corporate',     href: '/corporate',      icon: Briefcase },
     ],
   },
   {
