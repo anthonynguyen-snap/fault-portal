@@ -18,7 +18,7 @@ function fmt(dateStr: string): string {
 }
 
 export default function LeavePage() {
-  const { addToast } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
 
   const [agents, setAgents]   = useState<RosterAgent[]>([]);
   const [records, setRecords] = useState<RosterLeave[]>([]);
@@ -62,7 +62,7 @@ export default function LeavePage() {
       setAgents(agentData.data ?? []);
       setRecords(leaveData.data ?? []);
     } catch {
-      addToast('Failed to load leave records', 'error');
+      toastError('Failed to load leave records');
     } finally {
       setLoading(false);
     }
@@ -111,9 +111,9 @@ export default function LeavePage() {
       setRecords(prev => [data, ...prev].sort((a,b) => b.date.localeCompare(a.date)));
       setShowAdd(false);
       setAddAgent(''); setAddDate(''); setAddType('sick'); setAddNotes(''); setAddHoursOwed('');
-      addToast('Leave record added', 'success');
+      toastSuccess('Leave record added');
     } catch {
-      addToast('Failed to add leave record', 'error');
+      toastError('Failed to add leave record');
     } finally {
       setSaving(false);
     }
@@ -147,9 +147,9 @@ export default function LeavePage() {
         : r
       ));
       setEditId(null);
-      addToast('Leave record updated', 'success');
+      toastSuccess('Leave record updated');
     } catch {
-      addToast('Failed to update leave record', 'error');
+      toastError('Failed to update leave record');
     } finally {
       setEditSaving(false);
     }
@@ -161,9 +161,9 @@ export default function LeavePage() {
       if (!res.ok) throw new Error();
       setRecords(prev => prev.filter(r => r.id !== id));
       setDeleteId(null);
-      addToast('Leave record deleted', 'success');
+      toastSuccess('Leave record deleted');
     } catch {
-      addToast('Failed to delete leave record', 'error');
+      toastError('Failed to delete leave record');
     }
   }
 
