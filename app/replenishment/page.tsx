@@ -50,8 +50,9 @@ export default function ReplenishmentPage() {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [filter, setFilter]         = useState<'All' | ReplenishmentStatus>('All');
-  const [showModal, setShowModal]   = useState(false);
-  const [saving, setSaving]         = useState(false);
+  const [showModal, setShowModal]       = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [includeEOL, setIncludeEOL]     = useState(false);
   const { success, error: toastError } = useToast();
 
   // New request form state
@@ -75,7 +76,7 @@ export default function ReplenishmentPage() {
       const reqJson   = await reqRes.json();
       const stockJson = await stockRes.json();
       setRequests(reqJson.data ?? []);
-      setStockItems((stockJson.data ?? []).filter((s: StockItem) => !s.discontinued));
+      setStockItems(stockJson.data ?? []);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
@@ -139,6 +140,7 @@ export default function ReplenishmentPage() {
       setRequests(prev => [json.data, ...prev]);
       setShowModal(false);
       setNewItems([]);
+      setIncludeEOL(false);
       setForm({ store: 'Adelaide Popup', orderNumber: '', requestedBy: '', date: new Date().toISOString().slice(0, 10), notes: '' });
       success('Request created', `Replenishment request for ${form.store} logged.`);
     } catch (err: unknown) {
@@ -259,7 +261,7 @@ export default function ReplenishmentPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h2 className="font-semibold text-slate-900">New Replenishment Request</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 p-1 text-lg leading-none">×</button>
+              <button onClick={() => { setShowModal(false); setIncludeEOL(false); }} className="text-slate-400 hover:text-slate-600 p-1 text-lg leading-none">×</button>
             </div>
 
             <div className="p-6 space-y-5">
@@ -293,9 +295,20 @@ export default function ReplenishmentPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="form-label mb-0">Items</label>
-                  <button onClick={addItem} className="text-xs text-brand-600 hover:underline font-medium flex items-center gap-1">
-                    <Plus size={12} /> Add item
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={includeEOL}
+                        onChange={e => setIncludeEOL(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded accent-amber-500"
+                      />
+                      <span className="text-xs text-slate-500">Include EOL items</span>
+                    </label>
+                    <button onClick={addItem} className="text-xs text-brand-600 hover:underline font-medium flex items-center gap-1">
+                      <Plus size={12} /> Add item
+                    </button>
+                  </div>
                 </div>
 
                 {newItems.length === 0 ? (
@@ -330,8 +343,8 @@ export default function ReplenishmentPage() {
                           disabled={item.skipped}
                           className={`form-input text-xs py-1.5 ${item.skipped ? 'line-through text-slate-400' : ''}`}>
                           <option value="">Select product…</option>
-                          {stockItems.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}{s.sku ? ` · ${s.sku}` : ''}</option>
+                          {stockItems.filter(s => includeEOL || !s.discontinued).map(s => (
+                            <option key={s.id} value={s.id}>{s.name}{s.sku ? ` · ${s.sku}` : ''}{s.discontinued ? ' · EOL' : ''}</option>
                           ))}
                         </select>
                         <div className="text-center">
@@ -387,7 +400,7 @@ export default function ReplenishmentPage() {
             </div>
 
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
+              <button onClick={() => { setShowModal(false); setIncludeEOL(false); }} className="btn-secondary">Cancel</button>
               <button onClick={handleSubmit} disabled={saving} className="btn-primary">
                 {saving ? 'Saving…' : 'Create Request'}
               </button>
