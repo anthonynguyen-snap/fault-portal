@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Truck, Plus, RefreshCw, ChevronRight, Package,
@@ -46,6 +47,7 @@ interface NewItemRow {
 }
 
 export default function ReplenishmentPage() {
+  const searchParams = useSearchParams();
   const [requests, setRequests]     = useState<ReplenishmentRequest[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -82,6 +84,17 @@ export default function ReplenishmentPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  // Auto-open modal if redirected from a dispatched request
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      const store = searchParams.get('store');
+      if (store && (STORES as readonly string[]).includes(store)) {
+        setForm(f => ({ ...f, store: store as typeof STORES[number] }));
+      }
+      setShowModal(true);
+    }
+  }, [searchParams]);
 
   const displayed = useMemo(() =>
     filter === 'All' ? requests : requests.filter(r => r.status === filter),

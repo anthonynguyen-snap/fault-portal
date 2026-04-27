@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Truck, Package, Send, CheckCircle,
-  Clock, AlertTriangle, Save, ExternalLink,
+  Clock, AlertTriangle, Save, ExternalLink, Plus,
 } from 'lucide-react';
 import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem } from '@/types';
 import { useToast } from '@/components/ui/Toast';
@@ -360,9 +360,14 @@ export default function ReplenishmentDetailPage() {
       )}
 
       {isDispatched && (
-        <div className="flex justify-start">
+        <div className="flex items-center justify-between">
           <button onClick={handleStatusSave} disabled={saving} className="btn-secondary flex items-center gap-2">
             <Save size={14} /> Save Notes / Order #
+          </button>
+          <button
+            onClick={() => router.push(`/replenishment?new=1&store=${encodeURIComponent(request.store)}`)}
+            className="btn-primary flex items-center gap-2">
+            <Plus size={14} /> New Request for {request.store}
           </button>
         </div>
       )}
