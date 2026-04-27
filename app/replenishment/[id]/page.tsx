@@ -396,7 +396,9 @@ export default function ReplenishmentDetailPage() {
                   </td>
                   <td className="px-4 py-3 text-center font-mono text-sm font-semibold text-slate-700">{item.quantityRequested}</td>
                   <td className="px-4 py-3 text-center">
-                    {isDispatched ? (
+                    {skipped ? (
+                      <span className="text-slate-300 font-mono text-sm">—</span>
+                    ) : isDispatched ? (
                       <span className="font-mono text-sm font-semibold text-slate-700">{item.quantitySent}</span>
                     ) : (
                       <input
@@ -434,11 +436,11 @@ export default function ReplenishmentDetailPage() {
                 Totals
               </td>
               <td className="px-4 py-2.5 text-center font-mono text-sm font-bold text-slate-800">
-                {request.items.reduce((s, i) => s + i.quantityRequested, 0)}
+                {request.items.filter(i => !(itemSkipped[i.id] ?? i.skipped)).reduce((s, i) => s + i.quantityRequested, 0)}
               </td>
               <td className="px-4 py-2.5 text-center font-mono text-sm font-bold text-slate-800">
                 {isDispatched
-                  ? request.items.reduce((s, i) => s + i.quantitySent, 0)
+                  ? request.items.filter(i => !(itemSkipped[i.id] ?? i.skipped)).reduce((s, i) => s + i.quantitySent, 0)
                   : totalSent}
               </td>
               <td />
