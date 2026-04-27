@@ -31,12 +31,18 @@ function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+const STORE_DISPLAY: Record<string, string> = {
+  'AU (+ Popup)': '🇦🇺 AU',
+  'US':           '🇺🇸 US',
+  'UK-NZ-ROW':    '🌐 ROW',
+  'All Stores':   '🌐 All',
+};
 function StorePill({ store }: { store: string }) {
   const cls = store === 'AU (+ Popup)'  ? 'bg-emerald-100 text-emerald-700'
             : store === 'US'            ? 'bg-blue-100 text-blue-700'
             : store === 'UK-NZ-ROW'     ? 'bg-purple-100 text-purple-700'
             : 'bg-brand-100 text-brand-700';
-  return <span className={`badge ${cls}`}>{store}</span>;
+  return <span className={`badge ${cls}`}>{STORE_DISPLAY[store] ?? store}</span>;
 }
 
 function PreviousRuns({ runs }: { runs: PromoRun[] }) {

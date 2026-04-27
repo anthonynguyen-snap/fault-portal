@@ -856,10 +856,10 @@ type PromoStrip = { id: string; name: string; code: string; platform: string; de
 
 const STORE_ORDER = ['All Stores', 'AU (+ Popup)', 'US', 'UK-NZ-ROW'] as const;
 const STORE_LABEL: Record<string, { label: string; color: string }> = {
-  'AU (+ Popup)': { label: 'AU',  color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
-  'US':           { label: 'US',  color: 'text-blue-700 bg-blue-50 border-blue-200'         },
-  'UK-NZ-ROW':    { label: 'ROW', color: 'text-purple-700 bg-purple-50 border-purple-200'   },
-  'All Stores':   { label: 'All', color: 'text-brand-700 bg-brand-50 border-brand-200'      },
+  'AU (+ Popup)': { label: '🇦🇺 AU',  color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  'US':           { label: '🇺🇸 US',  color: 'text-blue-700 bg-blue-50 border-blue-200'         },
+  'UK-NZ-ROW':    { label: '🌐 ROW', color: 'text-purple-700 bg-purple-50 border-purple-200'   },
+  'All Stores':   { label: '🌐 All', color: 'text-brand-700 bg-brand-50 border-brand-200'      },
 };
 
 function fmtShort(iso: string) {
