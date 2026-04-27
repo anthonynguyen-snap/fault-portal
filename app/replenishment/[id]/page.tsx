@@ -252,7 +252,7 @@ export default function ReplenishmentDetailPage() {
               const short   = onHand < item.quantityRequested;
               return (
                 <tr key={item.id} className={`border-b border-slate-50 last:border-0 transition-colors ${
-                  skipped ? 'opacity-40 bg-slate-100' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
+                  skipped ? 'bg-red-50/60' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
                 }`}>
                   {!isDispatched && (
                     <td className="px-2 py-3 text-center">
@@ -264,7 +264,12 @@ export default function ReplenishmentDetailPage() {
                       </button>
                     </td>
                   )}
-                  <td className={`px-4 py-3 font-medium ${skipped ? 'line-through text-slate-400' : 'text-slate-800'}`}>{item.stockItemName}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${skipped ? 'line-through text-red-400' : 'text-slate-800'}`}>{item.stockItemName}</span>
+                      {skipped && <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">OOS</span>}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku || '—'}</td>
                   <td className="px-4 py-3 text-center">
                     {(itemSource[item.id] ?? item.source) === '3PL' ? (

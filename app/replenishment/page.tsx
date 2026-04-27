@@ -329,7 +329,7 @@ export default function ReplenishmentPage() {
                       <span />
                     </div>
                     {newItems.map((item, idx) => (
-                      <div key={idx} className={`grid grid-cols-[24px_1fr_80px_80px_90px_24px] gap-2 items-center rounded-lg px-2 py-2 transition-colors ${item.skipped ? 'bg-slate-100 opacity-50' : 'bg-slate-50'}`}>
+                      <div key={idx} className={`grid grid-cols-[24px_1fr_80px_80px_90px_24px] gap-2 items-center rounded-lg px-2 py-2 transition-colors ${item.skipped ? 'bg-red-50' : 'bg-slate-50'}`}>
                         {/* Skip toggle */}
                         <button
                           onClick={() => updateItem(idx, { skipped: !item.skipped })}
@@ -341,7 +341,7 @@ export default function ReplenishmentPage() {
                           value={item.stockItemId}
                           onChange={e => selectStockItem(idx, e.target.value)}
                           disabled={item.skipped}
-                          className={`form-input text-xs py-1.5 ${item.skipped ? 'line-through text-slate-400' : ''}`}>
+                          className={`form-input text-xs py-1.5 ${item.skipped ? 'line-through text-red-400' : ''}`}>
                           <option value="">Select product…</option>
                           {stockItems.filter(s => includeEOL || !s.discontinued).map(s => (
                             <option key={s.id} value={s.id}>{s.name}{s.sku ? ` · ${s.sku}` : ''}{s.discontinued ? ' · EOL' : ''}</option>
