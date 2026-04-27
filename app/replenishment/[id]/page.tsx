@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Truck, Package, Send, CheckCircle,
-  Clock, AlertTriangle, Save, ExternalLink, Plus,
+  Clock, AlertTriangle, Save, ExternalLink, Plus, Pencil, Lock,
 } from 'lucide-react';
 import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem } from '@/types';
 import { useToast } from '@/components/ui/Toast';
@@ -45,6 +45,9 @@ export default function ReplenishmentDetailPage() {
   const [editStatus, setEditStatus] = useState<ReplenishmentStatus | null>(null);
   const [editNotes, setEditNotes]   = useState('');
   const [editOrderNum, setEditOrderNum] = useState('');
+
+  // Allow editing even after dispatch
+  const [unlocked, setUnlocked] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -156,7 +159,7 @@ export default function ReplenishmentDetailPage() {
     );
   }
 
-  const isDispatched = request.status === 'Dispatched' || request.status === 'Delivered';
+  const isDispatched = (request.status === 'Dispatched' || request.status === 'Delivered') && !unlocked;
 
   const storeroomItems = request.items.filter(i =>
     !(itemSkipped[i.id] ?? i.skipped) && (itemSource[i.id] ?? i.source) === 'Storeroom'
@@ -231,7 +234,14 @@ export default function ReplenishmentDetailPage() {
       <div className="card overflow-clip">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Items</h2>
-          <span className="text-xs text-slate-400">On-hand figures from storeroom</span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-xs text-slate-400">
+              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 inline-block" /> Storeroom
+            </span>
+            <span className="flex items-center gap-1 text-xs text-slate-400">
+              <span className="w-2.5 h-2.5 rounded-sm bg-sky-200 inline-block" /> 3PL
+            </span>
+          </div>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -248,11 +258,16 @@ export default function ReplenishmentDetailPage() {
           <tbody>
             {request.items.map((item: ReplenishmentLineItem, idx) => {
               const skipped = itemSkipped[item.id] ?? item.skipped ?? false;
+              const source  = itemSource[item.id] ?? item.source;
               const onHand  = item.quantityOnHand;
               const short   = onHand < item.quantityRequested;
               return (
                 <tr key={item.id} className={`border-b border-slate-50 last:border-0 transition-colors ${
-                  skipped ? 'bg-red-50/60' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
+                  skipped
+                    ? 'bg-red-50/60'
+                    : source === 'Storeroom'
+                      ? 'bg-emerald-50/40'
+                      : 'bg-sky-50/30'
                 }`}>
                   {!isDispatched && (
                     <td className="px-2 py-3 text-center">
@@ -272,7 +287,7 @@ export default function ReplenishmentDetailPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku || '—'}</td>
                   <td className="px-4 py-3 text-center">
-                    {(itemSource[item.id] ?? item.source) === '3PL' ? (
+                    {source === '3PL' ? (
                       <span className="font-mono text-sm text-slate-300">—</span>
                     ) : (
                       <>
@@ -300,13 +315,13 @@ export default function ReplenishmentDetailPage() {
                   <td className="px-4 py-3 text-center">
                     {isDispatched ? (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        (itemSource[item.id] ?? item.source) === 'Storeroom'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-blue-50 text-blue-700'
-                      }`}>{itemSource[item.id] ?? item.source}</span>
+                        source === 'Storeroom'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-sky-100 text-sky-700'
+                      }`}>{source}</span>
                     ) : (
                       <select
-                        value={itemSource[item.id] ?? item.source}
+                        value={source}
                         onChange={e => setItemSource(prev => ({ ...prev, [item.id]: e.target.value }))}
                         className="form-input text-xs py-1 w-28 mx-auto">
                         <option value="Storeroom">Storeroom</option>
@@ -359,11 +374,22 @@ export default function ReplenishmentDetailPage() {
         </div>
       )}
 
-      {isDispatched && (
+      {(request.status === 'Dispatched' || request.status === 'Delivered') && (
         <div className="flex items-center justify-between">
-          <button onClick={handleStatusSave} disabled={saving} className="btn-secondary flex items-center gap-2">
-            <Save size={14} /> Save Notes / Order #
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={handleStatusSave} disabled={saving} className="btn-secondary flex items-center gap-2">
+              <Save size={14} /> Save Changes
+            </button>
+            <button
+              onClick={() => setUnlocked(u => !u)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                unlocked
+                  ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+              }`}>
+              {unlocked ? <><Lock size={14} /> Lock</>  : <><Pencil size={14} /> Edit</>}
+            </button>
+          </div>
           <button
             onClick={() => router.push(`/replenishment?new=1&store=${encodeURIComponent(request.store)}`)}
             className="btn-primary flex items-center gap-2">
