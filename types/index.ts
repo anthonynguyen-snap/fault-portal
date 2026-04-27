@@ -307,6 +307,49 @@ export interface ReplenishmentRequest {
 }
 
 // =========================================================
+// ROSTER
+// =========================================================
+export type ShiftType  = 'mon-fri' | 'tue-sat' | 'sun-thu';
+export type LeaveType  = 'sick' | 'makeup' | 'other';
+
+export interface RosterAgent {
+  id:         string;
+  name:       string;
+  colour:     string;
+  shiftType:  ShiftType;
+  isAdmin:    boolean;
+  active:     boolean;
+  createdAt:  string;
+}
+
+export interface RosterConfig {
+  id:                 string;
+  rotationStartDate:  string;
+}
+
+export interface RosterLeave {
+  id:             string;
+  agentId:        string;
+  agentName?:     string;
+  date:           string;
+  leaveType:      LeaveType;
+  notes:          string;
+  hoursOwed:      number;
+  hoursCompleted: number;
+  createdAt:      string;
+}
+
+export interface RosterOverride {
+  id:        string;
+  agentId:   string;
+  date:      string;
+  isWorking: boolean;
+  notes:     string;
+  hours:     number;
+  createdAt: string;
+}
+
+// =========================================================
 // CORPORATE / WHOLESALE
 // =========================================================
 export type CorporateStatus =

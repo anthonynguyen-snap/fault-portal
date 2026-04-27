@@ -20,6 +20,8 @@ import {
   Users2,
   ShoppingBag,
   Truck,
+  CalendarDays,
+  ClipboardList,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -103,6 +105,13 @@ const navGroups = [
     label: 'Wholesale',
     items: [
       { label: 'Corporate', href: '/corporate', icon: Briefcase },
+    ],
+  },
+  {
+    label: 'Team',
+    items: [
+      { label: 'Roster',     href: '/roster',       icon: CalendarDays },
+      { label: 'Leave Log',  href: '/roster/leave',  icon: ClipboardList },
     ],
   },
   {
