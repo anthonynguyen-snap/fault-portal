@@ -96,6 +96,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    // Add a new line item to an existing order
+    if (body.addItem) {
+      const item = body.addItem as { stockItemId: string; stockItemName: string; sku: string; quantityRequested: number; quantityOnHand: number; source: string };
+      const { error } = await getSupabase()
+        .from('replenishment_items')
+        .insert({
+          request_id:         id,
+          stock_item_id:      item.stockItemId,
+          stock_item_name:    item.stockItemName,
+          sku:                item.sku,
+          quantity_requested: item.quantityRequested,
+          quantity_on_hand:   item.quantityOnHand,
+          quantity_sent:      0,
+          source:             item.source,
+          skipped:            false,
+        });
+      if (error) throw error;
+    }
+
     // Support toggling a single item's skipped state
     if (body.toggleSkipped) {
       const { id: itemId, skipped } = body.toggleSkipped as { id: string; skipped: boolean };

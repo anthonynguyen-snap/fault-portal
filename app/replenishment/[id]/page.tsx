@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Truck, Package, Send, CheckCircle,
-  Clock, AlertTriangle, Save, ExternalLink, Plus, Pencil, Lock,
+  Clock, AlertTriangle, Save, ExternalLink, Plus, Pencil, Lock, Copy,
 } from 'lucide-react';
-import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem } from '@/types';
+import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem, StockItem } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 
 const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'];
@@ -32,7 +32,8 @@ export default function ReplenishmentDetailPage() {
   const router  = useRouter();
   const { success, error: toastError } = useToast();
 
-  const [request, setRequest] = useState<ReplenishmentRequest | null>(null);
+  const [request, setRequest]     = useState<ReplenishmentRequest | null>(null);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
 
@@ -47,6 +48,13 @@ export default function ReplenishmentDetailPage() {
   const [storeroomDate, setStoreroomDate]                 = useState(new Date().toISOString().slice(0, 10));
   const [tplTracking, setTplTracking]                     = useState('');
   const [tplDate, setTplDate]                             = useState(new Date().toISOString().slice(0, 10));
+
+  // Add item to existing order
+  const [showAddItem, setShowAddItem]     = useState(false);
+  const [addItemId,   setAddItemId]       = useState('');
+  const [addItemQty,  setAddItemQty]      = useState(1);
+  const [addItemSrc,  setAddItemSrc]      = useState<'Storeroom' | '3PL'>('Storeroom');
+  const [addItemSaving, setAddItemSaving] = useState(false);
 
   // Inline tracking update for 3PL card (post-dispatch)
   const [editTplTracking, setEditTplTracking]   = useState(false);
@@ -70,7 +78,12 @@ export default function ReplenishmentDetailPage() {
   async function load() {
     setLoading(true);
     try {
-      const res  = await fetch(`/api/replenishment/${id}`);
+      const [res, stockRes] = await Promise.all([
+        fetch(`/api/replenishment/${id}`),
+        fetch('/api/stock/items'),
+      ]);
+      const stockJson = await stockRes.json();
+      setStockItems(stockJson.data ?? []);
       const json = await res.json();
       const req: ReplenishmentRequest = json.data;
       setRequest(req);
@@ -199,6 +212,36 @@ export default function ReplenishmentDetailPage() {
     } catch {
       toastError('Failed to save tracking');
     } finally { setSavingTracking(false); }
+  }
+
+  async function saveAddItem() {
+    if (!request || !addItemId) return;
+    const stock = stockItems.find(s => s.id === addItemId);
+    if (!stock) return;
+    setAddItemSaving(true);
+    try {
+      const res = await fetch(`/api/replenishment/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addItem: {
+            stockItemId:       stock.id,
+            stockItemName:     stock.name,
+            sku:               stock.sku,
+            quantityRequested: addItemQty,
+            quantityOnHand:    stock.quantity,
+            source:            addItemSrc,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error();
+      success('Item added');
+      await load();
+      setShowAddItem(false);
+      setAddItemId(''); setAddItemQty(1); setAddItemSrc('Storeroom');
+    } catch {
+      toastError('Failed to add item');
+    } finally { setAddItemSaving(false); }
   }
 
   if (loading) {
@@ -333,7 +376,13 @@ export default function ReplenishmentDetailPage() {
                     <p className="text-xs text-sky-600 mt-0.5">Date: {request.tplDispatchDate}</p>
                     {request.tplTracking ? (
                       <div className="flex items-center gap-1.5 mt-1">
-                        <p className="text-xs font-mono text-sky-700 truncate">{request.tplTracking}</p>
+                        <a
+                          href={`https://auspost.com.au/mypost/track/#/details/${request.tplTracking}`}
+                          target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-mono text-sky-700 hover:text-sky-900 underline truncate flex items-center gap-1"
+                        >
+                          {request.tplTracking} <ExternalLink size={10} />
+                        </a>
                         <button
                           onClick={() => { setTplTrackingInput(request.tplTracking); setEditTplTracking(true); }}
                           className="text-[10px] text-sky-400 hover:text-sky-600 underline transition-colors"
@@ -495,6 +544,50 @@ export default function ReplenishmentDetailPage() {
             </tr>
           </tfoot>
         </table>
+
+        {/* Add item row */}
+        {!isDispatched && (
+          <div className="border-t border-slate-100 px-4 py-3">
+            {showAddItem ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={addItemId}
+                  onChange={e => setAddItemId(e.target.value)}
+                  className="form-input text-xs py-1.5 flex-1 min-w-48">
+                  <option value="">Select product…</option>
+                  {stockItems.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.sku})</option>
+                  ))}
+                </select>
+                <input
+                  type="number" min={1}
+                  value={addItemQty}
+                  onChange={e => setAddItemQty(parseInt(e.target.value) || 1)}
+                  className="form-input text-xs py-1.5 w-20 text-center font-mono"
+                  placeholder="Qty"
+                />
+                <select
+                  value={addItemSrc}
+                  onChange={e => setAddItemSrc(e.target.value as 'Storeroom' | '3PL')}
+                  className="form-input text-xs py-1.5 w-28">
+                  <option value="Storeroom">Storeroom</option>
+                  <option value="3PL">3PL</option>
+                </select>
+                <button onClick={saveAddItem} disabled={addItemSaving || !addItemId}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40">
+                  {addItemSaving ? 'Adding…' : 'Add'}
+                </button>
+                <button onClick={() => { setShowAddItem(false); setAddItemId(''); }}
+                  className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowAddItem(true)}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-brand-600 font-medium transition-colors">
+                <Plus size={13} /> Add item
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Notes */}
@@ -507,9 +600,16 @@ export default function ReplenishmentDetailPage() {
       {/* Actions */}
       {!isDispatched && (
         <div className="flex items-center justify-between">
-          <button onClick={handleStatusSave} disabled={saving} className="btn-secondary flex items-center gap-2">
-            <Save size={14} /> Save Changes
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={handleStatusSave} disabled={saving} className="btn-secondary flex items-center gap-2">
+              <Save size={14} /> Save Changes
+            </button>
+            <button
+              onClick={() => router.push(`/replenishment?duplicate=${request.id}`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors">
+              <Copy size={14} /> Duplicate
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             {isMixedSource ? (
               <>
@@ -549,6 +649,11 @@ export default function ReplenishmentDetailPage() {
                   : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
               }`}>
               {unlocked ? <><Lock size={14} /> Lock</> : <><Pencil size={14} /> Edit</>}
+            </button>
+            <button
+              onClick={() => router.push(`/replenishment?duplicate=${request.id}`)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors">
+              <Copy size={14} /> Duplicate
             </button>
           </div>
           <button

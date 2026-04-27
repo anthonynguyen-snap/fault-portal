@@ -57,6 +57,8 @@ function ReplenishmentPageInner() {
   const [showModal, setShowModal]       = useState(false);
   const [saving, setSaving]             = useState(false);
   const [includeEOL, setIncludeEOL]     = useState(false);
+  const [filterFrom, setFilterFrom]     = useState('');
+  const [filterTo,   setFilterTo]       = useState('');
   const { success, error: toastError } = useToast();
 
   // 3PL tracking alerts
@@ -97,7 +99,7 @@ function ReplenishmentPageInner() {
       .catch(() => {});
   }, [requests]); // re-check whenever requests reload
 
-  // Auto-open modal if redirected from a dispatched request
+  // Auto-open modal — new request or duplicate
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       const store = searchParams.get('store');
@@ -106,12 +108,34 @@ function ReplenishmentPageInner() {
       }
       setShowModal(true);
     }
+    const dupId = searchParams.get('duplicate');
+    if (dupId) {
+      fetch(`/api/replenishment/${dupId}`)
+        .then(r => r.json())
+        .then(({ data }) => {
+          if (!data) return;
+          setForm(f => ({ ...f, store: data.store, orderNumber: '', requestedBy: data.requestedBy, notes: data.notes }));
+          setNewItems(data.items.map((i: { stockItemId: string; stockItemName: string; sku: string; quantityRequested: number; quantityOnHand: number; source: string }) => ({
+            stockItemId:       i.stockItemId,
+            stockItemName:     i.stockItemName,
+            sku:               i.sku,
+            quantityRequested: i.quantityRequested,
+            quantityOnHand:    i.quantityOnHand,
+            source:            i.source as 'Storeroom' | '3PL',
+            skipped:           false,
+          })));
+          setShowModal(true);
+        })
+        .catch(() => {});
+    }
   }, [searchParams]);
 
-  const displayed = useMemo(() =>
-    filter === 'All' ? requests : requests.filter(r => r.status === filter),
-    [requests, filter]
-  );
+  const displayed = useMemo(() => {
+    let list = filter === 'All' ? requests : requests.filter(r => r.status === filter);
+    if (filterFrom) list = list.filter(r => r.date >= filterFrom);
+    if (filterTo)   list = list.filter(r => r.date <= filterTo);
+    return list;
+  }, [requests, filter, filterFrom, filterTo]);
 
   const counts = {
     All:                  requests.length,
@@ -248,19 +272,32 @@ function ReplenishmentPageInner() {
         ))}
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
-        {(['All', 'Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
-              filter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}>
-            {f}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-              filter === f ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'
-            }`}>{counts[f]}</span>
-          </button>
-        ))}
+      {/* Filter tabs + date range */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          {(['All', 'Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+                filter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}>
+              {f}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                filter === f ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'
+              }`}>{counts[f]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400 text-slate-600" />
+          <span className="text-slate-400 text-xs">→</span>
+          <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400 text-slate-600" />
+          {(filterFrom || filterTo) && (
+            <button onClick={() => { setFilterFrom(''); setFilterTo(''); }}
+              className="text-xs text-slate-400 hover:text-slate-600 transition-colors">✕</button>
+          )}
+        </div>
       </div>
 
       {/* Table */}

@@ -31,13 +31,14 @@ export default function LeavePage() {
   const [filterTo,    setFilterTo]    = useState('');
 
   // Add leave modal
-  const [showAdd,      setShowAdd]      = useState(false);
-  const [addAgent,     setAddAgent]     = useState('');
-  const [addDate,      setAddDate]      = useState('');
-  const [addType,      setAddType]      = useState<LeaveType>('sick');
-  const [addNotes,     setAddNotes]     = useState('');
-  const [addHoursOwed, setAddHoursOwed] = useState('');
-  const [saving,       setSaving]       = useState(false);
+  const [showAdd,        setShowAdd]        = useState(false);
+  const [addAgent,       setAddAgent]       = useState('');
+  const [addDateFrom,    setAddDateFrom]    = useState('');
+  const [addDateTo,      setAddDateTo]      = useState('');
+  const [addType,        setAddType]        = useState<LeaveType>('sick');
+  const [addNotes,       setAddNotes]       = useState('');
+  const [addHoursOwed,   setAddHoursOwed]   = useState('');
+  const [saving,         setSaving]         = useState(false);
 
   // Inline edit
   const [editId,     setEditId]     = useState<string | null>(null);
@@ -90,28 +91,47 @@ export default function LeavePage() {
     return { owed, completed, remaining: Math.max(0, owed - completed) };
   }, [records, filterAgent]);
 
+  function getWeekdaysBetween(from: string, to: string): string[] {
+    const dates: string[] = [];
+    const cur = new Date(from + 'T00:00:00');
+    const end = new Date(to   + 'T00:00:00');
+    while (cur <= end) {
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) dates.push(cur.toISOString().slice(0, 10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }
+
   async function handleAdd() {
-    if (!addAgent || !addDate) return;
+    if (!addAgent || !addDateFrom) return;
+    const dateTo = addDateTo || addDateFrom;
+    const dates  = getWeekdaysBetween(addDateFrom, dateTo);
+    if (!dates.length) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/roster/leave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agentId:   addAgent,
-          date:      addDate,
-          leaveType: addType,
-          notes:     addNotes,
-          hoursOwed:      addType === 'makeup' ? Number(addHoursOwed) || 0 : 0,
-          hoursCompleted: 0,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      const { data } = await res.json();
-      setRecords(prev => [data, ...prev].sort((a,b) => b.date.localeCompare(a.date)));
+      const newRecords: RosterLeave[] = [];
+      for (const date of dates) {
+        const res = await fetch('/api/roster/leave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId:        addAgent,
+            date,
+            leaveType:      addType,
+            notes:          addNotes,
+            hoursOwed:      addType === 'makeup' ? Number(addHoursOwed) || 0 : 0,
+            hoursCompleted: 0,
+          }),
+        });
+        if (!res.ok) throw new Error();
+        const { data } = await res.json();
+        newRecords.push(data);
+      }
+      setRecords(prev => [...newRecords, ...prev].sort((a,b) => b.date.localeCompare(a.date)));
       setShowAdd(false);
-      setAddAgent(''); setAddDate(''); setAddType('sick'); setAddNotes(''); setAddHoursOwed('');
-      toastSuccess('Leave record added');
+      setAddAgent(''); setAddDateFrom(''); setAddDateTo(''); setAddType('sick'); setAddNotes(''); setAddHoursOwed('');
+      toastSuccess(dates.length === 1 ? 'Leave record added' : `${dates.length} leave records added`);
     } catch {
       toastError('Failed to add leave record');
     } finally {
@@ -205,23 +225,38 @@ export default function LeavePage() {
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-5">
         {/* Make-up hours summary */}
         {makeupSummary.owed > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-center gap-6">
-            <div>
-              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Make-up Hours</p>
-              <p className="text-xs text-amber-600 mt-0.5">{filterAgent ? (agentMap[filterAgent]?.name ?? 'Selected agent') : 'All agents'}</p>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+            <div className="flex items-center gap-6">
+              <div>
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Make-up Hours</p>
+                <p className="text-xs text-amber-600 mt-0.5">{filterAgent ? (agentMap[filterAgent]?.name ?? 'Selected agent') : 'All agents'}</p>
+              </div>
+              <div className="flex items-center gap-6 ml-auto">
+                <div className="text-center">
+                  <p className="text-xl font-bold text-amber-700">{makeupSummary.owed}</p>
+                  <p className="text-[10px] text-amber-600 font-medium">Owed</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-amber-700">{makeupSummary.completed}</p>
+                  <p className="text-[10px] text-amber-600 font-medium">Completed</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-amber-800">{makeupSummary.remaining}</p>
+                  <p className="text-[10px] text-amber-700 font-medium">Remaining</p>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-6 ml-auto">
-              <div className="text-center">
-                <p className="text-xl font-bold text-amber-700">{makeupSummary.owed}</p>
-                <p className="text-[10px] text-amber-600 font-medium">Owed</p>
+            {/* Progress bar */}
+            <div className="mt-3">
+              <div className="flex justify-between text-[10px] text-amber-600 mb-1">
+                <span>{Math.round((makeupSummary.completed / makeupSummary.owed) * 100)}% complete</span>
+                <span>{makeupSummary.completed} / {makeupSummary.owed} hrs</span>
               </div>
-              <div className="text-center">
-                <p className="text-xl font-bold text-amber-700">{makeupSummary.completed}</p>
-                <p className="text-[10px] text-amber-600 font-medium">Completed</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xl font-bold text-amber-800">{makeupSummary.remaining}</p>
-                <p className="text-[10px] text-amber-700 font-medium">Remaining</p>
+              <div className="h-2 bg-amber-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full transition-all"
+                  style={{ width: `${Math.min(100, (makeupSummary.completed / makeupSummary.owed) * 100)}%` }}
+                />
               </div>
             </div>
           </div>
@@ -475,13 +510,29 @@ export default function LeavePage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Date</label>
-                <input
-                  type="date"
-                  value={addDate}
-                  onChange={e => setAddDate(e.target.value)}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Date <span className="text-slate-400 font-normal">(single day or range)</span></label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={addDateFrom}
+                    onChange={e => setAddDateFrom(e.target.value)}
+                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                  />
+                  <span className="text-slate-400 text-xs">→</span>
+                  <input
+                    type="date"
+                    value={addDateTo}
+                    min={addDateFrom}
+                    onChange={e => setAddDateTo(e.target.value)}
+                    placeholder="End (optional)"
+                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                  />
+                </div>
+                {addDateFrom && addDateTo && addDateTo > addDateFrom && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {getWeekdaysBetween(addDateFrom, addDateTo).length} weekday{getWeekdaysBetween(addDateFrom, addDateTo).length !== 1 ? 's' : ''} — one record each
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Type</label>
@@ -536,7 +587,7 @@ export default function LeavePage() {
               </button>
               <button
                 onClick={handleAdd}
-                disabled={saving || !addAgent || !addDate}
+                disabled={saving || !addAgent || !addDateFrom}
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors disabled:opacity-50"
               >
                 {saving ? 'Saving…' : 'Add Record'}
