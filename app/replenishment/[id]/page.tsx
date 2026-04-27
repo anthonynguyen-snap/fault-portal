@@ -141,7 +141,6 @@ export default function ReplenishmentDetailPage() {
   }
 
   const isDispatched = request.status === 'Dispatched' || request.status === 'Delivered';
-  const isAdelaide   = request.store === 'Adelaide Popup';
 
   const storeroomItems = request.items.filter(i => (itemSource[i.id] ?? i.source) === 'Storeroom');
   const totalSent      = request.items.reduce((s, i) => s + (qtySent[i.id] ?? i.quantityRequested), 0);
@@ -203,7 +202,7 @@ export default function ReplenishmentDetailPage() {
               <p className="text-emerald-600 text-xs font-mono mt-0.5">Tracking: {request.trackingNumber}</p>
             )}
           </div>
-          {isAdelaide && (
+          {storeroomItems.length > 0 && (
             <p className="text-xs text-emerald-600 flex-shrink-0">Storeroom deducted ✓</p>
           )}
         </div>
@@ -213,16 +212,14 @@ export default function ReplenishmentDetailPage() {
       <div className="card overflow-clip">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Items</h2>
-          {isAdelaide && (
-            <span className="text-xs text-slate-400">On-hand figures from storeroom</span>
-          )}
+          <span className="text-xs text-slate-400">On-hand figures from storeroom</span>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100">
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">SKU</th>
-              {isAdelaide && <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">On Hand</th>}
+              <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">On Hand</th>
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Requested</th>
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sent</th>
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Source</th>
@@ -236,14 +233,12 @@ export default function ReplenishmentDetailPage() {
                 <tr key={item.id} className={`border-b border-slate-50 last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
                   <td className="px-4 py-3 font-medium text-slate-800">{item.stockItemName}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku || '—'}</td>
-                  {isAdelaide && (
-                    <td className="px-4 py-3 text-center">
-                      <span className={`font-mono text-sm font-semibold ${
-                        onHand === 0 ? 'text-red-500' : short ? 'text-amber-500' : 'text-emerald-600'
-                      }`}>{onHand}</span>
-                      {short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
-                    </td>
-                  )}
+                  <td className="px-4 py-3 text-center">
+                    <span className={`font-mono text-sm font-semibold ${
+                      onHand === 0 ? 'text-red-500' : short ? 'text-amber-500' : 'text-emerald-600'
+                    }`}>{onHand}</span>
+                    {short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
+                  </td>
                   <td className="px-4 py-3 text-center font-mono text-sm font-semibold text-slate-700">{item.quantityRequested}</td>
                   <td className="px-4 py-3 text-center">
                     {isDispatched ? (
@@ -280,7 +275,7 @@ export default function ReplenishmentDetailPage() {
           </tbody>
           <tfoot>
             <tr className="border-t border-slate-200 bg-slate-50">
-              <td colSpan={isAdelaide ? 3 : 2} className="px-4 py-2.5 text-xs text-slate-500 font-medium">
+              <td colSpan={3} className="px-4 py-2.5 text-xs text-slate-500 font-medium">
                 Totals
               </td>
               <td className="px-4 py-2.5 text-center font-mono text-sm font-bold text-slate-800">
@@ -337,7 +332,7 @@ export default function ReplenishmentDetailPage() {
             <div className="p-6 space-y-4">
               <p className="text-sm text-slate-600">
                 This will mark the request as <strong>Dispatched</strong>
-                {isAdelaide && storeroomItems.length > 0 && (
+                {storeroomItems.length > 0 && (
                   <> and deduct <strong>{storeroomItems.reduce((s, i) => s + (qtySent[i.id] ?? i.quantityRequested), 0)} storeroom units</strong> from stock</>
                 )}.
               </p>
@@ -350,7 +345,7 @@ export default function ReplenishmentDetailPage() {
                 <label className="form-label">Dispatch Date</label>
                 <input type="date" value={dispatchDate} onChange={e => setDispatchDate(e.target.value)} className="form-input" />
               </div>
-              {isAdelaide && storeroomItems.length > 0 && (
+              {storeroomItems.length > 0 && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                   <p className="text-xs font-semibold text-amber-700 mb-1">Storeroom deduction preview</p>
                   {storeroomItems.map(i => (
