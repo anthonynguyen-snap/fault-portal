@@ -267,11 +267,17 @@ export default function ReplenishmentDetailPage() {
                   <td className={`px-4 py-3 font-medium ${skipped ? 'line-through text-slate-400' : 'text-slate-800'}`}>{item.stockItemName}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku || '—'}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`font-mono text-sm font-semibold ${
-                      skipped ? 'text-slate-300' :
-                      onHand === 0 ? 'text-red-500' : short ? 'text-amber-500' : 'text-emerald-600'
-                    }`}>{onHand}</span>
-                    {!skipped && short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
+                    {(itemSource[item.id] ?? item.source) === '3PL' ? (
+                      <span className="font-mono text-sm text-slate-300">—</span>
+                    ) : (
+                      <>
+                        <span className={`font-mono text-sm font-semibold ${
+                          skipped ? 'text-slate-300' :
+                          onHand === 0 ? 'text-red-500' : short ? 'text-amber-500' : 'text-emerald-600'
+                        }`}>{onHand}</span>
+                        {!skipped && short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
+                      </>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center font-mono text-sm font-semibold text-slate-700">{item.quantityRequested}</td>
                   <td className="px-4 py-3 text-center">

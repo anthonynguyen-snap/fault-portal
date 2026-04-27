@@ -348,14 +348,18 @@ export default function ReplenishmentPage() {
                           ))}
                         </select>
                         <div className="text-center">
-                          <span className={`font-mono text-sm font-semibold ${
-                            item.skipped ? 'text-slate-300' :
-                            item.quantityOnHand === 0 ? 'text-red-500' :
-                            item.quantityOnHand < (item.quantityRequested || 1) ? 'text-amber-500' :
-                            'text-emerald-600'
-                          }`}>
-                            {item.stockItemId ? item.quantityOnHand : '—'}
-                          </span>
+                          {item.source === '3PL' ? (
+                            <span className="font-mono text-sm text-slate-300">—</span>
+                          ) : (
+                            <span className={`font-mono text-sm font-semibold ${
+                              item.skipped ? 'text-slate-300' :
+                              item.quantityOnHand === 0 ? 'text-red-500' :
+                              item.quantityOnHand < (item.quantityRequested || 1) ? 'text-amber-500' :
+                              'text-emerald-600'
+                            }`}>
+                              {item.stockItemId ? item.quantityOnHand : '—'}
+                            </span>
+                          )}
                         </div>
                         <input
                           type="number" min={1}
