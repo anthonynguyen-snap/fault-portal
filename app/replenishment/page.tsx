@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -46,7 +46,7 @@ interface NewItemRow {
   skipped: boolean;
 }
 
-export default function ReplenishmentPage() {
+function ReplenishmentPageInner() {
   const searchParams = useSearchParams();
   const [requests, setRequests]     = useState<ReplenishmentRequest[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -426,5 +426,13 @@ export default function ReplenishmentPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ReplenishmentPage() {
+  return (
+    <Suspense>
+      <ReplenishmentPageInner />
+    </Suspense>
   );
 }
