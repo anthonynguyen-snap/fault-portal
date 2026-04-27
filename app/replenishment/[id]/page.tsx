@@ -9,6 +9,7 @@ import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem } from
 import { useToast } from '@/components/ui/Toast';
 
 const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Dispatched', 'Delivered'];
+const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
 
 const STATUS_STYLES: Record<ReplenishmentStatus, string> = {
   Pending:    'bg-amber-100 text-amber-700 border-amber-200',
@@ -42,9 +43,10 @@ export default function ReplenishmentDetailPage() {
   const [showDispatch, setShowDispatch] = useState(false);
 
   // Status edit
-  const [editStatus, setEditStatus] = useState<ReplenishmentStatus | null>(null);
-  const [editNotes, setEditNotes]   = useState('');
+  const [editStatus, setEditStatus]     = useState<ReplenishmentStatus | null>(null);
+  const [editNotes, setEditNotes]       = useState('');
   const [editOrderNum, setEditOrderNum] = useState('');
+  const [editStore, setEditStore]       = useState<typeof STORES[number]>('Adelaide Popup');
 
   // Allow editing even after dispatch
   const [unlocked, setUnlocked] = useState(false);
@@ -73,6 +75,7 @@ export default function ReplenishmentDetailPage() {
       setEditStatus(req.status as ReplenishmentStatus);
       setEditNotes(req.notes ?? '');
       setEditOrderNum(req.orderNumber ?? '');
+      setEditStore((req.store as typeof STORES[number]) ?? 'Adelaide Popup');
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
@@ -86,7 +89,7 @@ export default function ReplenishmentDetailPage() {
       const res = await fetch(`/api/replenishment/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: editStatus, notes: editNotes, orderNumber: editOrderNum }),
+        body: JSON.stringify({ status: editStatus, notes: editNotes, orderNumber: editOrderNum, store: editStore }),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -189,9 +192,18 @@ export default function ReplenishmentDetailPage() {
       <div className="card p-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div>
           <p className="text-xs text-slate-500 mb-1">Store</p>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-            request.store === 'Adelaide Popup' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'
-          }`}>{request.store}</span>
+          {!isDispatched ? (
+            <select
+              value={editStore}
+              onChange={e => setEditStore(e.target.value as typeof STORES[number])}
+              className="form-input text-sm py-1">
+              {STORES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : (
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+              request.store === 'Adelaide Popup' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'
+            }`}>{request.store}</span>
+          )}
         </div>
         <div>
           <p className="text-xs text-slate-500 mb-1">Order #</p>

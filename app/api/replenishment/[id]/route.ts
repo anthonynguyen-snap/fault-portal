@@ -61,6 +61,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Update request header fields
     const headerUpdates: Record<string, unknown> = {};
     if (body.status        !== undefined) headerUpdates.status         = body.status;
+    if (body.store         !== undefined) headerUpdates.store          = body.store;
     if (body.orderNumber   !== undefined) headerUpdates.order_number   = body.orderNumber;
     if (body.trackingNumber !== undefined) headerUpdates.tracking_number = body.trackingNumber;
     if (body.dispatchDate  !== undefined) headerUpdates.dispatch_date  = body.dispatchDate;
