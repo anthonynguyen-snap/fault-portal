@@ -71,6 +71,30 @@ function RefundAlertBadge() {
   );
 }
 
+function ReplenishmentAlertBadge() {
+  const [count, setCount] = useState<number>(0);
+
+  useEffect(() => {
+    function check() {
+      fetch('/api/replenishment/alerts')
+        .then(r => r.json())
+        .then(d => setCount(d.count ?? 0))
+        .catch(() => {});
+    }
+    check();
+    const interval = setInterval(check, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!count) return null;
+
+  return (
+    <span className="text-[9px] font-bold bg-orange-500 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+      {count}
+    </span>
+  );
+}
+
 const navGroups = [
   {
     label: 'Overview',
@@ -213,8 +237,9 @@ export function Sidebar() {
                       )}
                     />
                     <span className="flex-1 truncate">{item.label}</span>
-                    {item.href === '/returns' && <ReturnAlertBadge />}
-                    {item.href === '/refunds' && <RefundAlertBadge />}
+                    {item.href === '/returns'       && <ReturnAlertBadge />}
+                    {item.href === '/refunds'       && <RefundAlertBadge />}
+                    {item.href === '/replenishment' && <ReplenishmentAlertBadge />}
                     {active && <ChevronRight size={13} className="text-white/50" />}
                   </Link>
                 );

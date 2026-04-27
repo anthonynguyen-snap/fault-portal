@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Truck, Plus, RefreshCw, ChevronRight, Package,
-  AlertTriangle, CheckCircle, Clock, Send,
+  AlertTriangle, CheckCircle, Clock, Send, Bell,
 } from 'lucide-react';
 import { ReplenishmentRequest, ReplenishmentStatus, StockItem } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -59,6 +59,9 @@ function ReplenishmentPageInner() {
   const [includeEOL, setIncludeEOL]     = useState(false);
   const { success, error: toastError } = useToast();
 
+  // 3PL tracking alerts
+  const [trackingAlerts, setTrackingAlerts] = useState<{ id: string; store: string; tplDispatchDate: string }[]>([]);
+
   // New request form state
   const [form, setForm] = useState({
     store:       'Adelaide Popup' as typeof STORES[number],
@@ -86,6 +89,13 @@ function ReplenishmentPageInner() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    fetch('/api/replenishment/alerts')
+      .then(r => r.json())
+      .then(d => setTrackingAlerts(d.items ?? []))
+      .catch(() => {});
+  }, [requests]); // re-check whenever requests reload
 
   // Auto-open modal if redirected from a dispatched request
   useEffect(() => {
@@ -186,6 +196,39 @@ function ReplenishmentPageInner() {
           </button>
         </div>
       </div>
+
+      {/* 3PL Tracking Alert Banner */}
+      {trackingAlerts.length > 0 && (
+        <div className="rounded-xl border border-orange-200 bg-orange-50 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <Bell size={16} className="text-orange-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-orange-800">
+                {trackingAlerts.length === 1
+                  ? '1 order needs a 3PL tracking number'
+                  : `${trackingAlerts.length} orders need a 3PL tracking number`}
+              </p>
+              <p className="text-xs text-orange-600 mt-0.5">
+                These orders were dispatched via 3PL 2+ business days ago but have no tracking number yet.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {trackingAlerts.map(a => (
+                  <a
+                    key={a.id}
+                    href={`/replenishment/${a.id}`}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium bg-white border border-orange-200 text-orange-700 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition-colors"
+                  >
+                    <Truck size={11} />
+                    {a.store}
+                    <span className="text-orange-400">·</span>
+                    <span className="font-mono text-[10px]">{a.tplDispatchDate}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-4">
