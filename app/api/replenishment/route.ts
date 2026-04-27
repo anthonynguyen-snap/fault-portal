@@ -15,6 +15,7 @@ function fromItemRow(row: Record<string, unknown>): ReplenishmentLineItem {
     quantityOnHand:    Number(row.quantity_on_hand ?? 0),
     quantitySent:      Number(row.quantity_sent ?? 0),
     source:            (row.source ?? 'Storeroom') as ReplenishmentLineItem['source'],
+    skipped:           Boolean(row.skipped ?? false),
   };
 }
 
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
       quantity_on_hand:    Number(item.quantityOnHand) || 0,
       quantity_sent:       0,
       source:              String(item.source ?? 'Storeroom'),
+      skipped:             Boolean(item.skipped ?? false),
     }));
 
     const { error: itemErr } = await getSupabase()

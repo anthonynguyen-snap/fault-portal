@@ -14,15 +14,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const { trackingNumber, dispatchDate, itemUpdates, store } = await req.json();
-    // itemUpdates: { id: string; stockItemId: string; quantitySent: number; source: string }[]
+    // itemUpdates: { id: string; stockItemId: string; quantitySent: number; source: string; skipped: boolean }[]
 
     const supabase = getSupabase();
 
-    // 1. Update each item's qty_sent and source
-    for (const item of itemUpdates as { id: string; stockItemId: string; quantitySent: number; source: string }[]) {
+    // 1. Update each item's qty_sent, source, skipped
+    for (const item of itemUpdates as { id: string; stockItemId: string; quantitySent: number; source: string; skipped: boolean }[]) {
       const { error } = await supabase
         .from('replenishment_items')
-        .update({ quantity_sent: item.quantitySent, source: item.source })
+        .update({ quantity_sent: item.quantitySent, source: item.source, skipped: item.skipped })
         .eq('id', item.id);
       if (error) throw error;
     }
@@ -39,8 +39,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (reqErr) throw reqErr;
 
     // 3. Deduct storeroom items from stock (Adelaide Popup only)
-    const storeroomItems = (itemUpdates as { id: string; stockItemId: string; quantitySent: number; source: string }[])
-      .filter(i => i.source === 'Storeroom' && i.stockItemId && i.quantitySent > 0);
+    const storeroomItems = (itemUpdates as { id: string; stockItemId: string; quantitySent: number; source: string; skipped: boolean }[])
+      .filter(i => !i.skipped && i.source === 'Storeroom' && i.stockItemId && i.quantitySent > 0);
 
     if (storeroomItems.length > 0) {
       // Create a stock movement record (out)

@@ -15,6 +15,7 @@ function fromItemRow(row: Record<string, unknown>): ReplenishmentLineItem {
     quantityOnHand:    Number(row.quantity_on_hand ?? 0),
     quantitySent:      Number(row.quantity_sent ?? 0),
     source:            (row.source ?? 'Storeroom') as ReplenishmentLineItem['source'],
+    skipped:           Boolean(row.skipped ?? false),
   };
 }
 
@@ -76,13 +77,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Update individual item qty_sent / source if provided
     if (Array.isArray(body.itemUpdates)) {
-      for (const upd of body.itemUpdates as { id: string; quantitySent: number; source: string }[]) {
+      for (const upd of body.itemUpdates as { id: string; quantitySent: number; source: string; skipped?: boolean }[]) {
+        const patch: Record<string, unknown> = { quantity_sent: upd.quantitySent, source: upd.source };
+        if (upd.skipped !== undefined) patch.skipped = upd.skipped;
         const { error } = await getSupabase()
           .from('replenishment_items')
-          .update({ quantity_sent: upd.quantitySent, source: upd.source })
+          .update(patch)
           .eq('id', upd.id);
         if (error) throw error;
       }
+    }
+
+    // Support toggling a single item's skipped state
+    if (body.toggleSkipped) {
+      const { id: itemId, skipped } = body.toggleSkipped as { id: string; skipped: boolean };
+      const { error } = await getSupabase()
+        .from('replenishment_items')
+        .update({ skipped })
+        .eq('id', itemId);
+      if (error) throw error;
     }
 
     const { data: full } = await getSupabase()

@@ -282,6 +282,7 @@ export interface ReplenishmentLineItem {
   quantityOnHand: number;    // snapshot at time of creation
   quantitySent: number;
   source: ReplenishmentSource;
+  skipped: boolean;
 }
 
 export interface ReplenishmentRequest {

@@ -42,6 +42,7 @@ interface NewItemRow {
   quantityRequested: number;
   quantityOnHand: number;
   source: 'Storeroom' | '3PL';
+  skipped: boolean;
 }
 
 export default function ReplenishmentPage() {
@@ -98,7 +99,7 @@ export default function ReplenishmentPage() {
   function addItem() {
     setNewItems(prev => [...prev, {
       stockItemId: '', stockItemName: '', sku: '',
-      quantityRequested: 1, quantityOnHand: 0, source: 'Storeroom',
+      quantityRequested: 1, quantityOnHand: 0, source: 'Storeroom', skipped: false,
     }]);
   }
 
@@ -306,7 +307,8 @@ export default function ReplenishmentPage() {
                 ) : (
                   <div className="space-y-2">
                     {/* Header row */}
-                    <div className="grid grid-cols-[1fr_80px_80px_90px_24px] gap-2 px-1">
+                    <div className="grid grid-cols-[24px_1fr_80px_80px_90px_24px] gap-2 px-1">
+                      <span />
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Product</p>
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">On Hand</p>
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Qty Req.</p>
@@ -314,11 +316,19 @@ export default function ReplenishmentPage() {
                       <span />
                     </div>
                     {newItems.map((item, idx) => (
-                      <div key={idx} className="grid grid-cols-[1fr_80px_80px_90px_24px] gap-2 items-center bg-slate-50 rounded-lg px-2 py-2">
+                      <div key={idx} className={`grid grid-cols-[24px_1fr_80px_80px_90px_24px] gap-2 items-center rounded-lg px-2 py-2 transition-colors ${item.skipped ? 'bg-slate-100 opacity-50' : 'bg-slate-50'}`}>
+                        {/* Skip toggle */}
+                        <button
+                          onClick={() => updateItem(idx, { skipped: !item.skipped })}
+                          title={item.skipped ? 'Undo skip' : 'Mark as out of stock'}
+                          className={`text-base leading-none transition-colors ${item.skipped ? 'text-red-400 hover:text-slate-400' : 'text-slate-300 hover:text-red-400'}`}>
+                          {item.skipped ? '↩' : '⊘'}
+                        </button>
                         <select
                           value={item.stockItemId}
                           onChange={e => selectStockItem(idx, e.target.value)}
-                          className="form-input text-xs py-1.5">
+                          disabled={item.skipped}
+                          className={`form-input text-xs py-1.5 ${item.skipped ? 'line-through text-slate-400' : ''}`}>
                           <option value="">Select product…</option>
                           {stockItems.map(s => (
                             <option key={s.id} value={s.id}>{s.name}{s.sku ? ` · ${s.sku}` : ''}</option>
@@ -326,6 +336,7 @@ export default function ReplenishmentPage() {
                         </select>
                         <div className="text-center">
                           <span className={`font-mono text-sm font-semibold ${
+                            item.skipped ? 'text-slate-300' :
                             item.quantityOnHand === 0 ? 'text-red-500' :
                             item.quantityOnHand < (item.quantityRequested || 1) ? 'text-amber-500' :
                             'text-emerald-600'
@@ -337,11 +348,13 @@ export default function ReplenishmentPage() {
                           type="number" min={1}
                           value={item.quantityRequested}
                           onChange={e => updateItem(idx, { quantityRequested: parseInt(e.target.value) || 0 })}
+                          disabled={item.skipped}
                           className="form-input text-xs py-1.5 text-center font-mono"
                         />
                         <select
                           value={item.source}
                           onChange={e => updateItem(idx, { source: e.target.value as 'Storeroom' | '3PL' })}
+                          disabled={item.skipped}
                           className="form-input text-xs py-1.5">
                           {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
@@ -349,7 +362,10 @@ export default function ReplenishmentPage() {
                       </div>
                     ))}
                     <p className="text-xs text-slate-400 pt-1">
-                      Total: <span className="font-mono font-semibold text-slate-700">{newItems.reduce((s, i) => s + (i.quantityRequested || 0), 0)} units</span>
+                      Total: <span className="font-mono font-semibold text-slate-700">{newItems.filter(i => !i.skipped).reduce((s, i) => s + (i.quantityRequested || 0), 0)} units</span>
+                      {newItems.some(i => i.skipped) && (
+                        <span className="ml-2 text-slate-300">({newItems.filter(i => i.skipped).length} skipped)</span>
+                      )}
                     </p>
                   </div>
                 )}

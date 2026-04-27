@@ -34,9 +34,10 @@ export default function ReplenishmentDetailPage() {
   const [saving, setSaving]   = useState(false);
 
   // Dispatch form state — qty sent per item + tracking
-  const [qtySent, setQtySent]         = useState<Record<string, number>>({});
-  const [itemSource, setItemSource]   = useState<Record<string, string>>({});
-  const [trackingNumber, setTracking] = useState('');
+  const [qtySent, setQtySent]           = useState<Record<string, number>>({});
+  const [itemSource, setItemSource]     = useState<Record<string, string>>({});
+  const [itemSkipped, setItemSkipped]   = useState<Record<string, boolean>>({});
+  const [trackingNumber, setTracking]   = useState('');
   const [dispatchDate, setDispatchDate] = useState(new Date().toISOString().slice(0, 10));
   const [showDispatch, setShowDispatch] = useState(false);
 
@@ -53,14 +54,17 @@ export default function ReplenishmentDetailPage() {
       const req: ReplenishmentRequest = json.data;
       setRequest(req);
       // Initialise per-item state
-      const sentMap: Record<string, number> = {};
-      const srcMap:  Record<string, string> = {};
+      const sentMap:    Record<string, number>  = {};
+      const srcMap:     Record<string, string>  = {};
+      const skippedMap: Record<string, boolean> = {};
       req.items.forEach(item => {
-        sentMap[item.id] = item.quantitySent || item.quantityRequested;
-        srcMap[item.id]  = item.source;
+        sentMap[item.id]    = item.quantitySent || item.quantityRequested;
+        srcMap[item.id]     = item.source;
+        skippedMap[item.id] = item.skipped ?? false;
       });
       setQtySent(sentMap);
       setItemSource(srcMap);
+      setItemSkipped(skippedMap);
       setTracking(req.trackingNumber ?? '');
       setDispatchDate(req.dispatchDate ?? new Date().toISOString().slice(0, 10));
       setEditStatus(req.status as ReplenishmentStatus);
@@ -90,15 +94,27 @@ export default function ReplenishmentDetailPage() {
     } finally { setSaving(false); }
   }
 
+  async function toggleSkip(itemId: string) {
+    const newSkipped = !itemSkipped[itemId];
+    setItemSkipped(prev => ({ ...prev, [itemId]: newSkipped }));
+    // Persist immediately
+    await fetch(`/api/replenishment/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toggleSkipped: { id: itemId, skipped: newSkipped } }),
+    });
+  }
+
   async function handleDispatch() {
     if (!request) return;
     setSaving(true);
     try {
       const itemUpdates = request.items.map(item => ({
-        id:          item.id,
-        stockItemId: item.stockItemId,
+        id:           item.id,
+        stockItemId:  item.stockItemId,
         quantitySent: qtySent[item.id] ?? item.quantityRequested,
-        source:      itemSource[item.id] ?? item.source,
+        source:       itemSource[item.id] ?? item.source,
+        skipped:      itemSkipped[item.id] ?? item.skipped ?? false,
       }));
 
       const res = await fetch(`/api/replenishment/${id}/dispatch`, {
@@ -142,8 +158,11 @@ export default function ReplenishmentDetailPage() {
 
   const isDispatched = request.status === 'Dispatched' || request.status === 'Delivered';
 
-  const storeroomItems = request.items.filter(i => (itemSource[i.id] ?? i.source) === 'Storeroom');
-  const totalSent      = request.items.reduce((s, i) => s + (qtySent[i.id] ?? i.quantityRequested), 0);
+  const storeroomItems = request.items.filter(i =>
+    !(itemSkipped[i.id] ?? i.skipped) && (itemSource[i.id] ?? i.source) === 'Storeroom'
+  );
+  const activeItems = request.items.filter(i => !(itemSkipped[i.id] ?? i.skipped));
+  const totalSent   = activeItems.reduce((s, i) => s + (qtySent[i.id] ?? i.quantityRequested), 0);
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -217,6 +236,7 @@ export default function ReplenishmentDetailPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100">
+              {!isDispatched && <th className="w-8 px-2 py-2.5" />}
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
               <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">SKU</th>
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">On Hand</th>
@@ -227,17 +247,31 @@ export default function ReplenishmentDetailPage() {
           </thead>
           <tbody>
             {request.items.map((item: ReplenishmentLineItem, idx) => {
+              const skipped = itemSkipped[item.id] ?? item.skipped ?? false;
               const onHand  = item.quantityOnHand;
               const short   = onHand < item.quantityRequested;
               return (
-                <tr key={item.id} className={`border-b border-slate-50 last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'}`}>
-                  <td className="px-4 py-3 font-medium text-slate-800">{item.stockItemName}</td>
+                <tr key={item.id} className={`border-b border-slate-50 last:border-0 transition-colors ${
+                  skipped ? 'opacity-40 bg-slate-100' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40'
+                }`}>
+                  {!isDispatched && (
+                    <td className="px-2 py-3 text-center">
+                      <button
+                        onClick={() => toggleSkip(item.id)}
+                        title={skipped ? 'Restore item' : 'Mark as out of stock'}
+                        className={`text-base leading-none transition-colors ${skipped ? 'text-red-400 hover:text-slate-400' : 'text-slate-300 hover:text-red-400'}`}>
+                        {skipped ? '↩' : '⊘'}
+                      </button>
+                    </td>
+                  )}
+                  <td className={`px-4 py-3 font-medium ${skipped ? 'line-through text-slate-400' : 'text-slate-800'}`}>{item.stockItemName}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku || '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`font-mono text-sm font-semibold ${
+                      skipped ? 'text-slate-300' :
                       onHand === 0 ? 'text-red-500' : short ? 'text-amber-500' : 'text-emerald-600'
                     }`}>{onHand}</span>
-                    {short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
+                    {!skipped && short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
                   </td>
                   <td className="px-4 py-3 text-center font-mono text-sm font-semibold text-slate-700">{item.quantityRequested}</td>
                   <td className="px-4 py-3 text-center">
