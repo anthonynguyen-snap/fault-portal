@@ -15,17 +15,19 @@ const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
 const SOURCES = ['Storeroom', '3PL'] as const;
 
 const STATUS_STYLES: Record<ReplenishmentStatus, string> = {
-  Pending:    'bg-amber-100 text-amber-700',
-  Ordered:    'bg-blue-100 text-blue-700',
-  Dispatched: 'bg-emerald-100 text-emerald-700',
-  Delivered:  'bg-slate-100 text-slate-600',
+  'Pending':              'bg-amber-100 text-amber-700',
+  'Ordered':              'bg-blue-100 text-blue-700',
+  'Partially Dispatched': 'bg-orange-100 text-orange-700',
+  'Dispatched':           'bg-emerald-100 text-emerald-700',
+  'Delivered':            'bg-slate-100 text-slate-600',
 };
 
 const STATUS_ICONS: Record<ReplenishmentStatus, React.ReactNode> = {
-  Pending:    <Clock size={11} />,
-  Ordered:    <Package size={11} />,
-  Dispatched: <Send size={11} />,
-  Delivered:  <CheckCircle size={11} />,
+  'Pending':              <Clock size={11} />,
+  'Ordered':              <Package size={11} />,
+  'Partially Dispatched': <Send size={11} />,
+  'Dispatched':           <Send size={11} />,
+  'Delivered':            <CheckCircle size={11} />,
 };
 
 function StatusBadge({ status }: { status: ReplenishmentStatus }) {
@@ -102,11 +104,12 @@ function ReplenishmentPageInner() {
   );
 
   const counts = {
-    All:        requests.length,
-    Pending:    requests.filter(r => r.status === 'Pending').length,
-    Ordered:    requests.filter(r => r.status === 'Ordered').length,
-    Dispatched: requests.filter(r => r.status === 'Dispatched').length,
-    Delivered:  requests.filter(r => r.status === 'Delivered').length,
+    All:                  requests.length,
+    Pending:              requests.filter(r => r.status === 'Pending').length,
+    Ordered:              requests.filter(r => r.status === 'Ordered').length,
+    'Partially Dispatched': requests.filter(r => r.status === 'Partially Dispatched').length,
+    Dispatched:           requests.filter(r => r.status === 'Dispatched').length,
+    Delivered:            requests.filter(r => r.status === 'Delivered').length,
   };
 
   // ── New item management ────────────────────────────────────────────────────
@@ -204,7 +207,7 @@ function ReplenishmentPageInner() {
 
       {/* Filter tabs */}
       <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
-        {(['All', 'Pending', 'Ordered', 'Dispatched', 'Delivered'] as const).map(f => (
+        {(['All', 'Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
               filter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'

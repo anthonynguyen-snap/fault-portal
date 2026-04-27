@@ -268,7 +268,7 @@ export interface RefundRequest {
 // =========================================================
 // REPLENISHMENT
 // =========================================================
-export type ReplenishmentStatus = 'Pending' | 'Ordered' | 'Dispatched' | 'Delivered';
+export type ReplenishmentStatus = 'Pending' | 'Ordered' | 'Partially Dispatched' | 'Dispatched' | 'Delivered';
 export type ReplenishmentStore  = 'Adelaide Popup' | 'Sydney Store';
 export type ReplenishmentSource = 'Storeroom' | '3PL';
 
@@ -297,6 +297,13 @@ export interface ReplenishmentRequest {
   dispatchDate: string | null;
   notes: string;
   createdAt: string;
+  // Split dispatch
+  storeroomDispatched:     boolean;
+  storeroomTracking:       string;
+  storeroomDispatchDate:   string | null;
+  tplDispatched:           boolean;
+  tplTracking:             string;
+  tplDispatchDate:         string | null;
 }
 
 // =========================================================

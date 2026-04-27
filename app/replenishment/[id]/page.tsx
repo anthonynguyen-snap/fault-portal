@@ -8,21 +8,23 @@ import {
 import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 
-const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Dispatched', 'Delivered'];
+const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'];
 const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
 
 const STATUS_STYLES: Record<ReplenishmentStatus, string> = {
-  Pending:    'bg-amber-100 text-amber-700 border-amber-200',
-  Ordered:    'bg-blue-100 text-blue-700 border-blue-200',
-  Dispatched: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  Delivered:  'bg-slate-100 text-slate-600 border-slate-200',
+  'Pending':             'bg-amber-100 text-amber-700 border-amber-200',
+  'Ordered':             'bg-blue-100 text-blue-700 border-blue-200',
+  'Partially Dispatched':'bg-orange-100 text-orange-700 border-orange-200',
+  'Dispatched':          'bg-emerald-100 text-emerald-700 border-emerald-200',
+  'Delivered':           'bg-slate-100 text-slate-600 border-slate-200',
 };
 
 const STATUS_ICONS: Record<ReplenishmentStatus, React.ReactNode> = {
-  Pending:    <Clock size={14} />,
-  Ordered:    <Package size={14} />,
-  Dispatched: <Send size={14} />,
-  Delivered:  <CheckCircle size={14} />,
+  'Pending':             <Clock size={14} />,
+  'Ordered':             <Package size={14} />,
+  'Partially Dispatched':<Send size={14} />,
+  'Dispatched':          <Send size={14} />,
+  'Delivered':           <CheckCircle size={14} />,
 };
 
 export default function ReplenishmentDetailPage() {
@@ -34,13 +36,23 @@ export default function ReplenishmentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
 
-  // Dispatch form state — qty sent per item + tracking
-  const [qtySent, setQtySent]           = useState<Record<string, number>>({});
-  const [itemSource, setItemSource]     = useState<Record<string, string>>({});
-  const [itemSkipped, setItemSkipped]   = useState<Record<string, boolean>>({});
+  // Per-item state
+  const [qtySent, setQtySent]       = useState<Record<string, number>>({});
+  const [itemSource, setItemSource] = useState<Record<string, string>>({});
+  const [itemSkipped, setItemSkipped] = useState<Record<string, boolean>>({});
+
+  // Split dispatch panels
+  const [showStoreroomDispatch, setShowStoreroomDispatch] = useState(false);
+  const [showTplDispatch, setShowTplDispatch]             = useState(false);
+  const [storeroomTracking, setStoreroomTracking]         = useState('');
+  const [storeroomDate, setStoreroomDate]                 = useState(new Date().toISOString().slice(0, 10));
+  const [tplTracking, setTplTracking]                     = useState('');
+  const [tplDate, setTplDate]                             = useState(new Date().toISOString().slice(0, 10));
+
+  // Legacy single dispatch (kept for fallback)
+  const [showDispatch, setShowDispatch] = useState(false);
   const [trackingNumber, setTracking]   = useState('');
   const [dispatchDate, setDispatchDate] = useState(new Date().toISOString().slice(0, 10));
-  const [showDispatch, setShowDispatch] = useState(false);
 
   // Status edit
   const [editStatus, setEditStatus]     = useState<ReplenishmentStatus | null>(null);
@@ -122,18 +134,46 @@ export default function ReplenishmentDetailPage() {
         source:       itemSource[item.id] ?? item.source,
         skipped:      itemSkipped[item.id] ?? item.skipped ?? false,
       }));
-
       const res = await fetch(`/api/replenishment/${id}/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackingNumber, dispatchDate, itemUpdates, store: request.store }),
+        body: JSON.stringify({ dispatchSource: 'All', trackingNumber, dispatchDate, itemUpdates, store: request.store }),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-
-      success('Dispatched!', `Stock deducted from storeroom. Tracking: ${trackingNumber || '—'}`);
+      success('Dispatched!', `Tracking: ${trackingNumber || '—'}`);
       await load();
       setShowDispatch(false);
+    } catch (err: unknown) {
+      toastError('Dispatch failed', err instanceof Error ? err.message : String(err));
+    } finally { setSaving(false); }
+  }
+
+  async function handleSplitDispatch(dispatchSource: 'Storeroom' | '3PL') {
+    if (!request) return;
+    setSaving(true);
+    const tracking = dispatchSource === 'Storeroom' ? storeroomTracking : tplTracking;
+    const date     = dispatchSource === 'Storeroom' ? storeroomDate     : tplDate;
+    try {
+      const itemUpdates = request.items.map(item => ({
+        id:           item.id,
+        stockItemId:  item.stockItemId,
+        quantitySent: qtySent[item.id] ?? item.quantityRequested,
+        source:       itemSource[item.id] ?? item.source,
+        skipped:      itemSkipped[item.id] ?? item.skipped ?? false,
+      }));
+      const res = await fetch(`/api/replenishment/${id}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dispatchSource, trackingNumber: tracking, dispatchDate: date, itemUpdates, store: request.store }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      const label = dispatchSource === 'Storeroom' ? 'Storeroom dispatched' : '3PL dispatched';
+      success(label, `Tracking: ${tracking || '—'}`);
+      await load();
+      setShowStoreroomDispatch(false);
+      setShowTplDispatch(false);
     } catch (err: unknown) {
       toastError('Dispatch failed', err instanceof Error ? err.message : String(err));
     } finally { setSaving(false); }
@@ -167,6 +207,11 @@ export default function ReplenishmentDetailPage() {
   const storeroomItems = request.items.filter(i =>
     !(itemSkipped[i.id] ?? i.skipped) && (itemSource[i.id] ?? i.source) === 'Storeroom'
   );
+  const activeStoreroomItems = storeroomItems; // non-skipped storeroom items
+  const activeTplItems = request.items.filter(i =>
+    !(itemSkipped[i.id] ?? i.skipped) && (itemSource[i.id] ?? i.source) === '3PL'
+  );
+  const isMixedSource = activeStoreroomItems.length > 0 && activeTplItems.length > 0;
   const activeItems = request.items.filter(i => !(itemSkipped[i.id] ?? i.skipped));
   const totalSent   = activeItems.reduce((s, i) => s + (qtySent[i.id] ?? i.quantityRequested), 0);
 
@@ -226,18 +271,56 @@ export default function ReplenishmentDetailPage() {
         </div>
       </div>
 
-      {/* Dispatch info (if already dispatched) */}
-      {isDispatched && (
-        <div className="card p-4 flex items-center gap-4 bg-emerald-50 border-emerald-200">
-          <CheckCircle size={20} className="text-emerald-600 flex-shrink-0" />
-          <div className="flex-1 text-sm">
-            <p className="font-semibold text-emerald-800">Dispatched on {request.dispatchDate}</p>
-            {request.trackingNumber && (
-              <p className="text-emerald-600 text-xs font-mono mt-0.5">Tracking: {request.trackingNumber}</p>
-            )}
-          </div>
-          {storeroomItems.length > 0 && (
-            <p className="text-xs text-emerald-600 flex-shrink-0">Storeroom deducted ✓</p>
+      {/* Split dispatch info cards */}
+      {(request.storeroomDispatched || request.tplDispatched ||
+        request.status === 'Dispatched' || request.status === 'Partially Dispatched') && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Storeroom panel */}
+          {activeStoreroomItems.length > 0 && (
+            <div className={`card p-4 flex items-start gap-3 ${request.storeroomDispatched ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50'}`}>
+              <div className={`mt-0.5 ${request.storeroomDispatched ? 'text-emerald-600' : 'text-slate-300'}`}>
+                {request.storeroomDispatched ? <CheckCircle size={18} /> : <Clock size={18} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${request.storeroomDispatched ? 'text-emerald-800' : 'text-slate-500'}`}>
+                  Storeroom — {request.storeroomDispatched ? 'Dispatched' : 'Pending'}
+                </p>
+                {request.storeroomDispatched ? (
+                  <>
+                    <p className="text-xs text-emerald-600 mt-0.5">Date: {request.storeroomDispatchDate}</p>
+                    {request.storeroomTracking && (
+                      <p className="text-xs font-mono text-emerald-600 truncate">Tracking: {request.storeroomTracking}</p>
+                    )}
+                    <p className="text-xs text-emerald-600 mt-0.5">Stock deducted ✓</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400 mt-0.5">{activeStoreroomItems.length} item{activeStoreroomItems.length !== 1 ? 's' : ''} to dispatch</p>
+                )}
+              </div>
+            </div>
+          )}
+          {/* 3PL panel */}
+          {activeTplItems.length > 0 && (
+            <div className={`card p-4 flex items-start gap-3 ${request.tplDispatched ? 'bg-sky-50 border-sky-200' : 'bg-slate-50'}`}>
+              <div className={`mt-0.5 ${request.tplDispatched ? 'text-sky-600' : 'text-slate-300'}`}>
+                {request.tplDispatched ? <CheckCircle size={18} /> : <Clock size={18} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${request.tplDispatched ? 'text-sky-800' : 'text-slate-500'}`}>
+                  3PL — {request.tplDispatched ? 'Dispatched' : 'Pending'}
+                </p>
+                {request.tplDispatched ? (
+                  <>
+                    <p className="text-xs text-sky-600 mt-0.5">Date: {request.tplDispatchDate}</p>
+                    {request.tplTracking && (
+                      <p className="text-xs font-mono text-sky-600 truncate">Ref: {request.tplTracking}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-400 mt-0.5">{activeTplItems.length} item{activeTplItems.length !== 1 ? 's' : ''} to dispatch</p>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -377,16 +460,32 @@ export default function ReplenishmentDetailPage() {
           <button onClick={handleStatusSave} disabled={saving} className="btn-secondary flex items-center gap-2">
             <Save size={14} /> Save Changes
           </button>
-          <button
-            onClick={() => setShowDispatch(true)}
-            disabled={saving}
-            className="btn-primary flex items-center gap-2">
-            <Send size={14} /> Mark as Dispatched
-          </button>
+          <div className="flex items-center gap-2">
+            {isMixedSource ? (
+              <>
+                {!request.storeroomDispatched && (
+                  <button onClick={() => setShowStoreroomDispatch(true)} disabled={saving}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+                    <Send size={14} /> Dispatch Storeroom
+                  </button>
+                )}
+                {!request.tplDispatched && (
+                  <button onClick={() => setShowTplDispatch(true)} disabled={saving}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white transition-colors">
+                    <Send size={14} /> Dispatch 3PL
+                  </button>
+                )}
+              </>
+            ) : (
+              <button onClick={() => setShowDispatch(true)} disabled={saving} className="btn-primary flex items-center gap-2">
+                <Send size={14} /> Mark as Dispatched
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {(request.status === 'Dispatched' || request.status === 'Delivered') && (
+      {(request.status === 'Dispatched' || request.status === 'Delivered' || request.status === 'Partially Dispatched') && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button onClick={handleStatusSave} disabled={saving} className="btn-secondary flex items-center gap-2">
@@ -399,7 +498,7 @@ export default function ReplenishmentDetailPage() {
                   ? 'bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100'
                   : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
               }`}>
-              {unlocked ? <><Lock size={14} /> Lock</>  : <><Pencil size={14} /> Edit</>}
+              {unlocked ? <><Lock size={14} /> Lock</> : <><Pencil size={14} /> Edit</>}
             </button>
           </div>
           <button
@@ -448,6 +547,88 @@ export default function ReplenishmentDetailPage() {
               <button onClick={() => setShowDispatch(false)} className="btn-secondary">Cancel</button>
               <button onClick={handleDispatch} disabled={saving} className="btn-primary flex items-center gap-2">
                 <Send size={14} /> {saving ? 'Dispatching…' : 'Confirm Dispatch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Storeroom dispatch modal ────────────────────────────────────────── */}
+      {showStoreroomDispatch && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="font-semibold text-slate-900">Dispatch Storeroom Items</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{activeStoreroomItems.length} item{activeStoreroomItems.length !== 1 ? 's' : ''} · stock will be deducted</p>
+              </div>
+              <button onClick={() => setShowStoreroomDispatch(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="form-label">Auspost Tracking Number</label>
+                <input value={storeroomTracking} onChange={e => setStoreroomTracking(e.target.value)}
+                  className="form-input font-mono" placeholder="e.g. 33EMV343987801000931505" />
+              </div>
+              <div>
+                <label className="form-label">Dispatch Date</label>
+                <input type="date" value={storeroomDate} onChange={e => setStoreroomDate(e.target.value)} className="form-input" />
+              </div>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-emerald-700 mb-1">Storeroom deduction</p>
+                {activeStoreroomItems.map(i => (
+                  <p key={i.id} className="text-xs text-emerald-600 font-mono">
+                    {i.stockItemName} — {qtySent[i.id] ?? i.quantityRequested} units
+                  </p>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <button onClick={() => setShowStoreroomDispatch(false)} className="btn-secondary">Cancel</button>
+              <button onClick={() => handleSplitDispatch('Storeroom')} disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+                <Send size={14} /> {saving ? 'Dispatching…' : 'Confirm Storeroom Dispatch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 3PL dispatch modal ──────────────────────────────────────────────── */}
+      {showTplDispatch && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="font-semibold text-slate-900">Dispatch 3PL Items</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{activeTplItems.length} item{activeTplItems.length !== 1 ? 's' : ''} · fulfilled by 3PL warehouse</p>
+              </div>
+              <button onClick={() => setShowTplDispatch(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="form-label">3PL Order Reference / Tracking</label>
+                <input value={tplTracking} onChange={e => setTplTracking(e.target.value)}
+                  className="form-input font-mono" placeholder="e.g. 3PL-ORD-20260427" />
+              </div>
+              <div>
+                <label className="form-label">Dispatch Date</label>
+                <input type="date" value={tplDate} onChange={e => setTplDate(e.target.value)} className="form-input" />
+              </div>
+              <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-sky-700 mb-1">3PL items</p>
+                {activeTplItems.map(i => (
+                  <p key={i.id} className="text-xs text-sky-600 font-mono">
+                    {i.stockItemName} — {qtySent[i.id] ?? i.quantityRequested} units
+                  </p>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <button onClick={() => setShowTplDispatch(false)} className="btn-secondary">Cancel</button>
+              <button onClick={() => handleSplitDispatch('3PL')} disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white transition-colors">
+                <Send size={14} /> {saving ? 'Dispatching…' : 'Confirm 3PL Dispatch'}
               </button>
             </div>
           </div>

@@ -35,6 +35,12 @@ function fromRow(row: Record<string, unknown>): ReplenishmentRequest {
     dispatchDate:   row.dispatch_date ? String(row.dispatch_date) : null,
     notes:          String(row.notes ?? ''),
     createdAt:      String(row.created_at ?? ''),
+    storeroomDispatched:   Boolean(row.storeroom_dispatched ?? false),
+    storeroomTracking:     String(row.storeroom_tracking ?? ''),
+    storeroomDispatchDate: row.storeroom_dispatch_date ? String(row.storeroom_dispatch_date) : null,
+    tplDispatched:         Boolean(row.tpl_dispatched ?? false),
+    tplTracking:           String(row.tpl_tracking ?? ''),
+    tplDispatchDate:       row.tpl_dispatch_date ? String(row.tpl_dispatch_date) : null,
   };
 }
 
