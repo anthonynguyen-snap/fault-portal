@@ -84,15 +84,25 @@ const navGroups = [
     ],
   },
   {
-    label: 'Operations',
+    label: 'Customer',
     items: [
-      { label: 'Order Lookup', href: '/orders',      icon: ShoppingBag },
-      { label: 'Returns',     href: '/returns',     icon: RotateCcw },
-      { label: 'Refunds',     href: '/refunds',     icon: CreditCard },
-      { label: 'Promotions',  href: '/promotions',  icon: Tag },
-      { label: 'Stock Room',     href: '/stock',          icon: Package },
-      { label: 'Replenishment', href: '/replenishment',  icon: Truck },
-      { label: 'Corporate',     href: '/corporate',      icon: Briefcase },
+      { label: 'Order Lookup', href: '/orders',   icon: ShoppingBag },
+      { label: 'Returns',      href: '/returns',  icon: RotateCcw },
+      { label: 'Refunds',      href: '/refunds',  icon: CreditCard },
+    ],
+  },
+  {
+    label: 'Inventory',
+    items: [
+      { label: 'Promotions',    href: '/promotions',    icon: Tag },
+      { label: 'Stock Room',    href: '/stock',         icon: Package },
+      { label: 'Replenishment', href: '/replenishment', icon: Truck },
+    ],
+  },
+  {
+    label: 'Wholesale',
+    items: [
+      { label: 'Corporate', href: '/corporate', icon: Briefcase },
     ],
   },
   {
