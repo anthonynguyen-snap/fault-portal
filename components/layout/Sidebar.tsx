@@ -97,12 +97,6 @@ function ReplenishmentAlertBadge() {
 
 const navGroups = [
   {
-    label: 'Overview',
-    items: [
-      { label: 'Home', href: '/', icon: Home },
-    ],
-  },
-  {
     label: 'Fault Management',
     items: [
       { label: 'All Cases', href: '/cases',   icon: AlertTriangle },
@@ -248,6 +242,29 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
+
+      {/* Pinned Home button */}
+      <div className="px-3 pb-2 border-t border-slate-800 pt-2">
+        <Link
+          href="/"
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group',
+            isActive('/')
+              ? 'bg-brand-600 text-white'
+              : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+          )}
+        >
+          <Home
+            size={16}
+            className={cn(
+              'flex-shrink-0 transition-colors',
+              isActive('/') ? 'text-white' : 'group-hover:text-white'
+            )}
+          />
+          <span className="flex-1 truncate">Home</span>
+          {isActive('/') && <ChevronRight size={13} className="text-white/50" />}
+        </Link>
+      </div>
 
       {/* Footer */}
       <div className="px-4 py-4 border-t border-slate-800">
