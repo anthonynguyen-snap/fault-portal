@@ -1190,8 +1190,8 @@ function ActivePromosStrip() {
           <div className="flex-1 px-4 py-1.5">
             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">PROMOTION</span>
           </div>
-          <div className="w-14 flex-shrink-0 pr-3 flex items-center justify-end">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">LEFT</span>
+          <div className="w-36 flex-shrink-0 pr-3 flex items-center justify-end">
+            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">DATES</span>
           </div>
         </div>
 
@@ -1233,22 +1233,23 @@ function ActivePromosStrip() {
                 {/* Main content block */}
                 <div className="flex-1 px-4 py-2.5 overflow-hidden">
 
-                  {/* Line 1: promo name + days remaining */}
+                  {/* Line 1: promo name + date range */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="font-mono text-[11.5px] tracking-wide font-semibold text-slate-700 truncate">
                       <ScrambleRow text={p.name.toUpperCase()} delay={delay} />
                     </div>
-                    <div className="flex-shrink-0">
-                      {days !== null ? (
-                        <span className={`font-mono text-[10px] font-bold tabular-nums ${
-                          urgent   ? 'text-red-500'   :
-                          expiring ? 'text-amber-500' : 'text-slate-300'
-                        }`}>
-                          {days === 0 ? 'TODAY' : `${days}D`}
-                        </span>
-                      ) : (
-                        <span className="font-mono text-[10px] text-slate-300">—</span>
-                      )}
+                    <div className="flex-shrink-0 w-36 text-right">
+                      <span className="font-mono text-[10px] tabular-nums text-slate-400">
+                        {fmtShort(p.startDate)}
+                        <span className="text-slate-300 mx-1">→</span>
+                        {p.endDate ? (
+                          <span className={urgent ? 'text-red-500 font-bold' : expiring ? 'text-amber-500 font-semibold' : ''}>
+                            {fmtShort(p.endDate)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic">ongoing</span>
+                        )}
+                      </span>
                     </div>
                   </div>
 
