@@ -116,6 +116,7 @@ function RefundsInner() {
   const [processResolution, setProcessResolution] = useState<RefundResolution>('Cash Refund');
   const [processedAmount, setProcessedAmount] = useState('');
   const [adjustmentReason, setAdjustmentReason] = useState('');
+  const [processedBy, setProcessedBy] = useState('');
   const [expanded, setExpanded]   = useState<string | null>(null);
 
   // Auto-detect currency from order number suffix (only when not manually overridden mid-session)
@@ -269,6 +270,7 @@ function RefundsInner() {
           processedNotes:  finalNotes,
           processedAmount: status === 'Processed' && !isNaN(parsedAmount) ? parsedAmount : null,
           resolution,
+          processedBy:     processedBy.trim() || undefined,
         }),
       });
       const json = await res.json();
@@ -289,6 +291,7 @@ function RefundsInner() {
       setProcessResolution('Cash Refund');
       setProcessedAmount('');
       setAdjustmentReason('');
+      setProcessedBy('');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -552,7 +555,7 @@ function RefundsInner() {
                         </button>
                         {isPending ? (
                           <button
-                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); setProcessedAmount(req.amount > 0 ? String(req.amount) : ''); setAdjustmentReason(''); }}
+                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); setProcessedAmount(req.amount > 0 ? String(req.amount) : ''); setAdjustmentReason(''); setProcessedBy(''); }}
                             className="btn-primary text-xs py-1 px-3"
                           >
                             Process
@@ -879,6 +882,15 @@ function RefundsInner() {
                 rows={3}
                 className="form-input resize-none text-sm"
               />
+            </div>
+
+            {/* Processed by */}
+            <div>
+              <label className="form-label">Processed By <span className="text-red-400">*</span></label>
+              <select value={processedBy} onChange={e => setProcessedBy(e.target.value)} className="form-input">
+                <option value="">Select your name…</option>
+                {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
             </div>
 
             {/* Actions */}

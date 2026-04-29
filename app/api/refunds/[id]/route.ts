@@ -39,8 +39,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const logAction = body.status === 'Processed' ? 'refund.processed'
                     : body.status === 'Rejected'  ? 'refund.rejected'
                     : 'refund.updated';
+    // For process/reject, use the person who actioned it; otherwise use submitter
+    const logActor = (body.status === 'Processed' || body.status === 'Rejected') && body.processedBy
+                    ? String(body.processedBy)
+                    : String(data.submitted_by ?? '');
     void logActivity({
-      actor:       String(data.submitted_by ?? ''),
+      actor:       logActor,
       action:      logAction,
       entityType:  'Refund',
       entityId:    id,
