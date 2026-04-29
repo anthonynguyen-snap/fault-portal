@@ -36,6 +36,7 @@ function SlideOver({ open, onClose, title, children }: {
 const CURRENCIES = [
   { code: 'AUD', symbol: '$',  locale: 'en-AU', label: 'AUD — Australian Dollar' },
   { code: 'USD', symbol: '$',  locale: 'en-US', label: 'USD — US Dollar' },
+  { code: 'CAD', symbol: '$',  locale: 'en-CA', label: 'CAD — Canadian Dollar' },
   { code: 'GBP', symbol: '£',  locale: 'en-GB', label: 'GBP — British Pound' },
   { code: 'NZD', symbol: '$',  locale: 'en-NZ', label: 'NZD — New Zealand Dollar' },
   { code: 'SGD', symbol: '$',  locale: 'en-SG', label: 'SGD — Singapore Dollar' },
