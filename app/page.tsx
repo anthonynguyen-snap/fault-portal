@@ -19,6 +19,8 @@ import {
   Clock,
   CheckCircle,
   Send,
+  Activity,
+  CreditCard,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -594,6 +596,9 @@ export default function DashboardPage() {
       {/* Replenishment */}
       <ReplenishmentSection sectionHeader={<SectionHeader icon={Truck} title="Replenishment" href="/replenishment" linkLabel="View all" />} />
 
+      {/* Today's Activity */}
+      <TodayActivityCard sectionHeader={<SectionHeader icon={Activity} title="Today's Activity" href="/log" linkLabel="Full log" />} />
+
       {/* AI Briefing */}
       <AiBriefingCard />
 
@@ -736,6 +741,110 @@ const MODES: { key: SummaryMode; label: string; description: string }[] = [
   { key: 'monthly',  label: 'Monthly Trends',   description: '12-month fault breakdown by product and type' },
   { key: 'digest',   label: 'Weekly Digest',    description: 'Full summary across all areas' },
 ];
+
+// ── Today's Activity Card ──────────────────────────────────────────────────────
+interface ActivityRow {
+  id: string; ts: string; actor: string; action: string;
+  entityType: string; entityId: string; entityLabel: string;
+  detail: Record<string, unknown>;
+}
+
+const ACTIVITY_ENTITY_CONFIG: Record<string, { color: string; icon: LucideIcon }> = {
+  Refund:        { color: 'bg-blue-500',   icon: CreditCard    },
+  Return:        { color: 'bg-orange-500', icon: RotateCcw     },
+  Case:          { color: 'bg-red-500',    icon: AlertTriangle },
+  Replenishment: { color: 'bg-purple-500', icon: Truck         },
+};
+
+const ACTIVITY_ACTION_LABELS: Record<string, string> = {
+  'refund.submitted':      'Refund submitted',
+  'refund.processed':      'Refund processed',
+  'refund.rejected':       'Refund rejected',
+  'refund.updated':        'Refund updated',
+  'return.logged':         'Return logged',
+  'return.updated':        'Return updated',
+  'case.created':          'Fault case opened',
+  'case.updated':          'Fault case updated',
+  'replenishment.created': 'Replenishment requested',
+  'replenishment.status':  'Replenishment updated',
+};
+
+function TodayActivityCard({ sectionHeader }: { sectionHeader: React.ReactNode }) {
+  const [rows, setRows]       = useState<ActivityRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/activity?days=1')
+      .then(r => r.json())
+      .then(d => setRows(d.data ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div>
+      {sectionHeader}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        {loading && (
+          <div className="divide-y divide-slate-50">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-7 h-7 rounded-full bg-slate-100 animate-pulse flex-shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 bg-slate-100 rounded animate-pulse w-2/3" />
+                  <div className="h-2.5 bg-slate-50 rounded animate-pulse w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && rows.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+            <Activity size={24} className="text-slate-200 mb-2" />
+            <p className="text-sm text-slate-400">No activity yet today</p>
+            <p className="text-xs text-slate-300 mt-0.5">Actions will appear here as the team works</p>
+          </div>
+        )}
+
+        {!loading && rows.length > 0 && (
+          <div className="divide-y divide-slate-50">
+            {rows.slice(0, 8).map(row => {
+              const cfg  = ACTIVITY_ENTITY_CONFIG[row.entityType];
+              const Icon = cfg?.icon ?? Activity;
+              return (
+                <div key={row.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${cfg?.color ?? 'bg-slate-400'}`}>
+                    <Icon size={13} className="text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-800 truncate">
+                      <span className="font-medium">{ACTIVITY_ACTION_LABELS[row.action] ?? row.action}</span>
+                      {row.entityLabel && (
+                        <span className="text-slate-400 font-mono text-xs ml-1.5">{row.entityLabel}</span>
+                      )}
+                    </p>
+                    {row.actor && <p className="text-xs text-slate-400">{row.actor}</p>}
+                  </div>
+                  <p className="text-xs text-slate-400 flex-shrink-0">
+                    {new Date(row.ts).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                  </p>
+                </div>
+              );
+            })}
+            {rows.length > 8 && (
+              <div className="px-4 py-2.5 text-center">
+                <Link href="/log" className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                  +{rows.length - 8} more — view full log
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AiBriefingCard() {
   const [mode, setMode]           = useState<SummaryMode>('briefing');
