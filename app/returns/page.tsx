@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
-  Package, Truck, AlertCircle, CheckCircle2, Trash2,
+  Package, Truck, AlertCircle, CheckCircle2, Trash2, Pencil,
 } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -98,27 +98,49 @@ function blankRequest(): RequestForm {
 }
 
 function LogRequestSlideOver({
-  open, onClose, onSaved, existingRequests,
+  open, onClose, onSaved, existingRequests, editing,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved: (r: Return) => void;
   existingRequests: Return[];
+  editing?: Return | null;
 }) {
   const [form, setForm] = useState<RequestForm>(blankRequest());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { if (open) { setForm(blankRequest()); setError(''); } }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      setForm({
+        orderNumber:           editing.orderNumber,
+        customerName:          editing.customerName,
+        customerEmail:         editing.customerEmail,
+        conversationLink:      editing.conversationLink,
+        trackingNumber:        editing.trackingNumber,
+        starshipitOrderNumber: editing.starshipitOrderNumber ?? '',
+        products:              editing.items.length > 0
+                                 ? editing.items.map(i => ({ name: i.product }))
+                                 : [{ name: '' }],
+        notes:                 editing.notes,
+        submittedBy:           editing.processedBy,
+      });
+    } else {
+      setForm(blankRequest());
+    }
+    setError('');
+  }, [open, editing]);
 
-  // Duplicate detection
+  // Duplicate detection — skip when editing (the match IS the record being edited)
   const duplicate = useMemo(() => {
+    if (editing) return null;
     if (!form.orderNumber.trim() && !form.conversationLink.trim()) return null;
     return existingRequests.find(r =>
       (form.orderNumber.trim() && r.orderNumber.toLowerCase() === form.orderNumber.trim().toLowerCase()) ||
       (form.conversationLink.trim() && r.conversationLink && r.conversationLink.toLowerCase() === form.conversationLink.trim().toLowerCase())
     ) ?? null;
-  }, [form.orderNumber, form.conversationLink, existingRequests]);
+  }, [form.orderNumber, form.conversationLink, existingRequests, editing]);
 
   async function submit() {
     if (!form.orderNumber.trim()) return setError('Order number is required');
@@ -130,29 +152,39 @@ function LogRequestSlideOver({
         .filter(Boolean)
         .map(name => ({ product: name, condition: 'Sealed', decision: 'Pending', refundAmount: 0, restockingFee: 0 }));
 
-      const res = await fetch('/api/returns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stage:                 'requested',
-          orderNumber:           form.orderNumber.trim(),
-          customerName:          form.customerName.trim(),
-          customerEmail:         form.customerEmail.trim(),
-          conversationLink:      form.conversationLink.trim(),
-          trackingNumber:        form.trackingNumber.trim(),
-          starshipitOrderNumber: form.starshipitOrderNumber.trim(),
-          notes:                 form.notes.trim(),
-          processedBy:           form.submittedBy.trim(),
-          items:                 productItems,
-          needsFollowUp:         false,
-        }),
-      });
-      const json = await res.json();
+      const payload = {
+        orderNumber:           form.orderNumber.trim(),
+        customerName:          form.customerName.trim(),
+        customerEmail:         form.customerEmail.trim(),
+        conversationLink:      form.conversationLink.trim(),
+        trackingNumber:        form.trackingNumber.trim(),
+        starshipitOrderNumber: form.starshipitOrderNumber.trim(),
+        notes:                 form.notes.trim(),
+        processedBy:           form.submittedBy.trim(),
+        items:                 productItems,
+      };
+
+      let json;
+      if (editing) {
+        const res = await fetch(`/api/returns/${editing.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        json = await res.json();
+      } else {
+        const res = await fetch('/api/returns', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, stage: 'requested', needsFollowUp: false }),
+        });
+        json = await res.json();
+      }
       if (json.error) throw new Error(json.error);
       onSaved(json.data);
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to log request');
+      setError(e instanceof Error ? e.message : 'Failed to save request');
     } finally {
       setSaving(false);
     }
@@ -164,7 +196,7 @@ function LogRequestSlideOver({
       <div className="fixed inset-0 bg-slate-900/40 z-40" onClick={onClose} />
       <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-base font-semibold text-slate-900">Log Return Request</h2>
+          <h2 className="text-base font-semibold text-slate-900">{editing ? 'Edit Return Request' : 'Log Return Request'}</h2>
           <button onClick={onClose} className="btn-ghost p-1.5"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -254,7 +286,7 @@ function LogRequestSlideOver({
         </div>
         <div className="px-6 py-4 border-t border-slate-200 flex gap-2">
           <button onClick={submit} disabled={saving} className="btn-primary flex-1">
-            {saving ? 'Saving…' : 'Log Request'}
+            {saving ? 'Saving…' : editing ? 'Save Changes' : 'Log Request'}
           </button>
           <button onClick={onClose} className="btn-secondary">Cancel</button>
         </div>
@@ -274,6 +306,7 @@ export default function ReturnsPage() {
   const [loading, setLoading]       = useState(true);
   const [mainTab, setMainTab]       = useState<MainTab>('requested');
   const [showRequestForm, setShowRequestForm] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<Return | null>(null);
 
   // Processed tab state
   const [filter, setFilter]         = useState<FilterTab>('all');
@@ -526,6 +559,13 @@ export default function ReturnsPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2 justify-end">
                                 <button
+                                  onClick={() => { setEditingRequest(r); setShowRequestForm(true); }}
+                                  className="text-slate-400 hover:text-brand-600 transition-colors p-1.5 rounded-md hover:bg-slate-100"
+                                  title="Edit request"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
                                   onClick={() => markReceived(r.id)}
                                   disabled={updatingId === r.id}
                                   className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
@@ -738,9 +778,17 @@ export default function ReturnsPage() {
       {/* Log Request slide-over */}
       <LogRequestSlideOver
         open={showRequestForm}
-        onClose={() => setShowRequestForm(false)}
-        onSaved={r => setAllReturns(prev => [r, ...prev])}
+        onClose={() => { setShowRequestForm(false); setEditingRequest(null); }}
+        onSaved={r => {
+          if (editingRequest) {
+            setAllReturns(prev => prev.map(x => x.id === r.id ? r : x));
+          } else {
+            setAllReturns(prev => [r, ...prev]);
+          }
+          setEditingRequest(null);
+        }}
         existingRequests={requests}
+        editing={editingRequest}
       />
     </div>
   );
