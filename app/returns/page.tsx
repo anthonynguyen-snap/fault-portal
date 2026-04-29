@@ -109,6 +109,11 @@ function LogRequestSlideOver({
   const [form, setForm] = useState<RequestForm>(blankRequest());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    fetch('/api/staff').then(r => r.json()).then(d => setStaff(d.data ?? [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -279,7 +284,10 @@ function LogRequestSlideOver({
           </div>
           <div>
             <label className="form-label">Logged By</label>
-            <input value={form.submittedBy} onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))} placeholder="Your name" className="form-input" />
+            <select value={form.submittedBy} onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))} className="form-input">
+              <option value="">Select your name…</option>
+              {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
           </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
