@@ -94,6 +94,15 @@ function RefundsInner() {
   const [processResolution, setProcessResolution] = useState<RefundResolution>('Cash Refund');
   const [expanded, setExpanded]   = useState<string | null>(null);
 
+  // Currency auto-detection from order number suffix
+  const detectedCurrency = useMemo(() => {
+    const upper = form.orderNumber.trim().toUpperCase();
+    if (upper.endsWith('ROW')) return 'GBP';
+    if (upper.endsWith('US'))  return 'USD';
+    if (upper.endsWith('AU'))  return 'AUD';
+    return 'AUD';
+  }, [form.orderNumber]);
+
   // Filter
   const [filter, setFilter]       = useState<'Pending' | 'All'>('Pending');
 
@@ -559,7 +568,15 @@ function RefundsInner() {
 
           {/* Amount */}
           <div>
-            <label className="form-label">Refund Amount (AUD) <span className="text-red-400">*</span></label>
+            <label className="form-label">
+              Refund Amount ({detectedCurrency})
+              {detectedCurrency !== 'AUD' && (
+                <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${detectedCurrency === 'USD' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                  {detectedCurrency}
+                </span>
+              )}
+              {' '}<span className="text-red-400">*</span>
+            </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
               <input

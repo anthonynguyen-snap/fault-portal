@@ -241,6 +241,7 @@ export const REFUND_REASONS = [
   'Goodwill Gesture',
   'Pricing Error',
   'Discount Code',
+  'Returned to 3PL',
   'Other',
 ] as const;
 
