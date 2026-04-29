@@ -115,6 +115,7 @@ function RefundsInner() {
   const [processNotes, setProcessNotes] = useState('');
   const [processResolution, setProcessResolution] = useState<RefundResolution>('Cash Refund');
   const [processedAmount, setProcessedAmount] = useState('');
+  const [adjustmentReason, setAdjustmentReason] = useState('');
   const [expanded, setExpanded]   = useState<string | null>(null);
 
   // Auto-detect currency from order number suffix (only when not manually overridden mid-session)
@@ -252,12 +253,20 @@ function RefundsInner() {
     try {
       const resolution = status === 'Processed' ? processResolution : 'Pending';
       const parsedAmount = parseFloat(processedAmount);
+      const amountDiffers = !isNaN(parsedAmount) && processing && parsedAmount !== processing.amount;
+
+      // Build final notes: prepend adjustment reason if amount differs
+      let finalNotes = processNotes.trim();
+      if (status === 'Processed' && amountDiffers && adjustmentReason) {
+        finalNotes = adjustmentReason + (finalNotes ? ' — ' + finalNotes : '');
+      }
+
       const res = await fetch(`/api/refunds/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status,
-          processedNotes:  processNotes,
+          processedNotes:  finalNotes,
           processedAmount: status === 'Processed' && !isNaN(parsedAmount) ? parsedAmount : null,
           resolution,
         }),
@@ -268,7 +277,7 @@ function RefundsInner() {
         r.id === id
           ? {
               ...r, status,
-              processedNotes:  processNotes,
+              processedNotes:  finalNotes,
               processedAmount: status === 'Processed' && !isNaN(parsedAmount) ? parsedAmount : null,
               resolution:      resolution as RefundResolution,
               processedAt:     new Date().toISOString(),
@@ -279,6 +288,7 @@ function RefundsInner() {
       setProcessNotes('');
       setProcessResolution('Cash Refund');
       setProcessedAmount('');
+      setAdjustmentReason('');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -542,7 +552,7 @@ function RefundsInner() {
                         </button>
                         {isPending ? (
                           <button
-                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); setProcessedAmount(req.amount > 0 ? String(req.amount) : ''); }}
+                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); setProcessedAmount(req.amount > 0 ? String(req.amount) : ''); setAdjustmentReason(''); }}
                             className="btn-primary text-xs py-1 px-3"
                           >
                             Process
@@ -827,9 +837,34 @@ function RefundsInner() {
                 return (
                   <p className={`text-xs mt-1 font-medium ${isDiscount ? 'text-amber-600' : 'text-emerald-600'}`}>
                     {isDiscount
-                      ? `${fmt(Math.abs(diff), processing.currency)} less than requested — discount or partial refund`
+                      ? `${fmt(Math.abs(diff), processing.currency)} less than requested`
                       : `${fmt(diff, processing.currency)} more than requested`}
                   </p>
+                );
+              })()}
+              {/* Reason for adjustment — only shown when amount differs */}
+              {(() => {
+                const pa = parseFloat(processedAmount);
+                if (isNaN(pa) || pa === processing.amount) return null;
+                return (
+                  <div className="mt-3">
+                    <label className="form-label">Reason for adjustment</label>
+                    <select
+                      value={adjustmentReason}
+                      onChange={e => setAdjustmentReason(e.target.value)}
+                      className="form-input text-sm"
+                    >
+                      <option value="">Select a reason…</option>
+                      <option value="Discount code used">Discount code used</option>
+                      <option value="Promo code applied">Promo code applied</option>
+                      <option value="Mystery discount code">Mystery discount code</option>
+                      <option value="Partial refund approved">Partial refund approved</option>
+                      <option value="Store credit deducted">Store credit deducted</option>
+                      <option value="Restocking fee applied">Restocking fee applied</option>
+                      <option value="Return label fee deducted">Return label fee deducted</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
                 );
               })()}
             </div>
