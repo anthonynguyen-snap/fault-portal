@@ -98,6 +98,7 @@ function RefundsInner() {
   const detectedCurrency = useMemo(() => {
     const upper = form.orderNumber.trim().toUpperCase();
     if (upper.endsWith('ROW')) return 'GBP';
+    if (upper.endsWith('UK'))  return 'GBP';
     if (upper.endsWith('US'))  return 'USD';
     if (upper.endsWith('AU'))  return 'AUD';
     return 'AUD';
