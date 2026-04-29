@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, PlusCircle, Trash2 } from 'lucide-react';
-import { ReturnCondition, ReturnDecision } from '@/types';
+import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X } from 'lucide-react';
+import { Return, ReturnCondition, ReturnDecision } from '@/types';
 
 const CONDITIONS: ReturnCondition[] = ['Sealed', 'Open - Good Condition', 'Open - Damaged Packaging', 'Faulty'];
 const DECISIONS: ReturnDecision[]   = ['Full Refund', 'Exchange', 'Refund + Restocking Fee', 'Refund - Return Label Fee', 'Replacement', 'Pending'];
@@ -23,6 +23,7 @@ interface FormState {
   orderNumber: string;
   customerName: string;
   customerEmail: string;
+  trackingNumber: string;
   items: LineItem[];
   assignedTo: string;
   processedBy: string;
@@ -42,6 +43,7 @@ function blankForm(processedBy = ''): FormState {
     orderNumber: '',
     customerName: '',
     customerEmail: '',
+    trackingNumber: '',
     items: [blankItem()],
     assignedTo: '',
     processedBy,
@@ -54,14 +56,50 @@ function blankForm(processedBy = ''): FormState {
 
 export default function NewReturnPage() {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>(blankForm());
+  const [form, setForm]           = useState<FormState>(blankForm());
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError]         = useState('');
+  const [openRequests, setOpenRequests] = useState<Return[]>([]);
+  const [matchDismissed, setMatchDismissed] = useState(false);
+  const [matchLinked, setMatchLinked] = useState<string | null>(null); // id of linked request
 
   useEffect(() => {
     const saved = localStorage.getItem(PROCESSED_BY_KEY) || '';
     setForm(blankForm(saved));
+    // Load open (unprocessed) requests for auto-match
+    fetch('/api/returns?stage=requested')
+      .then(r => r.json())
+      .then(d => setOpenRequests((d.data ?? []).filter((r: Return) => !r.parcelReceived)))
+      .catch(() => {});
   }, []);
+
+  // Reset dismiss when order number changes
+  useEffect(() => { setMatchDismissed(false); setMatchLinked(null); }, [form.orderNumber]);
+
+  // Auto-match: exact order number match against open requests
+  const matchedRequest = useMemo((): Return | null => {
+    if (!form.orderNumber.trim() || matchDismissed) return null;
+    return openRequests.find(r =>
+      r.orderNumber.toLowerCase() === form.orderNumber.trim().toLowerCase()
+    ) ?? null;
+  }, [form.orderNumber, openRequests, matchDismissed]);
+
+  async function acceptMatch(req: Return) {
+    setMatchLinked(req.id);
+    // Auto-fill customer details from the request
+    setForm(prev => ({
+      ...prev,
+      customerName:     prev.customerName || req.customerName,
+      customerEmail:    prev.customerEmail || req.customerEmail,
+      conversationLink: prev.conversationLink || req.conversationLink,
+    }));
+    // Mark the request as parcel received
+    await fetch(`/api/returns/${req.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parcelReceived: true }),
+    });
+  }
 
   function set<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -101,6 +139,9 @@ export default function NewReturnPage() {
     try {
       const payload = {
         ...form,
+        stage: 'processed',
+        trackingNumber:  form.trackingNumber.trim(),
+        linkedRequestId: matchLinked ?? undefined,
         items: form.items.map(item => ({
           ...item,
           refundAmount: parseFloat(item.refundAmount) || 0,
@@ -136,6 +177,37 @@ export default function NewReturnPage() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
 
+        {/* Auto-match banner */}
+        {matchedRequest && !matchLinked && (
+          <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-emerald-900">Return request found!</p>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                <span className="font-mono font-bold">{matchedRequest.orderNumber}</span> — {matchedRequest.customerName}
+                {matchedRequest.trackingNumber && <span className="ml-1.5 font-mono bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">{matchedRequest.trackingNumber}</span>}
+                <span className="ml-1.5 text-emerald-600">· Logged {new Date(matchedRequest.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</span>
+              </p>
+              <p className="text-xs text-emerald-700 mt-1">Confirm to auto-fill customer details and mark the request as received.</p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button type="button" onClick={() => acceptMatch(matchedRequest)} className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors">
+                Link & Mark Received
+              </button>
+              <button type="button" onClick={() => setMatchDismissed(true)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {matchLinked && (
+          <div className="flex items-center gap-2.5 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+            <CheckCircle2 size={15} className="text-emerald-600" />
+            <span>Linked to return request — marked as parcel received.</span>
+          </div>
+        )}
+
         {/* Order details */}
         <div className="card p-5 space-y-4">
           <h2 className="text-sm font-semibold text-slate-700">Order Details</h2>
@@ -162,6 +234,10 @@ export default function NewReturnPage() {
           <div>
             <label className="form-label">Conversation Link</label>
             <input type="url" value={form.conversationLink} onChange={e => set('conversationLink', e.target.value)} placeholder="https://..." className="form-input" />
+          </div>
+          <div>
+            <label className="form-label">Inbound Tracking Number <span className="text-slate-400 font-normal">(optional)</span></label>
+            <input type="text" value={form.trackingNumber} onChange={e => set('trackingNumber', e.target.value)} placeholder="e.g. 1Z999AA10123456784" className="form-input font-mono" />
           </div>
         </div>
 

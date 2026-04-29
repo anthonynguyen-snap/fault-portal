@@ -147,12 +147,18 @@ export interface ReturnItem {
   restockingFee: number;
 }
 
+export type ReturnStage = 'requested' | 'processed';
+
 export interface Return {
   id: string;
+  stage: ReturnStage;
   date: string;
   orderNumber: string;
   customerName: string;
   customerEmail: string;
+  trackingNumber: string;
+  parcelReceived: boolean;
+  linkedRequestId: string | null;
   items: ReturnItem[];
   totalRefundAmount: number;    // sum of all item refundAmounts
   assignedTo: string;

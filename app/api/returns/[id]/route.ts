@@ -35,10 +35,14 @@ function fromRow(row: Record<string, unknown>): Return {
 
   return {
     id:               String(row.id ?? ''),
+    stage:            (row.stage ?? 'processed') as Return['stage'],
     date:             String(row.date ?? ''),
     orderNumber:      String(row.order_number ?? ''),
     customerName:     String(row.customer_name ?? ''),
     customerEmail:    String(row.customer_email ?? ''),
+    trackingNumber:   String(row.tracking_number ?? ''),
+    parcelReceived:   Boolean(row.parcel_received ?? false),
+    linkedRequestId:  row.linked_request_id ? String(row.linked_request_id) : null,
     items,
     totalRefundAmount: items.reduce((sum, item) => sum + item.refundAmount, 0),
     assignedTo:       String(row.assigned_to ?? ''),
@@ -54,14 +58,18 @@ function fromRow(row: Record<string, unknown>): Return {
 
 function toSnake(updates: Record<string, unknown>): Record<string, unknown> {
   const map: Record<string, string> = {
-    orderNumber:      'order_number',
-    customerName:     'customer_name',
-    customerEmail:    'customer_email',
-    assignedTo:       'assigned_to',
-    followUpStatus:   'follow_up_status',
-    followUpNotes:    'follow_up_notes',
-    processedBy:      'processed_by',
-    conversationLink: 'conversation_link',
+    orderNumber:       'order_number',
+    customerName:      'customer_name',
+    customerEmail:     'customer_email',
+    assignedTo:        'assigned_to',
+    followUpStatus:    'follow_up_status',
+    followUpNotes:     'follow_up_notes',
+    processedBy:       'processed_by',
+    conversationLink:  'conversation_link',
+    trackingNumber:    'tracking_number',
+    parcelReceived:    'parcel_received',
+    linkedRequestId:   'linked_request_id',
+    stage:             'stage',
   };
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(updates)) {

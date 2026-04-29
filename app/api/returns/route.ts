@@ -37,10 +37,14 @@ function fromRow(row: Record<string, unknown>): Return {
 
   return {
     id:               String(row.id ?? ''),
+    stage:            (row.stage ?? 'processed') as Return['stage'],
     date:             String(row.date ?? ''),
     orderNumber:      String(row.order_number ?? ''),
     customerName:     String(row.customer_name ?? ''),
     customerEmail:    String(row.customer_email ?? ''),
+    trackingNumber:   String(row.tracking_number ?? ''),
+    parcelReceived:   Boolean(row.parcel_received ?? false),
+    linkedRequestId:  row.linked_request_id ? String(row.linked_request_id) : null,
     items,
     totalRefundAmount: items.reduce((sum, item) => sum + item.refundAmount, 0),
     assignedTo:       String(row.assigned_to ?? ''),
@@ -54,13 +58,19 @@ function fromRow(row: Record<string, unknown>): Return {
   };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const { data, error } = await getSupabase()
+    const { searchParams } = new URL(req.url);
+    const stage = searchParams.get('stage');
+
+    let query = getSupabase()
       .from('returns')
       .select('*, return_items(*)')
       .order('created_at', { ascending: false });
 
+    if (stage) query = query.eq('stage', stage);
+
+    const { data, error } = await query;
     if (error) throw error;
     return NextResponse.json({ data: (data ?? []).map(fromRow) });
   } catch (error) {
@@ -76,6 +86,7 @@ export async function POST(req: NextRequest) {
       orderNumber, customerName, customerEmail,
       items, assignedTo, needsFollowUp, notes,
       processedBy, date, conversationLink,
+      stage, trackingNumber, linkedRequestId,
     } = body;
 
     if (!orderNumber || !customerName || !items?.length) {
@@ -86,10 +97,14 @@ export async function POST(req: NextRequest) {
     const { data: ret, error: retErr } = await getSupabase()
       .from('returns')
       .insert({
+        stage:             stage || 'processed',
         date:             date || new Date().toISOString().slice(0, 10),
         order_number:     orderNumber,
         customer_name:    customerName,
         customer_email:   customerEmail || '',
+        tracking_number:  trackingNumber || '',
+        parcel_received:  false,
+        linked_request_id: linkedRequestId || null,
         product:          '',
         condition:        'Sealed',
         decision:         'Pending',
@@ -99,7 +114,7 @@ export async function POST(req: NextRequest) {
         follow_up_status: needsFollowUp ? 'Pending' : 'N/A',
         follow_up_notes:  '',
         notes:            notes || '',
-        status:           'Processed',
+        status:           stage === 'requested' ? 'Received' : 'Processed',
         processed_by:     processedBy || '',
         conversation_link: conversationLink || '',
       })
