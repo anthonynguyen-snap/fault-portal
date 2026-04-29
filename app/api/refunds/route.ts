@@ -10,6 +10,7 @@ function fromRow(row: Record<string, unknown>): RefundRequest {
     orderNumber:    String(row.order_number ?? ''),
     customerName:   String(row.customer_name ?? ''),
     amount:         Number(row.amount ?? 0),
+    currency:       String(row.currency ?? 'AUD'),
     reason:         String(row.reason ?? ''),
     notes:          String(row.notes ?? ''),
     shopifyLink:    String(row.shopify_link ?? ''),
@@ -45,7 +46,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { orderNumber, customerName, amount, reason, notes, shopifyLink, commsLink, submittedBy } = body;
+    const { orderNumber, customerName, amount, currency, reason, notes, shopifyLink, commsLink, submittedBy } = body;
     if (!orderNumber?.trim()) return NextResponse.json({ error: 'Order number is required' }, { status: 400 });
     if (!customerName?.trim()) return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });
     if (!reason) return NextResponse.json({ error: 'Reason is required' }, { status: 400 });
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
         order_number:    orderNumber.trim(),
         customer_name:   customerName.trim(),
         amount:          Number(amount) || 0,
+        currency:        currency ?? 'AUD',
         reason,
         notes:           notes?.trim() ?? '',
         shopify_link:    shopifyLink?.trim() ?? '',

@@ -15,6 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.orderNumber    !== undefined) updates.order_number    = body.orderNumber;
     if (body.customerName   !== undefined) updates.customer_name   = body.customerName;
     if (body.amount         !== undefined) updates.amount          = body.amount;
+    if (body.currency       !== undefined) updates.currency        = body.currency;
     if (body.reason         !== undefined) updates.reason          = body.reason;
     if (body.notes          !== undefined) updates.notes           = body.notes;
     if (body.shopifyLink    !== undefined) updates.shopify_link    = body.shopifyLink;

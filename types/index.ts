@@ -254,6 +254,7 @@ export interface RefundRequest {
   orderNumber: string;
   customerName: string;
   amount: number;
+  currency: string;
   reason: RefundReason | string;
   notes: string;
   shopifyLink: string;

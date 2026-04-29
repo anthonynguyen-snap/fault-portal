@@ -32,14 +32,35 @@ function SlideOver({ open, onClose, title, children }: {
   );
 }
 
+// ── Currency config ───────────────────────────────────────────────────────────
+const CURRENCIES = [
+  { code: 'AUD', symbol: '$',  locale: 'en-AU', label: 'AUD — Australian Dollar' },
+  { code: 'USD', symbol: '$',  locale: 'en-US', label: 'USD — US Dollar' },
+  { code: 'GBP', symbol: '£',  locale: 'en-GB', label: 'GBP — British Pound' },
+  { code: 'NZD', symbol: '$',  locale: 'en-NZ', label: 'NZD — New Zealand Dollar' },
+  { code: 'SGD', symbol: '$',  locale: 'en-SG', label: 'SGD — Singapore Dollar' },
+  { code: 'EUR', symbol: '€',  locale: 'de-DE', label: 'EUR — Euro' },
+] as const;
+
+type CurrencyCode = typeof CURRENCIES[number]['code'];
+
+function detectCurrency(orderNumber: string): CurrencyCode {
+  const upper = orderNumber.trim().toUpperCase();
+  if (upper.endsWith('ROW') || upper.endsWith('UK')) return 'GBP';
+  if (upper.endsWith('US')) return 'USD';
+  if (upper.endsWith('AU')) return 'AUD';
+  return 'AUD';
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function daysSince(iso: string) {
   const d = new Date(iso.includes('T') ? iso : iso + 'T00:00:00');
   return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function fmt(amount: number) {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
+function fmt(amount: number, currency = 'AUD') {
+  const c = CURRENCIES.find(x => x.code === currency) ?? CURRENCIES[0];
+  return new Intl.NumberFormat(c.locale, { style: 'currency', currency: c.code }).format(amount);
 }
 
 function AgePill({ createdAt }: { createdAt: string }) {
@@ -83,7 +104,7 @@ function RefundsInner() {
   const [showForm, setShowForm]   = useState(searchParams.get('new') === '1');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm]           = useState({
-    orderNumber: '', customerName: '', amount: '',
+    orderNumber: '', customerName: '', amount: '', currency: 'AUD' as CurrencyCode,
     reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: '',
   });
   const [formError, setFormError] = useState('');
@@ -94,15 +115,10 @@ function RefundsInner() {
   const [processResolution, setProcessResolution] = useState<RefundResolution>('Cash Refund');
   const [expanded, setExpanded]   = useState<string | null>(null);
 
-  // Currency auto-detection from order number suffix
-  const detectedCurrency = useMemo(() => {
-    const upper = form.orderNumber.trim().toUpperCase();
-    if (upper.endsWith('ROW')) return 'GBP';
-    if (upper.endsWith('UK'))  return 'GBP';
-    if (upper.endsWith('US'))  return 'USD';
-    if (upper.endsWith('AU'))  return 'AUD';
-    return 'AUD';
-  }, [form.orderNumber]);
+  // Auto-detect currency from order number suffix (only when not manually overridden mid-session)
+  useEffect(() => {
+    setForm(f => ({ ...f, currency: detectCurrency(f.orderNumber) }));
+  }, [form.orderNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter
   const [filter, setFilter]       = useState<'Pending' | 'All'>('Pending');
@@ -154,7 +170,7 @@ function RefundsInner() {
   }, [openId, loading, requests]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function resetForm() {
-    setForm({ orderNumber: '', customerName: '', amount: '', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: '' });
+    setForm({ orderNumber: '', customerName: '', amount: '', currency: 'AUD', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: '' });
     setFormError('');
   }
 
@@ -165,6 +181,7 @@ function RefundsInner() {
       orderNumber:  req.orderNumber,
       customerName: req.customerName,
       amount:       req.amount > 0 ? String(req.amount) : '',
+      currency:     (req.currency as CurrencyCode) ?? detectCurrency(req.orderNumber),
       reason:       req.reason,
       notes:        req.notes,
       shopifyLink:  req.shopifyLink,
@@ -189,6 +206,7 @@ function RefundsInner() {
       orderNumber:  form.orderNumber.trim(),
       customerName: form.customerName.trim(),
       amount:       parseFloat(form.amount) || 0,
+      currency:     form.currency,
       reason:       form.reason,
       notes:        form.notes.trim(),
       shopifyLink:  form.shopifyLink.trim(),
@@ -489,7 +507,7 @@ function RefundsInner() {
 
                     {/* Amount + actions */}
                     <div className="flex-shrink-0 text-right space-y-2">
-                      <p className="text-lg font-bold font-mono text-slate-900">{fmt(req.amount)}</p>
+                      <p className="text-lg font-bold font-mono text-slate-900">{fmt(req.amount, req.currency)}</p>
                       <div className="flex items-center gap-1.5 justify-end">
                         <button
                           onClick={() => openEdit(req)}
@@ -567,28 +585,34 @@ function RefundsInner() {
             />
           </div>
 
-          {/* Amount */}
+          {/* Amount + Currency */}
           <div>
-            <label className="form-label">
-              Refund Amount ({detectedCurrency})
-              {detectedCurrency !== 'AUD' && (
-                <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded ${detectedCurrency === 'USD' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                  {detectedCurrency}
+            <label className="form-label">Refund Amount <span className="text-red-400">*</span></label>
+            <div className="flex gap-2">
+              <select
+                value={form.currency}
+                onChange={e => setForm(f => ({ ...f, currency: e.target.value as CurrencyCode }))}
+                className="form-input w-28 flex-shrink-0 text-sm"
+                title="Currency"
+              >
+                {CURRENCIES.map(c => (
+                  <option key={c.code} value={c.code}>{c.label}</option>
+                ))}
+              </select>
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                  {CURRENCIES.find(c => c.code === form.currency)?.symbol ?? '$'}
                 </span>
-              )}
-              {' '}<span className="text-red-400">*</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.amount}
-                onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                placeholder="0.00"
-                className="form-input pl-7"
-              />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                  placeholder="0.00"
+                  className="form-input pl-7"
+                />
+              </div>
             </div>
           </div>
 
@@ -694,7 +718,7 @@ function RefundsInner() {
             <div className="bg-slate-50 rounded-xl p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-slate-800">{processing.customerName}</span>
-                <span className="text-xl font-bold text-slate-900">{fmt(processing.amount)}</span>
+                <span className="text-xl font-bold text-slate-900">{fmt(processing.amount, processing.currency)}</span>
               </div>
               <p className="text-xs text-slate-500">Order #{processing.orderNumber}</p>
               <p className="text-xs text-slate-500">{processing.reason}</p>
