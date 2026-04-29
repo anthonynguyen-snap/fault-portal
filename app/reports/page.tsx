@@ -133,11 +133,11 @@ export default function ReportsPage() {
   function exportCsv() {
     const isInternal = reportType === 'internal';
     const headers = isInternal
-      ? ['Date','Order #','Customer','Product','Manufacturer','Fault Type','Notes','Status','Cost USD']
-      : ['Date','Order #','Product','Manufacturer','Fault Type','Notes','Evidence Link'];
+      ? ['Date','Order #','Customer','Product','Manufacturer','Fault Type','Notes','Manufacturer Number','Evidence Link']
+      : ['Date','Order #','Product','Manufacturer','Fault Type','Notes','Manufacturer Number','Evidence Link'];
     const rows = filteredCases.map(c => isInternal
-      ? [c.date, c.orderNumber, c.customerName, c.product, c.manufacturerName, c.faultType, c.faultNotes, c.claimStatus, c.unitCostUSD]
-      : [c.date, c.orderNumber, c.product, c.manufacturerName, c.faultType, c.faultNotes, c.evidenceLink || '']
+      ? [c.date, c.orderNumber, c.customerName, c.product, c.manufacturerName, c.faultType, c.faultNotes, c.manufacturerNumber, c.evidenceLink || '']
+      : [c.date, c.orderNumber, c.product, c.manufacturerName, c.faultType, c.faultNotes, c.manufacturerNumber, c.evidenceLink || '']
     );
     const title = selectedManufacturer ? `${selectedManufacturer} Fault Report` : 'Fault Report';
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');

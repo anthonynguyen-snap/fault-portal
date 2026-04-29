@@ -178,11 +178,11 @@ export default function CasesPage() {
   const isFiltered = !!(search || statusFilter || manufacturerFilter || fromDate || toDate);
 
   function exportCsv() {
-    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Fault Type','Status','Cost USD','Evidence'];
+    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Fault Type','Manufacturer Number','Evidence Link'];
     const rows = filtered.map(c => [
       c.id, c.date, c.orderNumber, c.customerName, c.product,
-      c.manufacturerName, c.faultType, c.claimStatus,
-      c.unitCostUSD, c.evidenceLink,
+      c.manufacturerName, c.faultType, c.manufacturerNumber,
+      c.evidenceLink,
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
