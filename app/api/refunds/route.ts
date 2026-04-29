@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { RefundRequest, RefundResolution } from '@/types';
+import { logActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -73,6 +74,14 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
     if (error) throw error;
+    void logActivity({
+      actor:       submittedBy?.trim() ?? '',
+      action:      'refund.submitted',
+      entityType:  'Refund',
+      entityId:    data.id,
+      entityLabel: orderNumber.trim(),
+      detail:      { amount: Number(amount) || 0, currency: currency ?? 'AUD', reason },
+    });
     return NextResponse.json({ data: fromRow(data) }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: errMsg(error) }, { status: 500 });

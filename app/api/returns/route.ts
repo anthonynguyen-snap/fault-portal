@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { Return, ReturnItem } from '@/types';
+import { logActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -127,6 +128,14 @@ export async function POST(req: NextRequest) {
       .eq('id', ret.id)
       .single();
 
+    void logActivity({
+      actor:       processedBy ?? '',
+      action:      'return.logged',
+      entityType:  'Return',
+      entityId:    ret.id,
+      entityLabel: orderNumber,
+      detail:      { customerName, itemCount: items?.length ?? 0 },
+    });
     return NextResponse.json({ data: fromRow(full) }, { status: 201 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

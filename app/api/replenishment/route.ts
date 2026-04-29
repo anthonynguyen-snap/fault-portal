@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { ReplenishmentRequest, ReplenishmentLineItem } from '@/types';
+import { logActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -103,6 +104,14 @@ export async function POST(req: NextRequest) {
       .eq('id', request.id)
       .single();
 
+    void logActivity({
+      actor:       requestedBy ?? '',
+      action:      'replenishment.created',
+      entityType:  'Replenishment',
+      entityId:    request.id,
+      entityLabel: store + (orderNumber ? ` — ${orderNumber}` : ''),
+      detail:      { store, itemCount: items?.length ?? 0 },
+    });
     return NextResponse.json({ data: fromRow(full) }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

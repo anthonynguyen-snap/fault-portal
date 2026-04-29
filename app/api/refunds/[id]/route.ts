@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { logActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -32,6 +33,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .select()
       .single();
     if (error) throw error;
+
+    // Determine log action from what changed
+    const logAction = body.status === 'Processed' ? 'refund.processed'
+                    : body.status === 'Rejected'  ? 'refund.rejected'
+                    : 'refund.updated';
+    void logActivity({
+      actor:       String(data.submitted_by ?? ''),
+      action:      logAction,
+      entityType:  'Refund',
+      entityId:    id,
+      entityLabel: String(data.order_number ?? ''),
+      detail:      { amount: data.amount, currency: data.currency ?? 'AUD', status: data.status },
+    });
+
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : (error as any)?.message ?? String(error) }, { status: 500 });

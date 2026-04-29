@@ -22,6 +22,7 @@ import {
   Truck,
   CalendarDays,
   ClipboardList,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -135,6 +136,7 @@ const navGroups = [
   {
     label: 'System',
     items: [
+      { label: 'Activity Log',      href: '/log',         icon: Activity },
       { label: 'Reports',          href: '/reports',     icon: BarChart2 },
       { label: 'Team Performance', href: '/performance', icon: Users2 },
       { label: 'Admin',            href: '/admin',       icon: Settings },

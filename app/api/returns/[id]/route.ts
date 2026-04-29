@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { Return, ReturnItem } from '@/types';
+import { logActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -126,9 +127,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .select('*, return_items(*)')
         .eq('id', id)
         .single();
+      void logActivity({
+        actor:       String(full?.processed_by ?? ''),
+        action:      'return.updated',
+        entityType:  'Return',
+        entityId:    id,
+        entityLabel: String(full?.order_number ?? ''),
+        detail:      { customerName: String(full?.customer_name ?? '') },
+      });
       return NextResponse.json({ data: fromRow(full) });
     }
 
+    void logActivity({
+      actor:       String(data.processed_by ?? ''),
+      action:      'return.updated',
+      entityType:  'Return',
+      entityId:    id,
+      entityLabel: String(data.order_number ?? ''),
+      detail:      { customerName: String(data.customer_name ?? '') },
+    });
     return NextResponse.json({ data: fromRow(data) });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

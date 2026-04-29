@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCases, createCase } from '@/lib/google-sheets';
+import { logActivity } from '@/lib/activity';
 
 // GET /api/cases — returns all fault cases
 export async function GET(req: NextRequest) {
@@ -88,6 +89,14 @@ export async function POST(req: NextRequest) {
       submittedBy:        body.submittedBy || '',
     });
 
+    void logActivity({
+      actor:       body.submittedBy ?? '',
+      action:      'case.created',
+      entityType:  'Case',
+      entityId:    newCase.id ?? '',
+      entityLabel: body.orderNumber,
+      detail:      { product: body.product, faultType: body.faultType, manufacturer: body.manufacturerName },
+    });
     return NextResponse.json({ data: newCase }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/cases]', error);

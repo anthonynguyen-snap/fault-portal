@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { ReplenishmentRequest, ReplenishmentLineItem } from '@/types';
+import { logActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -151,6 +152,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .select('*, replenishment_items(*)')
       .eq('id', id)
       .single();
+
+    // Log status changes
+    if (body.status !== undefined) {
+      void logActivity({
+        actor:       String(full?.requested_by ?? ''),
+        action:      'replenishment.status',
+        entityType:  'Replenishment',
+        entityId:    id,
+        entityLabel: String(full?.store ?? '') + (full?.order_number ? ` — ${full.order_number}` : ''),
+        detail:      { status: body.status },
+      });
+    }
 
     return NextResponse.json({ data: fromRow(full) });
   } catch (err) {
