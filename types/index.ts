@@ -168,6 +168,7 @@ export interface Return {
   status: ReturnStatus;
   processedBy: string;
   conversationLink: string;
+  starshipitOrderNumber: string;
   createdAt: string;
 }
 

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
-  Package, Truck, AlertCircle, CheckCircle2,
+  Package, Truck, AlertCircle, CheckCircle2, Trash2,
 } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -77,12 +77,24 @@ interface RequestForm {
   customerEmail: string;
   conversationLink: string;
   trackingNumber: string;
+  starshipitOrderNumber: string;
+  products: { name: string }[];
   notes: string;
   submittedBy: string;
 }
 
 function blankRequest(): RequestForm {
-  return { orderNumber: '', customerName: '', customerEmail: '', conversationLink: '', trackingNumber: '', notes: '', submittedBy: '' };
+  return {
+    orderNumber: '',
+    customerName: '',
+    customerEmail: '',
+    conversationLink: '',
+    trackingNumber: '',
+    starshipitOrderNumber: '',
+    products: [{ name: '' }],
+    notes: '',
+    submittedBy: '',
+  };
 }
 
 function LogRequestSlideOver({
@@ -113,20 +125,26 @@ function LogRequestSlideOver({
     if (!form.customerName.trim()) return setError('Customer name is required');
     setSaving(true); setError('');
     try {
+      const productItems = form.products
+        .map(p => p.name.trim())
+        .filter(Boolean)
+        .map(name => ({ product: name, condition: 'Sealed', decision: 'Pending', refundAmount: 0, restockingFee: 0 }));
+
       const res = await fetch('/api/returns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          stage:            'requested',
-          orderNumber:      form.orderNumber.trim(),
-          customerName:     form.customerName.trim(),
-          customerEmail:    form.customerEmail.trim(),
-          conversationLink: form.conversationLink.trim(),
-          trackingNumber:   form.trackingNumber.trim(),
-          notes:            form.notes.trim(),
-          processedBy:      form.submittedBy.trim(),
-          items:            [],
-          needsFollowUp:    false,
+          stage:                 'requested',
+          orderNumber:           form.orderNumber.trim(),
+          customerName:          form.customerName.trim(),
+          customerEmail:         form.customerEmail.trim(),
+          conversationLink:      form.conversationLink.trim(),
+          trackingNumber:        form.trackingNumber.trim(),
+          starshipitOrderNumber: form.starshipitOrderNumber.trim(),
+          notes:                 form.notes.trim(),
+          processedBy:           form.submittedBy.trim(),
+          items:                 productItems,
+          needsFollowUp:         false,
         }),
       });
       const json = await res.json();
@@ -178,9 +196,51 @@ function LogRequestSlideOver({
             <input value={form.conversationLink} onChange={e => setForm(f => ({ ...f, conversationLink: e.target.value }))} placeholder="Commslayer / Chatwoot URL" className="form-input" />
           </div>
           <div>
-            <label className="form-label">Inbound Tracking Number <span className="text-slate-400 font-normal">(optional — add when customer provides it)</span></label>
+            <label className="form-label">Inbound Tracking Number <span className="text-slate-400 font-normal">(optional)</span></label>
             <input value={form.trackingNumber} onChange={e => setForm(f => ({ ...f, trackingNumber: e.target.value }))} placeholder="e.g. 1Z999AA10123456784" className="form-input font-mono" />
           </div>
+          <div>
+            <label className="form-label">Starshipit Order Number <span className="text-slate-400 font-normal">(prepaid return label)</span></label>
+            <input value={form.starshipitOrderNumber} onChange={e => setForm(f => ({ ...f, starshipitOrderNumber: e.target.value }))} placeholder="e.g. SS-123456" className="form-input font-mono" />
+          </div>
+
+          {/* Products being returned */}
+          <div>
+            <label className="form-label mb-2 block">Products Being Returned</label>
+            <div className="space-y-2">
+              {form.products.map((p, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    value={p.name}
+                    onChange={e => {
+                      const products = [...form.products];
+                      products[i] = { name: e.target.value };
+                      setForm(f => ({ ...f, products }));
+                    }}
+                    placeholder={`Product / SKU ${i + 1}`}
+                    className="form-input flex-1"
+                  />
+                  {form.products.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, products: f.products.filter((_, j) => j !== i) }))}
+                      className="text-slate-400 hover:text-red-500 transition-colors p-1.5 rounded-md hover:bg-red-50 flex-shrink-0"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, products: [...f.products, { name: '' }] }))}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 border-2 border-dashed border-slate-200 rounded-lg text-xs text-slate-500 hover:border-brand-400 hover:text-brand-600 transition-colors"
+            >
+              <PlusCircle size={13} /> Add Another Product
+            </button>
+          </div>
+
           <div>
             <label className="form-label">Notes</label>
             <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any context about this return…" className="form-input resize-none" />
@@ -416,6 +476,7 @@ export default function ReturnsPage() {
                         <tr className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
                           <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Date / Order</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
+                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Products</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tracking</th>
                           <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Logged By</th>
                           <th className="px-4 py-3" />
@@ -442,10 +503,21 @@ export default function ReturnsPage() {
                               )}
                             </td>
                             <td className="px-4 py-3">
+                              {r.items.length > 0 ? (
+                                <div className="space-y-0.5">
+                                  <p className="text-sm text-slate-700 font-medium">{r.items[0].product}</p>
+                                  {r.items.length > 1 && <p className="text-xs text-slate-400">+{r.items.length - 1} more</p>}
+                                </div>
+                              ) : <span className="text-xs text-slate-400 italic">—</span>}
+                            </td>
+                            <td className="px-4 py-3">
                               {r.trackingNumber ? (
                                 <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded">{r.trackingNumber}</span>
                               ) : (
                                 <span className="text-xs text-slate-400 italic">Not yet provided</span>
+                              )}
+                              {r.starshipitOrderNumber && (
+                                <p className="text-xs text-slate-500 mt-0.5 font-mono">SS: {r.starshipitOrderNumber}</p>
                               )}
                             </td>
                             <td className="px-4 py-3">
