@@ -269,6 +269,7 @@ export interface RefundRequest {
   submittedBy: string;
   status: RefundStatus;
   processedNotes: string;
+  processedAmount: number | null;   // actual amount refunded (may differ from requested)
   resolution: RefundResolution;
   createdAt: string;
   processedAt: string | null;

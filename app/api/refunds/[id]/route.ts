@@ -10,18 +10,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json();
     const updates: Record<string, unknown> = {};
 
-    if (body.status         !== undefined) updates.status          = body.status;
-    if (body.processedNotes !== undefined) updates.processed_notes = body.processedNotes;
-    if (body.resolution     !== undefined) updates.resolution      = body.resolution;
-    if (body.orderNumber    !== undefined) updates.order_number    = body.orderNumber;
-    if (body.customerName   !== undefined) updates.customer_name   = body.customerName;
-    if (body.amount         !== undefined) updates.amount          = body.amount;
-    if (body.currency       !== undefined) updates.currency        = body.currency;
-    if (body.reason         !== undefined) updates.reason          = body.reason;
-    if (body.notes          !== undefined) updates.notes           = body.notes;
-    if (body.shopifyLink    !== undefined) updates.shopify_link    = body.shopifyLink;
-    if (body.commsLink      !== undefined) updates.comms_link      = body.commsLink;
-    if (body.submittedBy    !== undefined) updates.submitted_by    = body.submittedBy;
+    if (body.status           !== undefined) updates.status           = body.status;
+    if (body.processedNotes   !== undefined) updates.processed_notes  = body.processedNotes;
+    if (body.processedAmount  !== undefined) updates.processed_amount = body.processedAmount;
+    if (body.resolution       !== undefined) updates.resolution       = body.resolution;
+    if (body.orderNumber      !== undefined) updates.order_number     = body.orderNumber;
+    if (body.customerName     !== undefined) updates.customer_name    = body.customerName;
+    if (body.amount           !== undefined) updates.amount           = body.amount;
+    if (body.currency         !== undefined) updates.currency         = body.currency;
+    if (body.reason           !== undefined) updates.reason           = body.reason;
+    if (body.notes            !== undefined) updates.notes            = body.notes;
+    if (body.shopifyLink      !== undefined) updates.shopify_link     = body.shopifyLink;
+    if (body.commsLink        !== undefined) updates.comms_link       = body.commsLink;
+    if (body.submittedBy      !== undefined) updates.submitted_by     = body.submittedBy;
     if (body.status === 'Processed' || body.status === 'Rejected') {
       updates.processed_at = new Date().toISOString();
     }

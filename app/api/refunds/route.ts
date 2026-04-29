@@ -7,21 +7,22 @@ export const runtime = 'nodejs';
 
 function fromRow(row: Record<string, unknown>): RefundRequest {
   return {
-    id:             String(row.id ?? ''),
-    orderNumber:    String(row.order_number ?? ''),
-    customerName:   String(row.customer_name ?? ''),
-    amount:         Number(row.amount ?? 0),
-    currency:       String(row.currency ?? 'AUD'),
-    reason:         String(row.reason ?? ''),
-    notes:          String(row.notes ?? ''),
-    shopifyLink:    String(row.shopify_link ?? ''),
-    commsLink:      String(row.comms_link ?? ''),
-    submittedBy:    String(row.submitted_by ?? ''),
-    status:         (row.status as RefundRequest['status']) ?? 'Pending',
-    processedNotes: String(row.processed_notes ?? ''),
-    resolution:     (row.resolution as RefundResolution) ?? 'Pending',
-    createdAt:      String(row.created_at ?? ''),
-    processedAt:    row.processed_at ? String(row.processed_at) : null,
+    id:              String(row.id ?? ''),
+    orderNumber:     String(row.order_number ?? ''),
+    customerName:    String(row.customer_name ?? ''),
+    amount:          Number(row.amount ?? 0),
+    currency:        String(row.currency ?? 'AUD'),
+    reason:          String(row.reason ?? ''),
+    notes:           String(row.notes ?? ''),
+    shopifyLink:     String(row.shopify_link ?? ''),
+    commsLink:       String(row.comms_link ?? ''),
+    submittedBy:     String(row.submitted_by ?? ''),
+    status:          (row.status as RefundRequest['status']) ?? 'Pending',
+    processedNotes:  String(row.processed_notes ?? ''),
+    processedAmount: row.processed_amount != null ? Number(row.processed_amount) : null,
+    resolution:      (row.resolution as RefundResolution) ?? 'Pending',
+    createdAt:       String(row.created_at ?? ''),
+    processedAt:     row.processed_at ? String(row.processed_at) : null,
   };
 }
 

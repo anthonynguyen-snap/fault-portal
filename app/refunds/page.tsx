@@ -114,6 +114,7 @@ function RefundsInner() {
   const [processing, setProcessing] = useState<RefundRequest | null>(null);
   const [processNotes, setProcessNotes] = useState('');
   const [processResolution, setProcessResolution] = useState<RefundResolution>('Cash Refund');
+  const [processedAmount, setProcessedAmount] = useState('');
   const [expanded, setExpanded]   = useState<string | null>(null);
 
   // Auto-detect currency from order number suffix (only when not manually overridden mid-session)
@@ -250,21 +251,34 @@ function RefundsInner() {
     setSaving(true);
     try {
       const resolution = status === 'Processed' ? processResolution : 'Pending';
+      const parsedAmount = parseFloat(processedAmount);
       const res = await fetch(`/api/refunds/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, processedNotes: processNotes, resolution }),
+        body: JSON.stringify({
+          status,
+          processedNotes:  processNotes,
+          processedAmount: status === 'Processed' && !isNaN(parsedAmount) ? parsedAmount : null,
+          resolution,
+        }),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setRequests(prev => prev.map(r =>
         r.id === id
-          ? { ...r, status, processedNotes: processNotes, resolution: resolution as RefundResolution, processedAt: new Date().toISOString() }
+          ? {
+              ...r, status,
+              processedNotes:  processNotes,
+              processedAmount: status === 'Processed' && !isNaN(parsedAmount) ? parsedAmount : null,
+              resolution:      resolution as RefundResolution,
+              processedAt:     new Date().toISOString(),
+            }
           : r
       ));
       setProcessing(null);
       setProcessNotes('');
       setProcessResolution('Cash Refund');
+      setProcessedAmount('');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -508,7 +522,16 @@ function RefundsInner() {
 
                     {/* Amount + actions */}
                     <div className="flex-shrink-0 text-right space-y-2">
-                      <p className="text-lg font-bold font-mono text-slate-900">{fmt(req.amount, req.currency)}</p>
+                      <div>
+                        {req.processedAmount != null && req.processedAmount !== req.amount ? (
+                          <>
+                            <p className="text-lg font-bold font-mono text-slate-900">{fmt(req.processedAmount, req.currency)}</p>
+                            <p className="text-xs text-slate-400 font-mono line-through">{fmt(req.amount, req.currency)}</p>
+                          </>
+                        ) : (
+                          <p className="text-lg font-bold font-mono text-slate-900">{fmt(req.amount, req.currency)}</p>
+                        )}
+                      </div>
                       <div className="flex items-center gap-1.5 justify-end">
                         <button
                           onClick={() => openEdit(req)}
@@ -519,7 +542,7 @@ function RefundsInner() {
                         </button>
                         {isPending ? (
                           <button
-                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); }}
+                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); setProcessedAmount(req.amount > 0 ? String(req.amount) : ''); }}
                             className="btn-primary text-xs py-1 px-3"
                           >
                             Process
@@ -546,6 +569,11 @@ function RefundsInner() {
                         )}
                         {req.resolution && req.resolution !== 'Pending' && (
                           <span>Resolution: {req.resolution === 'Cash Refund' ? '💵 Cash Refund' : '🎁 Store Credit'}</span>
+                        )}
+                        {req.processedAmount != null && req.processedAmount !== req.amount && (
+                          <span className="col-span-2 text-amber-700 font-medium">
+                            Refunded: {fmt(req.processedAmount, req.currency)} (requested {fmt(req.amount, req.currency)})
+                          </span>
                         )}
                         {req.processedNotes && <span className="col-span-2">Note: {req.processedNotes}</span>}
                       </div>
@@ -766,16 +794,55 @@ function RefundsInner() {
               </div>
             </div>
 
+            {/* Actual amount refunded */}
+            <div>
+              <label className="form-label">
+                Amount Refunded
+                {processing.amount > 0 && (
+                  <span className="text-slate-400 font-normal ml-1">
+                    (requested {fmt(processing.amount, processing.currency)})
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">
+                  {CURRENCIES.find(c => c.code === processing.currency)?.symbol ?? '$'}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={processedAmount}
+                  onChange={e => setProcessedAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="form-input pl-7"
+                  autoFocus
+                />
+              </div>
+              {(() => {
+                const pa = parseFloat(processedAmount);
+                const diff = !isNaN(pa) && pa !== processing.amount ? pa - processing.amount : null;
+                if (diff === null) return null;
+                const isDiscount = diff < 0;
+                return (
+                  <p className={`text-xs mt-1 font-medium ${isDiscount ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {isDiscount
+                      ? `${fmt(Math.abs(diff), processing.currency)} less than requested — discount or partial refund`
+                      : `${fmt(diff, processing.currency)} more than requested`}
+                  </p>
+                );
+              })()}
+            </div>
+
             {/* Notes */}
             <div>
               <label className="form-label">Processing Note <span className="text-slate-400 font-normal">(optional)</span></label>
               <textarea
                 value={processNotes}
                 onChange={e => setProcessNotes(e.target.value)}
-                placeholder="e.g. Refunded $49.99 via Shopify, partial refund approved…"
+                placeholder="e.g. Partial refund due to discount code used at checkout…"
                 rows={3}
                 className="form-input resize-none text-sm"
-                autoFocus
               />
             </div>
 
