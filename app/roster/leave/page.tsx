@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw } from 'lucide-react';
 import { RosterAgent, RosterLeave, RosterConfig, LeaveType, ShiftType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
+import { PH_HOLIDAYS } from '@/lib/ph-holidays';
 
 const LEAVE_LABELS: Record<LeaveType, string>  = { sick: 'Sick', makeup: 'Make-up', other: 'Other', 'ph-holiday': '🇵🇭 PH Holiday', annual: '🏖️ Annual' };
 
@@ -222,6 +223,23 @@ export default function LeavePage() {
     return rows.length ? rows : null;
   }, [records, agents]);
 
+  // Upcoming PH Regular Holidays within 14 days
+  const upcomingPHHolidays = useMemo(() => {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const in14  = new Date(today); in14.setDate(in14.getDate() + 14);
+    return PH_HOLIDAYS
+      .filter(h => {
+        const d = new Date(h.date + 'T00:00:00');
+        return d >= today && d <= in14;
+      })
+      .map(h => {
+        const d    = new Date(h.date + 'T00:00:00');
+        const days = Math.round((d.getTime() - today.getTime()) / 86400000);
+        return { ...h, days };
+      })
+      .sort((a, b) => a.days - b.days);
+  }, []);
+
   // Notice warning: annual leave date < 14 days from today
   const annualNoticeWarning = useMemo(() => {
     if (addType !== 'annual' || !addDateFrom) return null;
@@ -369,6 +387,41 @@ export default function LeavePage() {
           config={config}
           todayLeave={records.filter(r => r.date === localDateStr(new Date()))}
         />
+
+        {/* Upcoming PH holiday coverage reminders */}
+        {upcomingPHHolidays.map(h => {
+          const urgent = h.days <= 7;
+          return (
+            <div
+              key={h.date}
+              className={`rounded-xl px-5 py-4 border flex gap-3 items-start ${
+                urgent
+                  ? 'bg-amber-50 border-amber-200'
+                  : 'bg-blue-50 border-blue-200'
+              }`}
+            >
+              <span className="text-lg flex-shrink-0">🇵🇭</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className={`text-xs font-bold uppercase tracking-wide ${urgent ? 'text-amber-700' : 'text-blue-700'}`}>
+                    {urgent ? '⚠️ Coverage Check Required' : 'Upcoming PH Holiday'}
+                  </p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${urgent ? 'bg-amber-200 text-amber-800' : 'bg-blue-100 text-blue-700'}`}>
+                    {h.days === 0 ? 'Today' : h.days === 1 ? 'Tomorrow' : `In ${h.days} days`}
+                  </span>
+                </div>
+                <p className={`text-sm font-semibold mt-0.5 ${urgent ? 'text-amber-900' : 'text-blue-900'}`}>
+                  {h.name} — {new Date(h.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
+                </p>
+                <p className={`text-xs mt-1 leading-relaxed ${urgent ? 'text-amber-700' : 'text-blue-600'}`}>
+                  {urgent
+                    ? 'Within the 7-day window — confirm with contractors whether coverage is needed for any urgent customer issues.'
+                    : 'Contractors must give at least 7 days\' notice if coverage needs to be arranged for this holiday.'}
+                </p>
+              </div>
+            </div>
+          );
+        })}
 
         {/* Make-up hours summary */}
         {makeupSummary.owed > 0 && (
