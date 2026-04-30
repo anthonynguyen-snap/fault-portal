@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
         follow_up_status: needsFollowUp ? 'Pending' : 'N/A',
         follow_up_notes:  '',
         notes:            notes || '',
-        status:           stage === 'requested' ? 'Received' : 'Processed',
+        status:           stage === 'requested' ? 'Received' : (needsFollowUp ? 'Processed' : 'Closed'),
         processed_by:     processedBy || '',
         conversation_link: conversationLink || '',
       })

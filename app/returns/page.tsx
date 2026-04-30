@@ -434,12 +434,17 @@ export default function ReturnsPage() {
   }
 
   async function updateFollowUp(id: string, newFollowUp: FollowUpStatus) {
+    // If no follow-up is needed, automatically close the return
+    const autoClose = newFollowUp === 'N/A';
     setUpdatingId(id);
-    setAllReturns(prev => prev.map(r => r.id === id ? { ...r, followUpStatus: newFollowUp } : r));
+    setAllReturns(prev => prev.map(r => r.id === id
+      ? { ...r, followUpStatus: newFollowUp, ...(autoClose ? { status: 'Closed' as ReturnStatus } : {}) }
+      : r
+    ));
     await fetch(`/api/returns/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ followUpStatus: newFollowUp }),
+      body: JSON.stringify({ followUpStatus: newFollowUp, ...(autoClose ? { status: 'Closed' } : {}) }),
     });
     setUpdatingId(null);
   }
