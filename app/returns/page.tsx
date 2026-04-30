@@ -318,6 +318,32 @@ function regionMatchesFilter(orderNumber: string, filter: RegionFilter): boolean
   return detectRegion(orderNumber) === filter;
 }
 
+// Build a carrier tracking URL from a bare tracking number or a raw pasted URL
+function buildTrackingUrl(orderNumber: string, trackingNumber: string): string {
+  if (!trackingNumber) return '';
+  if (trackingNumber.startsWith('http')) return trackingNumber;
+  const region = detectRegion(orderNumber);
+  if (region === 'US') return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(trackingNumber)}`;
+  return `https://auspost.com.au/mypost/track/#/details/${trackingNumber}`;
+}
+
+// Strip a pasted URL down to just the bare tracking number for display
+function displayTracking(trackingNumber: string): string {
+  if (!trackingNumber) return '';
+  if (!trackingNumber.startsWith('http')) return trackingNumber;
+  try {
+    const url = new URL(trackingNumber);
+    // AusPost: /mypost/track/#/details/TRACKINGNUM
+    const hashParts = url.hash.split('/');
+    const last = hashParts[hashParts.length - 1];
+    if (last && last !== 'details' && last !== 'track') return last;
+    // USPS: ?tLabels=TRACKINGNUM
+    const tLabels = url.searchParams.get('tLabels');
+    if (tLabels) return tLabels;
+  } catch { /* ignore */ }
+  return trackingNumber;
+}
+
 function RegionPills({
   value, onChange, counts,
 }: {
@@ -618,6 +644,9 @@ export default function ReturnsPage() {
                                   {copiedId === r.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                                 </button>
                               </span>
+                              {detectRegion(r.orderNumber) === 'AU' && (
+                                <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">🇦🇺 AU · Aus Post</span>
+                              )}
                               {detectRegion(r.orderNumber) === 'US' && (
                                 <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">🇺🇸 US · via USPS</span>
                               )}
@@ -640,7 +669,15 @@ export default function ReturnsPage() {
                             </td>
                             <td className="px-4 py-3">
                               {r.trackingNumber ? (
-                                <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded">{r.trackingNumber}</span>
+                                <a
+                                  href={buildTrackingUrl(r.orderNumber, r.trackingNumber)}
+                                  target="_blank" rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 font-mono text-xs text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded border border-brand-100 transition-colors max-w-[220px] truncate"
+                                  title={r.trackingNumber}
+                                >
+                                  <span className="truncate">{displayTracking(r.trackingNumber)}</span>
+                                  <ChevronRight size={10} className="flex-shrink-0 opacity-60" />
+                                </a>
                               ) : (
                                 <span className="text-xs text-slate-400 italic">Not yet provided</span>
                               )}
