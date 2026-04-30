@@ -31,6 +31,33 @@ function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function daysUntil(iso: string): number {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end   = new Date(iso + 'T00:00:00');
+  return Math.ceil((end.getTime() - today.getTime()) / 86_400_000);
+}
+
+function DaysLeftBadge({ endDate }: { endDate: string | null }) {
+  if (!endDate) return null;
+  const days = daysUntil(endDate);
+  if (days < 0) return null; // already ended
+
+  let label: string;
+  let cls: string;
+
+  if (days === 0)      { label = 'Ends today';  cls = 'bg-red-100 text-red-700 border border-red-200'; }
+  else if (days === 1) { label = 'Tomorrow';    cls = 'bg-red-100 text-red-700 border border-red-200'; }
+  else if (days <= 7)  { label = `${days} days left`; cls = 'bg-red-50 text-red-600 border border-red-200'; }
+  else if (days <= 14) { label = `${days} days left`; cls = 'bg-amber-50 text-amber-600 border border-amber-200'; }
+  else                 { label = `${days} days left`; cls = 'bg-slate-100 text-slate-500 border border-slate-200'; }
+
+  return (
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 const STORE_DISPLAY: Record<string, string> = {
   'AU (+ Popup)': '🇦🇺 AU',
   'US':           '🇺🇸 US',
@@ -503,6 +530,7 @@ export default function PromotionsPage() {
                     ) : (
                       <span className="text-amber-500">No end date set</span>
                     )}
+                    <DaysLeftBadge endDate={p.endDate ?? null} />
                     {p.productsCovered && <span>· {p.productsCovered}</span>}
                   </div>
                   {p.description && <p className="text-xs text-slate-500 mt-1">{p.description}</p>}
@@ -565,6 +593,7 @@ export default function PromotionsPage() {
                       <Calendar size={11} /> Started {fmtDate(p.startDate)}
                     </span>
                     {p.endDate ? <span>Ends {fmtDate(p.endDate)}</span> : <span className="text-amber-500">No end date set</span>}
+                    <DaysLeftBadge endDate={p.endDate ?? null} />
                   </div>
                   {p.description && <p className="text-xs text-slate-400 mt-1">{p.description}</p>}
                   <PreviousRuns runs={p.previousRuns} />
