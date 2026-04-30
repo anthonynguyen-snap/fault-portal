@@ -1349,7 +1349,7 @@ function ActivePromosStrip() {
                     <div className="font-mono text-[11.5px] tracking-wide font-semibold text-slate-700 truncate">
                       <ScrambleRow text={p.name.toUpperCase()} delay={delay} />
                     </div>
-                    <div className="flex-shrink-0 w-36 text-right">
+                    <div className="flex-shrink-0 w-36 text-right flex flex-col items-end gap-0.5">
                       <span className="font-mono text-[10px] tabular-nums text-slate-400">
                         {fmtShort(p.startDate)}
                         <span className="text-slate-300 mx-1">→</span>
@@ -1361,6 +1361,17 @@ function ActivePromosStrip() {
                           <span className="text-slate-400 italic">ongoing</span>
                         )}
                       </span>
+                      {p.endDate && days !== null && days >= 0 && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                          days === 0      ? 'bg-red-100 text-red-700' :
+                          days === 1      ? 'bg-red-100 text-red-700' :
+                          days <= 7       ? 'bg-red-50 text-red-500'  :
+                          days <= 14      ? 'bg-amber-50 text-amber-600' :
+                                            'bg-slate-100 text-slate-400'
+                        }`}>
+                          {days === 0 ? 'ends today' : days === 1 ? 'tomorrow' : `${days}d left`}
+                        </span>
+                      )}
                     </div>
                   </div>
 
