@@ -130,6 +130,11 @@ export default function LeavePage() {
   const [records, setRecords] = useState<RosterLeave[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // PH holiday coverage confirmations  { "date-agentId": { working: bool } | undefined }
+  type CoverageKey = string; // `${holidayDate}__${agentId}`
+  const [coverage,     setCoverage]     = useState<Record<CoverageKey, boolean>>({});
+  const [coverageSaving, setCoverageSaving] = useState<CoverageKey | null>(null);
+
   // Filters
   const [filterAgent, setFilterAgent] = useState('');
   const [filterType,  setFilterType]  = useState<LeaveType | ''>('');
@@ -160,17 +165,34 @@ export default function LeavePage() {
   async function load() {
     setLoading(true);
     try {
-      const [agentRes, configRes, leaveRes] = await Promise.all([
+      // Fetch coverage for upcoming PH holidays (next 14 days)
+      const today  = new Date(); today.setHours(0, 0, 0, 0);
+      const in14   = new Date(today); in14.setDate(in14.getDate() + 14);
+      const upcomingDates = PH_HOLIDAYS
+        .filter(h => { const d = new Date(h.date + 'T00:00:00'); return d >= today && d <= in14; })
+        .map(h => h.date);
+
+      const fetches: Promise<Response>[] = [
         fetch('/api/roster/agents'),
         fetch('/api/roster/config'),
         fetch('/api/roster/leave'),
-      ]);
-      const agentData  = await agentRes.json();
-      const configData = await configRes.json();
-      const leaveData  = await leaveRes.json();
+      ];
+      if (upcomingDates.length) fetches.push(fetch(`/api/roster/ph-coverage?dates=${upcomingDates.join(',')}`));
+
+      const results   = await Promise.all(fetches);
+      const agentData  = await results[0].json();
+      const configData = await results[1].json();
+      const leaveData  = await results[2].json();
       setAgents(agentData.data ?? []);
       setConfig(configData.data ?? null);
       setRecords(leaveData.data ?? []);
+
+      if (results[3]) {
+        const covData = await results[3].json();
+        const map: Record<string, boolean> = {};
+        for (const r of (covData.data ?? [])) map[`${r.holidayDate}__${r.agentId}`] = r.working;
+        setCoverage(map);
+      }
     } catch {
       toastError('Failed to load leave records');
     } finally {
@@ -345,6 +367,41 @@ export default function LeavePage() {
     }
   }
 
+  async function handleCoverage(holidayDate: string, agentId: string, working: boolean) {
+    const key = `${holidayDate}__${agentId}`;
+    setCoverageSaving(key);
+    try {
+      const res = await fetch('/api/roster/ph-coverage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holidayDate, agentId, working }),
+      });
+      if (!res.ok) throw new Error();
+      setCoverage(prev => ({ ...prev, [key]: working }));
+
+      // If agent is taking the day off, auto-create a ph-holiday leave record (if not already present)
+      if (!working) {
+        const alreadyLogged = records.some(r => r.agentId === agentId && r.date === holidayDate && r.leaveType === 'ph-holiday');
+        if (!alreadyLogged) {
+          const leaveRes = await fetch('/api/roster/leave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agentId, date: holidayDate, leaveType: 'ph-holiday', notes: 'Auto-logged from coverage confirmation', hoursOwed: 0, hoursCompleted: 0 }),
+          });
+          if (leaveRes.ok) {
+            const { data } = await leaveRes.json();
+            setRecords(prev => [data, ...prev].sort((a, b) => b.date.localeCompare(a.date)));
+          }
+        }
+      }
+      toastSuccess(working ? 'Confirmed working' : 'Confirmed off — leave record added');
+    } catch {
+      toastError('Failed to save coverage');
+    } finally {
+      setCoverageSaving(null);
+    }
+  }
+
   const agentMap = useMemo(() => Object.fromEntries(agents.map(a => [a.id, a])), [agents]);
 
   return (
@@ -390,35 +447,77 @@ export default function LeavePage() {
 
         {/* Upcoming PH holiday coverage reminders */}
         {upcomingPHHolidays.map(h => {
-          const urgent = h.days <= 7;
+          const contractorAgents = agents.filter(a => a.leaveResetDate); // contractors have a personal reset date
+          const allConfirmed = contractorAgents.length > 0 && contractorAgents.every(a => coverage[`${h.date}__${a.id}`] !== undefined);
+          const urgent = h.days <= 7 && !allConfirmed;
           return (
             <div
               key={h.date}
-              className={`rounded-xl px-5 py-4 border flex gap-3 items-start ${
-                urgent
-                  ? 'bg-amber-50 border-amber-200'
-                  : 'bg-blue-50 border-blue-200'
+              className={`rounded-xl px-5 py-4 border ${
+                allConfirmed ? 'bg-slate-50 border-slate-200' : urgent ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'
               }`}
             >
-              <span className="text-lg flex-shrink-0">🇵🇭</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className={`text-xs font-bold uppercase tracking-wide ${urgent ? 'text-amber-700' : 'text-blue-700'}`}>
-                    {urgent ? '⚠️ Coverage Check Required' : 'Upcoming PH Holiday'}
+              <div className="flex gap-3 items-start">
+                <span className="text-lg flex-shrink-0">🇵🇭</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`text-xs font-bold uppercase tracking-wide ${allConfirmed ? 'text-slate-500' : urgent ? 'text-amber-700' : 'text-blue-700'}`}>
+                      {allConfirmed ? '✓ Coverage Confirmed' : urgent ? '⚠️ Coverage Check Required' : 'Upcoming PH Holiday'}
+                    </p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${allConfirmed ? 'bg-slate-200 text-slate-600' : urgent ? 'bg-amber-200 text-amber-800' : 'bg-blue-100 text-blue-700'}`}>
+                      {h.days === 0 ? 'Today' : h.days === 1 ? 'Tomorrow' : `In ${h.days} days`}
+                    </span>
+                  </div>
+                  <p className={`text-sm font-semibold mt-0.5 ${allConfirmed ? 'text-slate-600' : urgent ? 'text-amber-900' : 'text-blue-900'}`}>
+                    {h.name} — {new Date(h.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
                   </p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${urgent ? 'bg-amber-200 text-amber-800' : 'bg-blue-100 text-blue-700'}`}>
-                    {h.days === 0 ? 'Today' : h.days === 1 ? 'Tomorrow' : `In ${h.days} days`}
-                  </span>
+                  {!allConfirmed && (
+                    <p className={`text-xs mt-1 ${urgent ? 'text-amber-700' : 'text-blue-600'}`}>
+                      {urgent ? 'Within the 7-day window — confirm coverage status with each contractor below.' : 'Contractors must give at least 7 days\' notice if coverage needs to be arranged.'}
+                    </p>
+                  )}
                 </div>
-                <p className={`text-sm font-semibold mt-0.5 ${urgent ? 'text-amber-900' : 'text-blue-900'}`}>
-                  {h.name} — {new Date(h.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </p>
-                <p className={`text-xs mt-1 leading-relaxed ${urgent ? 'text-amber-700' : 'text-blue-600'}`}>
-                  {urgent
-                    ? 'Within the 7-day window — confirm with contractors whether coverage is needed for any urgent customer issues.'
-                    : 'Contractors must give at least 7 days\' notice if coverage needs to be arranged for this holiday.'}
-                </p>
               </div>
+
+              {/* Per-agent working / off toggles */}
+              {contractorAgents.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-200/60 flex flex-wrap gap-3">
+                  {contractorAgents.map(agent => {
+                    const key       = `${h.date}__${agent.id}`;
+                    const confirmed = coverage[key];
+                    const isSaving  = coverageSaving === key;
+                    return (
+                      <div key={agent.id} className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
+                        <span className="text-xs font-semibold text-slate-700">{agent.name}</span>
+                        <button
+                          onClick={() => handleCoverage(h.date, agent.id, true)}
+                          disabled={isSaving}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors disabled:opacity-50 ${
+                            confirmed === true
+                              ? 'bg-green-500 text-white border-green-500'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-green-400 hover:text-green-600'
+                          }`}
+                        >
+                          ✓ Working
+                        </button>
+                        <button
+                          onClick={() => handleCoverage(h.date, agent.id, false)}
+                          disabled={isSaving}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors disabled:opacity-50 ${
+                            confirmed === false
+                              ? 'bg-red-500 text-white border-red-500'
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-red-400 hover:text-red-600'
+                          }`}
+                        >
+                          ✕ Off
+                        </button>
+                        {isSaving && <span className="text-[10px] text-slate-400">Saving…</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
