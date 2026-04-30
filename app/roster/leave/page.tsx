@@ -199,30 +199,28 @@ export default function LeavePage() {
     return { owed, completed, remaining: Math.max(0, owed - completed) };
   }, [records, filterAgent]);
 
-  // Per-agent leave balances (annual + sick) — each agent may have their own reset date
+  // Per-agent leave balances — only for agents with a personal leaveResetDate that has already passed
   const leaveBalances = useMemo(() => {
-    if (!config) return null;
-    const fmtD = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-    const rows = agents.map(agent => {
-      const resetDate = agent.leaveResetDate ?? config.annualLeaveResetDate;
-      if (!resetDate) {
-        return { agent, windowLabel: '', annualUsed: 0, annualRemaining: ANNUAL_LEAVE_DAYS, sickUsed: 0, sickRemaining: SICK_LEAVE_DAYS };
-      }
-      const { start, end } = getLeaveWindow(resetDate);
-      const windowLabel = `${fmtD(new Date(start + 'T00:00:00'))} – ${fmtD(new Date(end + 'T00:00:00'))}`;
-      const annualUsed = records.filter(r => r.agentId === agent.id && r.leaveType === 'annual' && r.date >= start && r.date <= end).length;
-      const sickUsed   = records.filter(r => r.agentId === agent.id && r.leaveType === 'sick'   && r.date >= start && r.date <= end).length;
-      return {
-        agent,
-        windowLabel,
-        annualUsed,
-        annualRemaining: Math.max(0, ANNUAL_LEAVE_DAYS - annualUsed),
-        sickUsed,
-        sickRemaining: Math.max(0, SICK_LEAVE_DAYS - sickUsed),
-      };
-    });
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const fmtD  = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+    const rows = agents
+      .filter(agent => {
+        if (!agent.leaveResetDate) return false; // no personal date = not tracked here
+        return new Date(agent.leaveResetDate + 'T00:00:00') <= today; // hide until anniversary arrives
+      })
+      .map(agent => {
+        const { start, end } = getLeaveWindow(agent.leaveResetDate!);
+        const windowLabel = `${fmtD(new Date(start + 'T00:00:00'))} – ${fmtD(new Date(end + 'T00:00:00'))}`;
+        const annualUsed = records.filter(r => r.agentId === agent.id && r.leaveType === 'annual' && r.date >= start && r.date <= end).length;
+        const sickUsed   = records.filter(r => r.agentId === agent.id && r.leaveType === 'sick'   && r.date >= start && r.date <= end).length;
+        return {
+          agent, windowLabel,
+          annualUsed,   annualRemaining: Math.max(0, ANNUAL_LEAVE_DAYS - annualUsed),
+          sickUsed,     sickRemaining:   Math.max(0, SICK_LEAVE_DAYS   - sickUsed),
+        };
+      });
     return rows.length ? rows : null;
-  }, [records, agents, config]);
+  }, [records, agents]);
 
   // Notice warning: annual leave date < 14 days from today
   const annualNoticeWarning = useMemo(() => {
