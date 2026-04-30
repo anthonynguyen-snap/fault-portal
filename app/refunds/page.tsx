@@ -116,7 +116,7 @@ function RefundsInner() {
   const [processResolution, setProcessResolution] = useState<RefundResolution>('Cash Refund');
   const [processedAmount, setProcessedAmount] = useState('');
   const [adjustmentReason, setAdjustmentReason] = useState('');
-  const [processedBy, setProcessedBy] = useState('');
+  const [processedBy, setProcessedBy] = useState('Anthony');
   const [expanded, setExpanded]   = useState<string | null>(null);
 
   // Auto-detect currency from order number suffix (only when not manually overridden mid-session)
@@ -291,7 +291,7 @@ function RefundsInner() {
       setProcessResolution('Cash Refund');
       setProcessedAmount('');
       setAdjustmentReason('');
-      setProcessedBy('');
+      setProcessedBy('Anthony');
     } catch (e: any) {
       setError(e.message);
     } finally {
