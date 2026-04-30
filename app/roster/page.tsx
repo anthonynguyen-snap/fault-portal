@@ -483,7 +483,7 @@ function RosterPageInner() {
                     {isRegularHoliday && phHoliday && (
                       <div className="mt-1 space-y-0.5">
                         <p className="text-[8px] font-bold text-blue-600 leading-tight">🇵🇭 {phHoliday.name}</p>
-                        <p className="text-[7.5px] text-blue-400 leading-tight">No pay if off · 200% if worked</p>
+                        <p className="text-[7.5px] text-blue-400 leading-tight">Contractors: no pay if off · 200% if worked</p>
                       </div>
                     )}
                     {auHoliday && (
@@ -530,7 +530,7 @@ function RosterPageInner() {
                             style={{ backgroundColor: hexToRgba(agent.colour, 0.12), borderLeft: `3px solid ${agent.colour}` }}
                             onClick={() => { setOverrideTarget({ date: ds, agentId: agent.id }); setOverrideForm({ isWorking: false, notes: '', hours: 0 }); }}>
                             <span className="text-[11px] font-bold truncate" style={{ color: agent.colour }}>{agent.name}</span>
-                            {isRegularHoliday && (
+                            {isRegularHoliday && agent.leaveResetDate && (
                               <span className="ml-auto text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded flex-shrink-0">200%</span>
                             )}
                           </div>
@@ -617,7 +617,7 @@ function RosterPageInner() {
                         <div key={a.id} className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: a.colour }} />
                           <span className="text-[10px] font-medium truncate" style={{ color: a.colour }}>{a.name}</span>
-                          {isRegularHoliday && <span className="text-[8px] font-bold text-blue-500 ml-auto flex-shrink-0">200%</span>}
+                          {isRegularHoliday && a.leaveResetDate && <span className="text-[8px] font-bold text-blue-500 ml-auto flex-shrink-0">200%</span>}
                         </div>
                       ))}
                       {onLeave.map(a => (
