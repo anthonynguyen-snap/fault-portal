@@ -38,9 +38,11 @@ export default function ReplenishmentDetailPage() {
   const [saving, setSaving]   = useState(false);
 
   // Per-item state
-  const [qtySent, setQtySent]       = useState<Record<string, number>>({});
-  const [itemSource, setItemSource] = useState<Record<string, string>>({});
-  const [itemSkipped, setItemSkipped] = useState<Record<string, boolean>>({});
+  const [qtySent, setQtySent]           = useState<Record<string, number>>({});
+  const [qtyReceived, setQtyReceived]   = useState<Record<string, number>>({});
+  const [itemSource, setItemSource]     = useState<Record<string, string>>({});
+  const [itemSkipped, setItemSkipped]   = useState<Record<string, boolean>>({});
+  const [markingDelivered, setMarkingDelivered] = useState(false);
 
   // Split dispatch panels
   const [showStoreroomDispatch, setShowStoreroomDispatch] = useState(false);
@@ -92,15 +94,18 @@ export default function ReplenishmentDetailPage() {
       const req: ReplenishmentRequest = json.data;
       setRequest(req);
       // Initialise per-item state
-      const sentMap:    Record<string, number>  = {};
-      const srcMap:     Record<string, string>  = {};
-      const skippedMap: Record<string, boolean> = {};
+      const sentMap:     Record<string, number>  = {};
+      const receivedMap: Record<string, number>  = {};
+      const srcMap:      Record<string, string>  = {};
+      const skippedMap:  Record<string, boolean> = {};
       req.items.forEach(item => {
-        sentMap[item.id]    = item.quantitySent || item.quantityRequested;
-        srcMap[item.id]     = item.source;
-        skippedMap[item.id] = item.skipped ?? false;
+        sentMap[item.id]     = item.quantitySent || item.quantityRequested;
+        receivedMap[item.id] = item.quantityReceived ?? item.quantitySent ?? item.quantityRequested;
+        srcMap[item.id]      = item.source;
+        skippedMap[item.id]  = item.skipped ?? false;
       });
       setQtySent(sentMap);
+      setQtyReceived(receivedMap);
       setItemSource(srcMap);
       setItemSkipped(skippedMap);
       setTracking(req.trackingNumber ?? '');
@@ -273,6 +278,27 @@ export default function ReplenishmentDetailPage() {
     } finally { setSavingNote(false); }
   }
 
+  async function markDelivered() {
+    if (!request) return;
+    setMarkingDelivered(true);
+    try {
+      const receivedUpdates = request.items
+        .filter(i => !(itemSkipped[i.id] ?? i.skipped))
+        .map(i => ({ id: i.id, quantityReceived: qtyReceived[i.id] ?? i.quantitySent ?? 0 }));
+      const res = await fetch(`/api/replenishment/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Delivered', receivedUpdates }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      success('Delivered!', 'Received quantities saved.');
+      await load();
+    } catch (err: unknown) {
+      toastError('Failed', err instanceof Error ? err.message : String(err));
+    } finally { setMarkingDelivered(false); }
+  }
+
   function fmtNoteTs(ts: string) {
     if (!ts) return null;
     try {
@@ -318,6 +344,12 @@ export default function ReplenishmentDetailPage() {
   const isMixedSource = activeStoreroomItems.length > 0 && activeTplItems.length > 0;
   const activeItems = request.items.filter(i => !(itemSkipped[i.id] ?? i.skipped));
   const totalSent   = activeItems.reduce((s, i) => s + (qtySent[i.id] ?? i.quantityRequested), 0);
+
+  // Received tracking (shown when dispatched or delivered)
+  const showReceivedCol   = request.status === 'Dispatched' || request.status === 'Delivered';
+  const totalSentFinal    = activeItems.reduce((s, i) => s + (i.quantitySent || 0), 0);
+  const totalReceivedCalc = activeItems.reduce((s, i) => s + (qtyReceived[i.id] ?? i.quantitySent ?? 0), 0);
+  const hasDiscrepancy    = showReceivedCol && totalReceivedCalc < totalSentFinal;
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
@@ -461,6 +493,38 @@ export default function ReplenishmentDetailPage() {
         </div>
       )}
 
+      {/* Delivery summary banner */}
+      {showReceivedCol && (
+        <div className={`flex items-center gap-4 px-5 py-3 rounded-xl border text-sm ${
+          request.status === 'Delivered' && !hasDiscrepancy
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : hasDiscrepancy
+              ? 'bg-amber-50 border-amber-200 text-amber-800'
+              : 'bg-sky-50 border-sky-200 text-sky-800'
+        }`}>
+          <div className="flex items-center gap-1.5 font-semibold">
+            {request.status === 'Delivered' && !hasDiscrepancy
+              ? <CheckCircle size={15} className="text-emerald-600" />
+              : request.status === 'Delivered'
+                ? <AlertTriangle size={15} className="text-amber-500" />
+                : <Truck size={15} className="text-sky-500" />
+            }
+            {request.status === 'Delivered' ? 'Delivered' : 'Awaiting delivery'}
+          </div>
+          <div className="text-sm">
+            <span className="font-mono font-bold">{totalSentFinal}</span> sent ·{' '}
+            <span className={`font-mono font-bold ${hasDiscrepancy ? 'text-amber-700' : 'text-emerald-700'}`}>
+              {totalReceivedCalc}
+            </span> received
+            {hasDiscrepancy && (
+              <span className="ml-2 text-xs font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                ⚠ {totalSentFinal - totalReceivedCalc} short
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Items table */}
       <div className="card overflow-clip">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
@@ -483,22 +547,27 @@ export default function ReplenishmentDetailPage() {
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">On Hand</th>
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Requested</th>
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Sent</th>
+              {showReceivedCol && <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Received</th>}
               <th className="text-center px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Source</th>
             </tr>
           </thead>
           <tbody>
             {request.items.map((item: ReplenishmentLineItem, idx) => {
-              const skipped = itemSkipped[item.id] ?? item.skipped ?? false;
-              const source  = itemSource[item.id] ?? item.source;
-              const onHand  = item.quantityOnHand;
-              const short   = onHand < item.quantityRequested;
+              const skipped   = itemSkipped[item.id] ?? item.skipped ?? false;
+              const source    = itemSource[item.id] ?? item.source;
+              const onHand    = item.quantityOnHand;
+              const short     = onHand < item.quantityRequested;
+              const recvQty   = qtyReceived[item.id] ?? item.quantitySent ?? 0;
+              const rowShort  = showReceivedCol && !skipped && recvQty < (item.quantitySent || 0);
               return (
                 <tr key={item.id} className={`border-b border-slate-50 last:border-0 transition-colors ${
                   skipped
                     ? 'bg-red-50/60'
-                    : source === 'Storeroom'
-                      ? 'bg-emerald-50/40'
-                      : 'bg-sky-50/30'
+                    : rowShort
+                      ? 'bg-amber-50/60'
+                      : source === 'Storeroom'
+                        ? 'bg-emerald-50/40'
+                        : 'bg-sky-50/30'
                 }`}>
                   {!isDispatched && (
                     <td className="px-2 py-3 text-center">
@@ -545,6 +614,26 @@ export default function ReplenishmentDetailPage() {
                       />
                     )}
                   </td>
+                  {showReceivedCol && (
+                    <td className="px-4 py-3 text-center">
+                      {skipped ? (
+                        <span className="text-slate-300 font-mono text-sm">—</span>
+                      ) : request.status === 'Delivered' ? (
+                        <span className={`font-mono text-sm font-semibold ${
+                          rowShort ? 'text-amber-600' : 'text-emerald-600'
+                        }`}>{recvQty}</span>
+                      ) : (
+                        <input
+                          type="number" min={0}
+                          value={qtyReceived[item.id] ?? item.quantitySent ?? 0}
+                          onChange={e => setQtyReceived(prev => ({ ...prev, [item.id]: parseInt(e.target.value) || 0 }))}
+                          className={`form-input text-xs py-1 text-center font-mono w-16 mx-auto ${
+                            rowShort ? 'border-amber-300 bg-amber-50' : ''
+                          }`}
+                        />
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-center">
                     {isDispatched ? (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -579,6 +668,13 @@ export default function ReplenishmentDetailPage() {
                   ? request.items.filter(i => !(itemSkipped[i.id] ?? i.skipped)).reduce((s, i) => s + i.quantitySent, 0)
                   : totalSent}
               </td>
+              {showReceivedCol && (
+                <td className={`px-4 py-2.5 text-center font-mono text-sm font-bold ${
+                  hasDiscrepancy ? 'text-amber-600' : 'text-emerald-600'
+                }`}>
+                  {totalReceivedCalc}
+                </td>
+              )}
               <td />
             </tr>
           </tfoot>
@@ -735,11 +831,21 @@ export default function ReplenishmentDetailPage() {
               <Copy size={14} /> Duplicate
             </button>
           </div>
-          <button
-            onClick={() => router.push(`/replenishment?new=1&store=${encodeURIComponent(request.store)}`)}
-            className="btn-primary flex items-center gap-2">
-            <Plus size={14} /> New Request for {request.store}
-          </button>
+          <div className="flex items-center gap-2">
+            {request.status === 'Dispatched' && (
+              <button
+                onClick={markDelivered}
+                disabled={markingDelivered || saving}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-40">
+                <CheckCircle size={14} /> {markingDelivered ? 'Saving…' : 'Mark Delivered'}
+              </button>
+            )}
+            <button
+              onClick={() => router.push(`/replenishment?new=1&store=${encodeURIComponent(request.store)}`)}
+              className="btn-primary flex items-center gap-2">
+              <Plus size={14} /> New Request for {request.store}
+            </button>
+          </div>
         </div>
       )}
 

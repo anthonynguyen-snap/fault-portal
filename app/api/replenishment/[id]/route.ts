@@ -15,6 +15,7 @@ function fromItemRow(row: Record<string, unknown>): ReplenishmentLineItem {
     quantityRequested: Number(row.quantity_requested ?? 0),
     quantityOnHand:    Number(row.quantity_on_hand ?? 0),
     quantitySent:      Number(row.quantity_sent ?? 0),
+    quantityReceived:  row.quantity_received != null ? Number(row.quantity_received) : null,
     source:            (row.source ?? 'Storeroom') as ReplenishmentLineItem['source'],
     skipped:           Boolean(row.skipped ?? false),
   };
@@ -92,6 +93,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         const { error } = await getSupabase()
           .from('replenishment_items')
           .update(patch)
+          .eq('id', upd.id);
+        if (error) throw error;
+      }
+    }
+
+    // Update received quantities per item (when marking Delivered)
+    if (Array.isArray(body.receivedUpdates)) {
+      for (const upd of body.receivedUpdates as { id: string; quantityReceived: number }[]) {
+        const { error } = await getSupabase()
+          .from('replenishment_items')
+          .update({ quantity_received: upd.quantityReceived })
           .eq('id', upd.id);
         if (error) throw error;
       }

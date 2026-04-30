@@ -291,6 +291,7 @@ export interface ReplenishmentLineItem {
   quantityRequested: number;
   quantityOnHand: number;    // snapshot at time of creation
   quantitySent: number;
+  quantityReceived: number | null;  // filled in when delivery is confirmed
   source: ReplenishmentSource;
   skipped: boolean;
 }
