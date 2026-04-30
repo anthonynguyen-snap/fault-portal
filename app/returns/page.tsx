@@ -454,7 +454,17 @@ export default function ReturnsPage() {
   useEffect(() => { load(); }, []);
 
   // ── Requested tab data ────────────────────────────────────────────────────
-  const requests = useMemo(() => allReturns.filter(r => r.stage === 'requested'), [allReturns]);
+  // Build a set of order numbers that already have a processed return so we
+  // can hide stale request records that were never manually cleaned up.
+  const processedOrderNums = useMemo(
+    () => new Set(allReturns.filter(r => r.stage === 'processed').map(r => r.orderNumber.toLowerCase())),
+    [allReturns]
+  );
+
+  const requests = useMemo(
+    () => allReturns.filter(r => r.stage === 'requested' && !processedOrderNums.has(r.orderNumber.toLowerCase())),
+    [allReturns, processedOrderNums]
+  );
 
   const filteredRequests = useMemo(() => {
     const q = reqSearch.trim().toLowerCase();
