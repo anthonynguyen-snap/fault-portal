@@ -5,7 +5,7 @@ import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw } from 'lucide-re
 import { RosterAgent, RosterLeave, RosterConfig, LeaveType, ShiftType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 
-const LEAVE_LABELS: Record<LeaveType, string>  = { sick: 'Sick', makeup: 'Make-up', other: 'Other', 'ph-holiday': '🇵🇭 PH Holiday', annual: '🏖️ Annual' };
+const LEAVE_LABELS: Record<LeaveType, string>  = { sick: 'Sick', makeup: 'Make-up', other: 'Other' };
 
 // ── Shift helpers (mirrored from roster page) ─────────────────────────────
 const SHIFT_DAYS: Record<ShiftType, number[]> = {
@@ -90,26 +90,10 @@ function TodayStatusBar({ agents, config, todayLeave }: {
   );
 }
 const LEAVE_BADGE: Record<LeaveType, string> = {
-  sick:         'bg-red-100 text-red-700',
-  makeup:       'bg-amber-100 text-amber-700',
-  other:        'bg-slate-100 text-slate-600',
-  'ph-holiday': 'bg-blue-100 text-blue-700',
-  annual:       'bg-emerald-100 text-emerald-700',
+  sick:   'bg-red-100 text-red-700',
+  makeup: 'bg-amber-100 text-amber-700',
+  other:  'bg-slate-100 text-slate-600',
 };
-
-const ANNUAL_LEAVE_DAYS = 5;
-
-function getAnnualLeaveWindow(resetDate: string): { start: string; end: string } {
-  const [, mm, dd] = resetDate.split('-');
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const thisYear = today.getFullYear();
-  const thisYearReset = new Date(`${thisYear}-${mm}-${dd}T00:00:00`);
-  const startYear = today >= thisYearReset ? thisYear : thisYear - 1;
-  const start = `${startYear}-${mm}-${dd}`;
-  const endDate = new Date(`${startYear + 1}-${mm}-${dd}T00:00:00`);
-  endDate.setDate(endDate.getDate() - 1);
-  return { start, end: endDate.toISOString().slice(0, 10) };
-}
 
 function fmt(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
@@ -193,35 +177,6 @@ export default function LeavePage() {
     const completed = relevant.reduce((s, r) => s + r.hoursCompleted, 0);
     return { owed, completed, remaining: Math.max(0, owed - completed) };
   }, [records, filterAgent]);
-
-  // Annual leave balance per agent (current 12-month window)
-  const annualBalance = useMemo(() => {
-    if (!config?.annualLeaveResetDate) return null;
-    const { start, end } = getAnnualLeaveWindow(config.annualLeaveResetDate);
-    const windowStart = new Date(start + 'T00:00:00');
-    const windowEnd   = new Date(end   + 'T00:00:00');
-    const fmt = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-    const windowLabel = `${fmt(windowStart)} – ${fmt(windowEnd)}`;
-    const byAgent = agents.map(agent => {
-      const used = records.filter(r =>
-        r.agentId === agent.id &&
-        r.leaveType === 'annual' &&
-        r.date >= start &&
-        r.date <= end
-      ).length;
-      return { agent, used, remaining: Math.max(0, ANNUAL_LEAVE_DAYS - used) };
-    });
-    return { byAgent, windowLabel };
-  }, [records, agents, config]);
-
-  // Notice warning: annual leave date < 14 days from today
-  const annualNoticeWarning = useMemo(() => {
-    if (addType !== 'annual' || !addDateFrom) return null;
-    const today    = new Date(); today.setHours(0, 0, 0, 0);
-    const leaveDate = new Date(addDateFrom + 'T00:00:00');
-    const days = Math.round((leaveDate.getTime() - today.getTime()) / 86400000);
-    return days < 14 ? days : null;
-  }, [addType, addDateFrom]);
 
   function getWeekdaysBetween(from: string, to: string): string[] {
     const dates: string[] = [];
@@ -401,43 +356,6 @@ export default function LeavePage() {
           </div>
         )}
 
-        {/* Annual leave balance */}
-        {annualBalance && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Annual Leave</p>
-                <p className="text-xs text-emerald-600 mt-0.5">{annualBalance.windowLabel}</p>
-              </div>
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200">
-                {ANNUAL_LEAVE_DAYS} days / window
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {annualBalance.byAgent.map(({ agent, used, remaining }) => (
-                <div key={agent.id} className="bg-white rounded-lg border border-emerald-100 px-3 py-2.5">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
-                    <span className="text-xs font-semibold text-slate-700 truncate">{agent.name}</span>
-                  </div>
-                  <div className="flex items-end justify-between mb-1.5">
-                    <span className={`text-lg font-bold ${remaining === 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                      {remaining}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">{used} / {ANNUAL_LEAVE_DAYS} used</span>
-                  </div>
-                  <div className="h-1.5 bg-emerald-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${remaining === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
-                      style={{ width: `${Math.min(100, (used / ANNUAL_LEAVE_DAYS) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Filters */}
         <div className="bg-white border border-slate-200 rounded-xl px-5 py-4">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -463,8 +381,6 @@ export default function LeavePage() {
                 <option value="sick">Sick</option>
                 <option value="makeup">Make-up</option>
                 <option value="other">Other</option>
-                <option value="ph-holiday">🇵🇭 PH Holiday</option>
-                <option value="annual">🏖️ Annual</option>
               </select>
             </div>
             <div>
@@ -545,8 +461,6 @@ export default function LeavePage() {
                             <option value="sick">Sick</option>
                             <option value="makeup">Make-up</option>
                             <option value="other">Other</option>
-                            <option value="ph-holiday">🇵🇭 PH Holiday</option>
-                            <option value="annual">🏖️ Annual</option>
                           </select>
                         ) : (
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${LEAVE_BADGE[r.leaveType]}`}>
@@ -716,18 +630,16 @@ export default function LeavePage() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Type</label>
-                <div className="flex flex-wrap gap-2">
-                  {(['sick','makeup','other','ph-holiday','annual'] as LeaveType[]).map(t => (
+                <div className="flex gap-2">
+                  {(['sick','makeup','other'] as LeaveType[]).map(t => (
                     <button
                       key={t}
                       onClick={() => setAddType(t)}
-                      className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
                         addType === t
-                          ? t === 'sick'       ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
-                          : t === 'makeup'     ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
-                          : t === 'ph-holiday' ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
-                          : t === 'annual'     ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300'
-                          :                      'bg-slate-200 text-slate-700 ring-1 ring-slate-400'
+                          ? t === 'sick'   ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+                          : t === 'makeup' ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+                          :                  'bg-slate-200 text-slate-700 ring-1 ring-slate-400'
                           : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                     >
@@ -735,17 +647,6 @@ export default function LeavePage() {
                     </button>
                   ))}
                 </div>
-                {/* 2-week notice warning */}
-                {annualNoticeWarning !== null && (
-                  <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg mt-2">
-                    <span className="text-amber-500 text-xs mt-0.5">⚠️</span>
-                    <p className="text-xs text-amber-700">
-                      {annualNoticeWarning <= 0
-                        ? 'This date is in the past or today — annual leave requires 2 weeks\' notice.'
-                        : `Only ${annualNoticeWarning} day${annualNoticeWarning !== 1 ? 's' : ''} notice — annual leave requires 2 weeks' notice.`}
-                    </p>
-                  </div>
-                )}
               </div>
               {addType === 'makeup' && (
                 <div>

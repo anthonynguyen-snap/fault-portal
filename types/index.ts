@@ -321,7 +321,7 @@ export interface ReplenishmentRequest {
 // ROSTER
 // =========================================================
 export type ShiftType  = 'mon-fri' | 'tue-sat' | 'sun-thu';
-export type LeaveType  = 'sick' | 'makeup' | 'other' | 'ph-holiday' | 'annual';
+export type LeaveType  = 'sick' | 'makeup' | 'other';
 
 export interface RosterAgent {
   id:         string;
@@ -334,9 +334,8 @@ export interface RosterAgent {
 }
 
 export interface RosterConfig {
-  id:                     string;
-  rotationStartDate:      string;
-  annualLeaveResetDate:   string | null;  // YYYY-MM-DD; start of each 12-month leave window
+  id:                 string;
+  rotationStartDate:  string;
 }
 
 export interface RosterLeave {

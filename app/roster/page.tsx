@@ -8,6 +8,7 @@ import {
 import { RosterAgent, RosterConfig, RosterLeave, RosterOverride, ShiftType, LeaveType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 import { PH_HOLIDAY_MAP, isDoublePay } from '@/lib/ph-holidays';
+import { AU_HOLIDAY_MAP } from '@/lib/au-holidays';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const SHIFT_DAYS: Record<ShiftType, number[]> = {
@@ -422,17 +423,18 @@ function RosterPageInner() {
               const ds         = toDateStr(day);
               const dayLeave   = leaveByDate[ds] ?? [];
               const phHoliday  = PH_HOLIDAY_MAP[ds];
+              const auHoliday  = AU_HOLIDAY_MAP[ds];
               // Only Regular Holidays get the 200%/no-pay treatment per contractor agreements
               const isRegularHoliday = phHoliday ? isDoublePay(phHoliday) : false;
 
               return (
-                <div key={ds} className={`${isRegularHoliday ? 'bg-blue-50/40' : isWeekend ? 'bg-amber-50/50' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}>
+                <div key={ds} className={`${isRegularHoliday ? 'bg-blue-50/40' : auHoliday ? 'bg-green-50/40' : isWeekend ? 'bg-amber-50/50' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}>
                   {/* Day header */}
-                  <div className={`px-2.5 py-2.5 border-b border-slate-100 ${isToday ? 'bg-brand-50' : isRegularHoliday ? 'bg-blue-50/60' : isWeekend ? 'bg-amber-50/80' : ''}`}>
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isRegularHoliday ? 'text-blue-600' : isWeekend ? 'text-amber-600' : 'text-slate-400'}`}>
+                  <div className={`px-2.5 py-2.5 border-b border-slate-100 ${isToday ? 'bg-brand-50' : isRegularHoliday ? 'bg-blue-50/60' : auHoliday ? 'bg-green-50/60' : isWeekend ? 'bg-amber-50/80' : ''}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isRegularHoliday ? 'text-blue-600' : auHoliday ? 'text-green-700' : isWeekend ? 'text-amber-600' : 'text-slate-400'}`}>
                       {DAY_NAMES[day.getDay()]}
                     </p>
-                    <p className={`text-xl font-bold leading-tight mt-0.5 ${isToday ? 'text-brand-600' : isRegularHoliday ? 'text-blue-700' : isWeekend ? 'text-amber-700' : 'text-slate-800'}`}>
+                    <p className={`text-xl font-bold leading-tight mt-0.5 ${isToday ? 'text-brand-600' : isRegularHoliday ? 'text-blue-700' : auHoliday ? 'text-green-700' : isWeekend ? 'text-amber-700' : 'text-slate-800'}`}>
                       {day.getDate()}
                     </p>
                     <p className="text-[9px] text-slate-400">{MONTH_NAMES[day.getMonth()].slice(0,3)}</p>
@@ -440,6 +442,14 @@ function RosterPageInner() {
                       <div className="mt-1 space-y-0.5">
                         <p className="text-[8px] font-bold text-blue-600 leading-tight">🇵🇭 {phHoliday.name}</p>
                         <p className="text-[7.5px] text-blue-400 leading-tight">No pay if off · 200% if worked</p>
+                      </div>
+                    )}
+                    {auHoliday && (
+                      <div className="mt-1">
+                        <p className="text-[8px] font-bold text-green-700 leading-tight">
+                          🇦🇺 {auHoliday.name}
+                          {auHoliday.scope === 'sa' && <span className="font-normal text-green-500"> · SA</span>}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -524,23 +534,28 @@ function RosterPageInner() {
                 const isWeekend = di >= 5;
                 const ds               = toDateStr(day);
                 const phHoliday        = PH_HOLIDAY_MAP[ds];
+                const auHoliday        = AU_HOLIDAY_MAP[ds];
                 const isRegularHoliday = phHoliday ? isDoublePay(phHoliday) : false;
                 const working          = filteredAgents.filter(a => getWorkingState(a, day) === 'working');
                 const onLeave          = filteredAgents.filter(a => getWorkingState(a, day) === 'leave');
                 return (
                   <div key={ds}
-                    className={`min-h-[80px] p-2 cursor-pointer hover:bg-brand-50/30 transition-colors ${isRegularHoliday ? 'bg-blue-50/30' : isWeekend ? 'bg-amber-50/40' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}
+                    className={`min-h-[80px] p-2 cursor-pointer hover:bg-brand-50/30 transition-colors ${isRegularHoliday ? 'bg-blue-50/30' : auHoliday ? 'bg-green-50/30' : isWeekend ? 'bg-amber-50/40' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}
                     onClick={() => { setWeekStart(getMonday(day)); setView('week'); }}>
                     <div className="flex items-start justify-between gap-1 mb-1">
-                      <p className={`text-sm font-bold ${isToday ? 'text-brand-600' : isRegularHoliday ? 'text-blue-700' : isWeekend ? 'text-amber-700' : 'text-slate-700'}`}>
+                      <p className={`text-sm font-bold ${isToday ? 'text-brand-600' : isRegularHoliday ? 'text-blue-700' : auHoliday ? 'text-green-700' : isWeekend ? 'text-amber-700' : 'text-slate-700'}`}>
                         {day.getDate()}
                       </p>
-                      {isRegularHoliday && (
-                        <span className="text-[7px] font-bold text-blue-500 leading-tight text-right">🇵🇭</span>
-                      )}
+                      <div className="flex flex-col items-end gap-0.5">
+                        {isRegularHoliday && <span className="text-[7px] font-bold text-blue-500 leading-tight">🇵🇭</span>}
+                        {auHoliday && <span className="text-[7px] font-bold text-green-600 leading-tight">🇦🇺</span>}
+                      </div>
                     </div>
                     {isRegularHoliday && (
-                      <p className="text-[8px] font-semibold text-blue-500 leading-tight mb-1 truncate">{phHoliday!.name}</p>
+                      <p className="text-[8px] font-semibold text-blue-500 leading-tight mb-0.5 truncate">{phHoliday!.name}</p>
+                    )}
+                    {auHoliday && (
+                      <p className="text-[8px] font-semibold text-green-600 leading-tight mb-0.5 truncate">{auHoliday.name}</p>
                     )}
                     <div className="space-y-0.5">
                       {working.map(a => (
