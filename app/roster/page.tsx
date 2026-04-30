@@ -147,7 +147,7 @@ function RosterPageInner() {
   const [overrideTarget, setOverrideTarget] = useState<{ date: string; agentId: string } | null>(null);
 
   // Add Leave form
-  const emptyLeaveForm = { agentId: '', date: toDateStr(new Date()), leaveType: 'sick' as LeaveType, notes: '', hoursOwed: 0, hoursCompleted: 0 };
+  const emptyLeaveForm = { agentId: '', date: toDateStr(new Date()), dateTo: '', leaveType: 'sick' as LeaveType, notes: '', hoursOwed: 0, hoursCompleted: 0 };
   const [leaveForm, setLeaveForm] = useState(emptyLeaveForm);
   const [savingLeave, setSavingLeave] = useState(false);
 
@@ -190,7 +190,26 @@ function RosterPageInner() {
 
   useEffect(() => {
     if (searchParams.get('addLeave') === '1') setShowAddLeave(true);
-  }, [searchParams]);
+    const d = searchParams.get('date');
+    if (d) {
+      const dt = new Date(d + 'T00:00:00');
+      setWeekStart(getMonday(dt));
+      setMonthDate(dt);
+    }
+  }, [searchParams]); // eslint-disable-line
+
+  // Keyboard navigation
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const modal = showAddLeave || showAdmin || overrideTarget;
+      if (e.key === 'Escape') { setShowAddLeave(false); setShowAdmin(false); setOverrideTarget(null); return; }
+      if (modal || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.key === 'ArrowLeft')  { setWeekStart(w => addDays(w, -7)); setMonthDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1)); }
+      if (e.key === 'ArrowRight') { setWeekStart(w => addDays(w, 7));  setMonthDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1)); }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showAddLeave, showAdmin, overrideTarget]);
 
   useEffect(() => {
     if (!loading) {
@@ -242,14 +261,31 @@ function RosterPageInner() {
   })();
 
   // ── Handlers ───────────────────────────────────────────────────────────
+  function getWeekdaysBetween(from: string, to: string): string[] {
+    const dates: string[] = [];
+    const cur = new Date(from + 'T00:00:00');
+    const end = new Date((to || from) + 'T00:00:00');
+    while (cur <= end) {
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) dates.push(toDateStr(cur));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  }
+
   async function handleAddLeave() {
     if (!leaveForm.agentId) { toastError('Missing agent', 'Please select an agent.'); return; }
     setSavingLeave(true);
     try {
-      const res  = await fetch('/api/roster/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(leaveForm) });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      success('Leave added', `${LEAVE_LABELS[leaveForm.leaveType]} recorded for ${agents.find(a => a.id === leaveForm.agentId)?.name}.`);
+      const dates = getWeekdaysBetween(leaveForm.date, leaveForm.dateTo || leaveForm.date);
+      if (!dates.length) { toastError('No weekdays', 'The selected range contains no weekdays.'); setSavingLeave(false); return; }
+      for (const date of dates) {
+        const res  = await fetch('/api/roster/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...leaveForm, date }) });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+      }
+      const agentName = agents.find(a => a.id === leaveForm.agentId)?.name ?? '';
+      success('Leave added', dates.length === 1 ? `${LEAVE_LABELS[leaveForm.leaveType]} recorded for ${agentName}.` : `${dates.length} days recorded for ${agentName}.`);
       setShowAddLeave(false);
       setLeaveForm(emptyLeaveForm);
       await fetchLeaveAndOverrides(toDateStr(weekStart), toDateStr(addDays(weekStart, 6)));
@@ -375,6 +411,7 @@ function RosterPageInner() {
             className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 ml-1">
             Today
           </button>
+          <span className="text-[10px] text-slate-300 ml-1.5 hidden sm:inline select-none" title="Use arrow keys to navigate weeks">← →</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -455,6 +492,13 @@ function RosterPageInner() {
                           🇦🇺 {auHoliday.name}
                           {auHoliday.scope === 'sa' && <span className="font-normal text-green-500"> · SA</span>}
                         </p>
+                      </div>
+                    )}
+                    {filteredAgents.some(a => overrideMap[`${a.id}:${ds}`]) && (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-orange-500 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded-full leading-tight">
+                          ✏ override
+                        </span>
                       </div>
                     )}
                   </div>
@@ -548,9 +592,15 @@ function RosterPageInner() {
                     className={`min-h-[80px] p-2 cursor-pointer hover:bg-brand-50/30 transition-colors ${isRegularHoliday ? 'bg-blue-50/30' : auHoliday ? 'bg-green-50/30' : isWeekend ? 'bg-amber-50/40' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}
                     onClick={() => { setWeekStart(getMonday(day)); setView('week'); }}>
                     <div className="flex items-start justify-between gap-1 mb-1">
-                      <p className={`text-sm font-bold ${isToday ? 'text-brand-600' : isRegularHoliday ? 'text-blue-700' : auHoliday ? 'text-green-700' : isWeekend ? 'text-amber-700' : 'text-slate-700'}`}>
-                        {day.getDate()}
-                      </p>
+                      {isToday ? (
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold flex-shrink-0">
+                          {day.getDate()}
+                        </span>
+                      ) : (
+                        <p className={`text-sm font-bold ${isRegularHoliday ? 'text-blue-700' : auHoliday ? 'text-green-700' : isWeekend ? 'text-amber-700' : 'text-slate-700'}`}>
+                          {day.getDate()}
+                        </p>
+                      )}
                       <div className="flex flex-col items-end gap-0.5">
                         {isRegularHoliday && <span className="text-[7px] font-bold text-blue-500 leading-tight">🇵🇭</span>}
                         {auHoliday && <span className="text-[7px] font-bold text-green-600 leading-tight">🇦🇺</span>}
@@ -633,21 +683,31 @@ function RosterPageInner() {
                   {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label">Date</label>
-                  <input type="date" value={leaveForm.date} onChange={e => setLeaveForm(f => ({ ...f, date: e.target.value }))} className="form-input" />
+              <div>
+                <label className="form-label">Date <span className="text-slate-400 font-normal">(single day or range)</span></label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" value={leaveForm.date}
+                    onChange={e => setLeaveForm(f => ({ ...f, date: e.target.value }))}
+                    className="form-input" />
+                  <input type="date" value={leaveForm.dateTo} min={leaveForm.date}
+                    onChange={e => setLeaveForm(f => ({ ...f, dateTo: e.target.value }))}
+                    className="form-input" />
                 </div>
-                <div>
-                  <label className="form-label">Type</label>
-                  <select value={leaveForm.leaveType} onChange={e => setLeaveForm(f => ({ ...f, leaveType: e.target.value as LeaveType }))} className="form-input">
-                    <option value="sick">Sick</option>
-                    <option value="makeup">Make-up Hours</option>
-                    <option value="other">Other</option>
-                    <option value="ph-holiday">🇵🇭 PH Holiday</option>
-                    <option value="annual">🏖️ Annual Leave</option>
-                  </select>
-                </div>
+                {leaveForm.date && leaveForm.dateTo && leaveForm.dateTo > leaveForm.date && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {getWeekdaysBetween(leaveForm.date, leaveForm.dateTo).length} weekday{getWeekdaysBetween(leaveForm.date, leaveForm.dateTo).length !== 1 ? 's' : ''} · one record each
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="form-label">Type</label>
+                <select value={leaveForm.leaveType} onChange={e => setLeaveForm(f => ({ ...f, leaveType: e.target.value as LeaveType }))} className="form-input">
+                  <option value="sick">Sick</option>
+                  <option value="makeup">Make-up Hours</option>
+                  <option value="other">Other</option>
+                  <option value="ph-holiday">🇵🇭 PH Holiday</option>
+                  <option value="annual">🏖️ Annual Leave</option>
+                </select>
               </div>
               {leaveForm.leaveType === 'makeup' && (
                 <div className="grid grid-cols-2 gap-3">

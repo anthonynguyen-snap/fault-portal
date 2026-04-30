@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw, Calendar, ChevronUp, ChevronDown } from 'lucide-react';
 import { RosterAgent, RosterLeave, RosterConfig, LeaveType, ShiftType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 import { PH_HOLIDAYS } from '@/lib/ph-holidays';
@@ -162,6 +162,14 @@ export default function LeavePage() {
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Sort
+  const [sortBy,  setSortBy]  = useState<'date' | 'agent' | 'type'>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  function toggleSort(col: 'date' | 'agent' | 'type') {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('desc'); }
+  }
+
   async function load() {
     setLoading(true);
     try {
@@ -202,6 +210,13 @@ export default function LeavePage() {
 
   useEffect(() => { load(); }, []); // eslint-disable-line
 
+  // Escape key closes modal
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setShowAdd(false); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const filtered = useMemo(() => {
     return records.filter(r => {
       if (filterAgent && r.agentId !== filterAgent) return false;
@@ -221,6 +236,19 @@ export default function LeavePage() {
     const completed = relevant.reduce((s, r) => s + r.hoursCompleted, 0);
     return { owed, completed, remaining: Math.max(0, owed - completed) };
   }, [records, filterAgent]);
+
+  const agentMap = useMemo(() => Object.fromEntries(agents.map(a => [a.id, a])), [agents]);
+
+  // Sorted filtered records
+  const sorted = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === 'date')  cmp = a.date.localeCompare(b.date);
+      if (sortBy === 'agent') cmp = (agentMap[a.agentId]?.name ?? '').localeCompare(agentMap[b.agentId]?.name ?? '');
+      if (sortBy === 'type')  cmp = a.leaveType.localeCompare(b.leaveType);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [filtered, sortBy, sortDir, agentMap]);
 
   // Per-agent leave balances — only for agents with a personal leaveResetDate that has already passed
   const leaveBalances = useMemo(() => {
@@ -402,8 +430,6 @@ export default function LeavePage() {
     }
   }
 
-  const agentMap = useMemo(() => Object.fromEntries(agents.map(a => [a.id, a])), [agents]);
-
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -415,7 +441,7 @@ export default function LeavePage() {
             </Link>
             <div>
               <h1 className="text-lg font-bold text-slate-900">Leave Log</h1>
-              <p className="text-xs text-slate-500">All leave records — sick, make-up &amp; other</p>
+              <p className="text-xs text-slate-500">All leave records · sick, annual, PH holidays &amp; more</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -720,9 +746,16 @@ export default function LeavePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">Date</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">Agent</th>
-                  <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">Type</th>
+                  {(['date', 'agent', 'type'] as const).map(col => (
+                    <th key={col} className="text-left px-5 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                      <button onClick={() => toggleSort(col)} className="flex items-center gap-1 hover:text-slate-800 transition-colors group">
+                        <span className="capitalize">{col}</span>
+                        {sortBy === col
+                          ? (sortDir === 'desc' ? <ChevronDown size={10} className="text-brand-500" /> : <ChevronUp size={10} className="text-brand-500" />)
+                          : <ChevronDown size={10} className="opacity-0 group-hover:opacity-40" />}
+                      </button>
+                    </th>
+                  ))}
                   <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">Notes</th>
                   <th className="text-center px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">Hrs Owed</th>
                   <th className="text-center px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wide">Hrs Done</th>
@@ -730,154 +763,135 @@ export default function LeavePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map(r => {
-                  const agent = agentMap[r.agentId];
-                  const isEditing = editId === r.id;
-                  const isDeleting = deleteId === r.id;
-
-                  return (
-                    <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-3 text-slate-700 whitespace-nowrap font-medium">{fmt(r.date)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {agent && (
-                            <div
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: agent.colour }}
-                            />
-                          )}
-                          <span className="text-slate-700">{r.agentName ?? agent?.name ?? '—'}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {isEditing ? (
-                          <select
-                            value={editType}
-                            onChange={e => setEditType(e.target.value as LeaveType)}
-                            className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400"
-                          >
-                            <option value="sick">Sick</option>
-                            <option value="makeup">Make-up</option>
-                            <option value="other">Other</option>
-                            <option value="ph-holiday">🇵🇭 PH Holiday</option>
-                            <option value="annual">🏖️ Annual</option>
-                          </select>
-                        ) : (
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${LEAVE_BADGE[r.leaveType]}`}>
-                            {LEAVE_LABELS[r.leaveType]}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {isEditing ? (
-                          <input
-                            value={editNotes}
-                            onChange={e => setEditNotes(e.target.value)}
-                            className="w-full text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400"
-                            placeholder="Notes…"
-                          />
-                        ) : (
-                          <span className="text-slate-500 text-xs">{r.notes || '—'}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min={0}
-                            value={editHoursOwed}
-                            onChange={e => setEditHoursOwed(e.target.value)}
-                            className="w-16 text-sm text-center border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400"
-                          />
-                        ) : (
-                          <span className={r.leaveType === 'makeup' && r.hoursOwed > 0 ? 'font-semibold text-amber-700' : 'text-slate-400'}>
-                            {r.leaveType === 'makeup' ? r.hoursOwed : '—'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min={0}
-                            value={editHoursCompleted}
-                            onChange={e => setEditHoursCompleted(e.target.value)}
-                            className="w-16 text-sm text-center border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400"
-                          />
-                        ) : (
-                          <span className={r.leaveType === 'makeup' && r.hoursCompleted > 0 ? 'font-semibold text-green-700' : 'text-slate-400'}>
-                            {r.leaveType === 'makeup' ? r.hoursCompleted : '—'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 justify-end">
+                {(() => {
+                  const rows: React.ReactNode[] = [];
+                  let lastMonth = '';
+                  for (const r of sorted) {
+                    const month = r.date.slice(0, 7);
+                    if (month !== lastMonth) {
+                      lastMonth = month;
+                      rows.push(
+                        <tr key={`month-${month}`}>
+                          <td colSpan={7} className="px-5 py-2 bg-slate-50 border-b border-slate-100 first:border-t-0">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                              {new Date(month + '-01T00:00:00').toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    const agent = agentMap[r.agentId];
+                    const isEditing  = editId === r.id;
+                    const isDeleting = deleteId === r.id;
+                    rows.push(
+                      <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-5 py-3 text-slate-700 whitespace-nowrap font-medium">{fmt(r.date)}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {agent && <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />}
+                            <span className="text-slate-700">{r.agentName ?? agent?.name ?? '—'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
                           {isEditing ? (
-                            <>
-                              <button
-                                onClick={handleEdit}
-                                disabled={editSaving}
-                                className="p-1.5 rounded text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
-                                title="Save"
-                              >
-                                <Check size={14} />
-                              </button>
-                              <button
-                                onClick={() => setEditId(null)}
-                                className="p-1.5 rounded text-slate-400 hover:bg-slate-100 transition-colors"
-                                title="Cancel"
-                              >
-                                <X size={14} />
-                              </button>
-                            </>
-                          ) : isDeleting ? (
-                            <>
-                              <span className="text-xs text-red-600 font-medium mr-1">Delete?</span>
-                              <button
-                                onClick={() => handleDelete(r.id)}
-                                className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors"
-                                title="Confirm delete"
-                              >
-                                <Check size={14} />
-                              </button>
-                              <button
-                                onClick={() => setDeleteId(null)}
-                                className="p-1.5 rounded text-slate-400 hover:bg-slate-100 transition-colors"
-                                title="Cancel"
-                              >
-                                <X size={14} />
-                              </button>
-                            </>
+                            <select value={editType} onChange={e => setEditType(e.target.value as LeaveType)}
+                              className="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400">
+                              <option value="sick">Sick</option>
+                              <option value="makeup">Make-up</option>
+                              <option value="other">Other</option>
+                              <option value="ph-holiday">🇵🇭 PH Holiday</option>
+                              <option value="annual">🏖️ Annual</option>
+                            </select>
                           ) : (
-                            <>
-                              <button
-                                onClick={() => startEdit(r)}
-                                className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                                title="Edit"
-                              >
-                                <Edit2 size={14} />
-                              </button>
-                              <button
-                                onClick={() => setDeleteId(r.id)}
-                                className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </>
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${LEAVE_BADGE[r.leaveType]}`}>
+                              {LEAVE_LABELS[r.leaveType]}
+                            </span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <input value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                              className="w-full text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400"
+                              placeholder="Notes…" />
+                          ) : (
+                            <span className="text-slate-500 text-xs">{r.notes || '—'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {isEditing ? (
+                            <input type="number" min={0} value={editHoursOwed} onChange={e => setEditHoursOwed(e.target.value)}
+                              className="w-16 text-sm text-center border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400" />
+                          ) : (
+                            <span className={r.leaveType === 'makeup' && r.hoursOwed > 0 ? 'font-semibold text-amber-700' : 'text-slate-400'}>
+                              {r.leaveType === 'makeup' ? r.hoursOwed : '—'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {isEditing ? (
+                            <input type="number" min={0} value={editHoursCompleted} onChange={e => setEditHoursCompleted(e.target.value)}
+                              className="w-16 text-sm text-center border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-400" />
+                          ) : (
+                            <span className={r.leaveType === 'makeup' && r.hoursCompleted > 0 ? 'font-semibold text-green-700' : 'text-slate-400'}>
+                              {r.leaveType === 'makeup' ? r.hoursCompleted : '—'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-0.5 justify-end">
+                            {isEditing ? (
+                              <>
+                                <button onClick={handleEdit} disabled={editSaving}
+                                  className="p-1.5 rounded text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50" title="Save">
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={() => setEditId(null)}
+                                  className="p-1.5 rounded text-slate-400 hover:bg-slate-100 transition-colors" title="Cancel">
+                                  <X size={14} />
+                                </button>
+                              </>
+                            ) : isDeleting ? (
+                              <>
+                                <span className="text-xs text-red-600 font-medium mr-1">Delete?</span>
+                                <button onClick={() => handleDelete(r.id)}
+                                  className="p-1.5 rounded text-red-600 hover:bg-red-50 transition-colors" title="Confirm delete">
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={() => setDeleteId(null)}
+                                  className="p-1.5 rounded text-slate-400 hover:bg-slate-100 transition-colors" title="Cancel">
+                                  <X size={14} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <Link href={`/roster?date=${r.date}`}
+                                  className="p-1.5 rounded text-slate-300 hover:text-brand-500 hover:bg-brand-50 transition-colors" title="View in roster">
+                                  <Calendar size={13} />
+                                </Link>
+                                <button onClick={() => startEdit(r)}
+                                  className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors" title="Edit">
+                                  <Edit2 size={14} />
+                                </button>
+                                <button onClick={() => setDeleteId(r.id)}
+                                  className="p-1.5 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return rows;
+                })()}
               </tbody>
             </table>
           )}
         </div>
 
-        {filtered.length > 0 && (
-          <p className="text-xs text-slate-400 text-right">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</p>
+        {sorted.length > 0 && (
+          <p className="text-xs text-slate-400 text-right">{sorted.length} record{sorted.length !== 1 ? 's' : ''}</p>
         )}
       </div>
 
