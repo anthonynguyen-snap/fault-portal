@@ -526,7 +526,7 @@ export default function ReplenishmentDetailPage() {
       )}
 
       {/* Items table */}
-      <div className="card overflow-clip">
+      <div className="card overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Items</h2>
           <div className="flex items-center gap-3">
@@ -538,6 +538,7 @@ export default function ReplenishmentDetailPage() {
             </span>
           </div>
         </div>
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100">
@@ -679,6 +680,7 @@ export default function ReplenishmentDetailPage() {
             </tr>
           </tfoot>
         </table>
+        </div>
 
         {/* Add item row */}
         {!isDispatched && (
@@ -726,7 +728,7 @@ export default function ReplenishmentDetailPage() {
       </div>
 
       {/* Notes log */}
-      <div className="card overflow-clip">
+      <div className="card overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Notes</h2>
           {notesLog.length > 0 && (

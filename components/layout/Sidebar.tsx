@@ -23,8 +23,10 @@ import {
   CalendarDays,
   ClipboardList,
   Activity,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSidebar } from './SidebarContext';
 
 type AlertLevel = 'red' | 'amber' | null;
 
@@ -146,13 +148,34 @@ const navGroups = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { isOpen, close } = useSidebar();
+
+  // Close drawer on route change (iPad nav)
+  useEffect(() => { close(); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function isActive(href: string) {
     return href === '/' ? pathname === '/' : pathname.startsWith(href);
   }
 
   return (
-    <aside className="w-60 bg-slate-900 flex flex-col flex-shrink-0 h-full">
+    <>
+      {/* Backdrop — only on small screens when open */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside className={cn(
+        'w-60 bg-slate-900 flex flex-col flex-shrink-0 h-full z-50 transition-transform duration-300',
+        // On lg+ always visible in normal flow
+        'lg:relative lg:translate-x-0',
+        // Below lg: fixed overlay, slide in/out
+        'fixed inset-y-0 left-0',
+        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+      )}>
       {/* Logo */}
       <div className="px-5 py-4 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
@@ -165,10 +188,18 @@ export function Sidebar() {
               className="object-contain w-full h-full"
             />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-white font-bold text-sm leading-tight">SNAP Customer Care</p>
             <p className="text-slate-400 text-xs">Internal Portal</p>
           </div>
+          {/* Close button — only visible on small screens */}
+          <button
+            onClick={close}
+            className="lg:hidden text-slate-400 hover:text-white transition-colors p-1 rounded-md hover:bg-slate-800 flex-shrink-0"
+            aria-label="Close menu"
+          >
+            <X size={16} />
+          </button>
         </div>
       </div>
 
@@ -288,5 +319,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

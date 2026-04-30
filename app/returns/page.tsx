@@ -636,7 +636,8 @@ export default function ReturnsPage() {
                 {pendingRequests.length === 0 ? (
                   <div className="card p-6 text-center text-sm text-slate-400">No pending requests</div>
                 ) : (
-                  <div className="card overflow-clip">
+                  <div className="card overflow-hidden">
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
@@ -728,6 +729,7 @@ export default function ReturnsPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </div>
@@ -740,7 +742,8 @@ export default function ReturnsPage() {
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parcel Received — Awaiting Processing</span>
                     <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{receivedRequests.length}</span>
                   </div>
-                  <div className="card overflow-clip">
+                  <div className="card overflow-hidden">
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-100 bg-slate-50">
@@ -778,6 +781,7 @@ export default function ReturnsPage() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -830,7 +834,7 @@ export default function ReturnsPage() {
           {loading ? (
             <TableSkeleton rows={6} cols={6} />
           ) : displayed.length === 0 ? (
-            <div className="card overflow-clip">
+            <div className="card overflow-hidden">
               {filter === 'follow-up' ? (
                 <EmptyState icon={RotateCcw} title="No pending follow-ups" description="All follow-ups are resolved — nice work!" />
               ) : filter !== 'all' ? (
@@ -840,7 +844,8 @@ export default function ReturnsPage() {
               )}
             </div>
           ) : (
-            <div className="card overflow-clip">
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
@@ -918,6 +923,7 @@ export default function ReturnsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>

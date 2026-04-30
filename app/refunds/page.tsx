@@ -365,7 +365,7 @@ function RefundsInner() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
             <Clock size={18} className="text-amber-500" />

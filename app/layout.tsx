@@ -3,6 +3,7 @@ import './globals.css';
 import { Sidebar } from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import Providers from '@/components/Providers';
+import { SidebarProvider } from '@/components/layout/SidebarContext';
 
 export const metadata: Metadata = {
   title: 'SNAP Customer Care Portal',
@@ -17,20 +18,22 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="flex h-screen overflow-hidden bg-slate-50">
-          {/* Sidebar Navigation */}
-          <Sidebar />
+        <SidebarProvider>
+          <div className="flex h-screen overflow-hidden bg-slate-50">
+            {/* Sidebar Navigation */}
+            <Sidebar />
 
-          {/* Main Content Area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header />
-            <main className="flex-1 overflow-y-auto">
-              <div className="min-h-full p-6 lg:p-8">
-                <Providers>{children}</Providers>
-              </div>
-            </main>
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+              <Header />
+              <main className="flex-1 overflow-y-auto">
+                <div className="min-h-full p-4 md:p-6 lg:p-8">
+                  <Providers>{children}</Providers>
+                </div>
+              </main>
+            </div>
           </div>
-        </div>
+        </SidebarProvider>
       </body>
     </html>
   );

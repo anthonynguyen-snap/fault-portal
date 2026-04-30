@@ -413,7 +413,7 @@ function RosterPageInner() {
 
       {/* ── Weekly view ──────────────────────────────────────────────────── */}
       {view === 'week' && (
-        <div className="card overflow-clip">
+        <div className="card overflow-hidden">
           <div className="grid grid-cols-7 divide-x divide-slate-100">
             {weekDays.map(day => {
               const isToday   = toDateStr(day) === toDateStr(today);
@@ -496,7 +496,7 @@ function RosterPageInner() {
 
       {/* ── Monthly view ─────────────────────────────────────────────────── */}
       {view === 'month' && (
-        <div className="card overflow-clip">
+        <div className="card overflow-hidden">
           {/* Day name headers */}
           <div className="grid grid-cols-7 border-b border-slate-100">
             {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d, i) => (
@@ -551,7 +551,7 @@ function RosterPageInner() {
         const offDays   = weekDays.filter(d => getWorkingState(agent, d) === 'off');
         return (
           <div className="card p-4">
-            <div className="grid grid-cols-4 gap-4 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-2xl font-bold font-mono" style={{ color: agent.colour }}>{workDays.length}</p>
                 <p className="text-xs text-slate-500 mt-0.5">Days On</p>

@@ -323,7 +323,7 @@ export default function CasesPage() {
       )}
 
       {/* Table */}
-      <div className="card overflow-clip">
+      <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="data-table">
             <thead>

@@ -255,7 +255,7 @@ function ReplenishmentPageInner() {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {([
           { label: 'Pending',    count: counts.Pending,    color: 'bg-amber-500' },
           { label: 'Ordered',    count: counts.Ordered,    color: 'bg-blue-500' },
@@ -304,7 +304,7 @@ function ReplenishmentPageInner() {
       {loading ? (
         <TableSkeleton rows={5} cols={5} />
       ) : displayed.length === 0 ? (
-        <div className="card overflow-clip">
+        <div className="card overflow-hidden">
           <EmptyState
             icon={Truck}
             title="No replenishment requests"
@@ -313,7 +313,8 @@ function ReplenishmentPageInner() {
           />
         </div>
       ) : (
-        <div className="card overflow-clip">
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
@@ -352,6 +353,7 @@ function ReplenishmentPageInner() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

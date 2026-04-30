@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Loader2, Bell, CreditCard, RotateCcw, Tag, AlertTriangle } from 'lucide-react';
+import { Search, Loader2, Bell, CreditCard, RotateCcw, Tag, AlertTriangle, Menu } from 'lucide-react';
+import { useSidebar } from './SidebarContext';
 
 // ── Notification types ────────────────────────────────────────────────────────
 interface PortalNotification {
@@ -181,6 +182,7 @@ const getTypeLabel = (type: 'case' | 'refund' | 'return'): string => {
 
 export default function Header() {
   const router = useRouter();
+  const { toggle } = useSidebar();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -284,9 +286,18 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white">
-      <div className="flex items-center justify-between px-6 py-3 h-[52px]">
+      <div className="flex items-center justify-between px-4 py-3 h-[52px] gap-3">
+        {/* Hamburger — only on small screens */}
+        <button
+          onClick={toggle}
+          className="lg:hidden flex-shrink-0 p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+
         {/* Search Input */}
-        <div ref={searchRef} className="w-full max-w-md">
+        <div ref={searchRef} className="flex-1 max-w-md">
           <div className="relative">
             <div className="relative flex items-center">
               <Search className="absolute left-3 w-4 h-4 text-slate-400" />

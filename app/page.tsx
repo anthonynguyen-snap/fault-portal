@@ -693,11 +693,12 @@ function ReplenishmentSection({ sectionHeader }: { sectionHeader: React.ReactNod
       </div>
 
       {recent.length > 0 && (
-        <div className="card overflow-clip" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
+        <div className="card overflow-hidden" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
           <div className="px-5 py-3 border-b border-slate-100">
             <h3 className="text-sm font-semibold text-slate-800">Active Orders</h3>
             <p className="text-xs text-slate-400 mt-0.5">Pending and in-progress replenishment requests</p>
           </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>
               {recent.map(r => (
@@ -726,6 +727,7 @@ function ReplenishmentSection({ sectionHeader }: { sectionHeader: React.ReactNod
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>
