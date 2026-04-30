@@ -13,21 +13,23 @@ import {
   Tag,
   Users,
   Target,
+  CalendarDays,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 
 // Generic CRUD panel used for all three entity types
-type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'kpiTargets';
+type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'kpiTargets' | 'roster';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('products');
 
   const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
-    { key: 'products',      label: 'Products',      icon: Package   },
-    { key: 'manufacturers', label: 'Manufacturers', icon: Building2 },
-    { key: 'faultTypes',    label: 'Fault Types',   icon: Tag       },
-    { key: 'staff',         label: 'Staff',         icon: Users     },
-    { key: 'kpiTargets',    label: 'KPI Targets',   icon: Target    },
+    { key: 'products',      label: 'Products',      icon: Package      },
+    { key: 'manufacturers', label: 'Manufacturers', icon: Building2    },
+    { key: 'faultTypes',    label: 'Fault Types',   icon: Tag          },
+    { key: 'staff',         label: 'Staff',         icon: Users        },
+    { key: 'kpiTargets',    label: 'KPI Targets',   icon: Target       },
+    { key: 'roster',        label: 'Roster',        icon: CalendarDays },
   ];
 
   return (
@@ -60,6 +62,7 @@ export default function AdminPage() {
       {activeTab === 'faultTypes'    && <FaultTypesPanel />}
       {activeTab === 'staff'         && <StaffPanel />}
       {activeTab === 'kpiTargets'    && <KpiTargetsPanel />}
+      {activeTab === 'roster'        && <RosterSettingsPanel />}
     </div>
   );
 }
@@ -776,6 +779,117 @@ function KpiTargetsPanel() {
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Roster Settings Panel ─────────────────────────────────────────────────────
+
+function RosterSettingsPanel() {
+  const [resetDate, setResetDate] = useState('');
+  const [rotStart,  setRotStart]  = useState('');
+  const [loading,   setLoading]   = useState(true);
+  const [saving,    setSaving]    = useState(false);
+  const [saveOk,    setSaveOk]    = useState('');
+  const [saveErr,   setSaveErr]   = useState('');
+
+  useEffect(() => {
+    fetch('/api/roster/config')
+      .then(r => r.json())
+      .then(json => {
+        setRotStart(json.data?.rotationStartDate ?? '');
+        setResetDate(json.data?.annualLeaveResetDate ?? '');
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  function windowLabel(dateStr: string): string {
+    if (!dateStr) return '';
+    const [, mm, dd] = dateStr.split('-');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const thisYear = today.getFullYear();
+    const thisYearReset = new Date(`${thisYear}-${mm}-${dd}T00:00:00`);
+    const startYear = today >= thisYearReset ? thisYear : thisYear - 1;
+    const start = new Date(`${startYear}-${mm}-${dd}T00:00:00`);
+    const end   = new Date(`${startYear + 1}-${mm}-${dd}T00:00:00`);
+    end.setDate(end.getDate() - 1);
+    const fmt = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+    return `${fmt(start)} → ${fmt(end)}`;
+  }
+
+  async function handleSave() {
+    setSaving(true); setSaveErr(''); setSaveOk('');
+    try {
+      const res = await fetch('/api/roster/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rotationStartDate:    rotStart,
+          annualLeaveResetDate: resetDate || null,
+        }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setSaveOk('Roster settings saved.');
+    } catch (e) {
+      setSaveErr(e instanceof Error ? e.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className="py-16 text-center text-slate-400 text-sm">Loading…</div>;
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-6 max-w-lg">
+      <div>
+        <h3 className="text-sm font-bold text-slate-800 mb-0.5">Rotation Start Date</h3>
+        <p className="text-xs text-slate-500 mb-3">The Monday from which the weekly shift rotation is calculated.</p>
+        <input
+          type="date"
+          value={rotStart}
+          onChange={e => setRotStart(e.target.value)}
+          className="form-input"
+        />
+      </div>
+
+      <div className="border-t border-slate-100 pt-6">
+        <h3 className="text-sm font-bold text-slate-800 mb-0.5">Annual Leave Reset Date</h3>
+        <p className="text-xs text-slate-500 mb-3">
+          Sets the start of each 12-month leave window. Each agent receives 5 days per window —
+          non-accrued, full grant on reset. Agents must give 2 weeks&apos; notice to book annual leave.
+        </p>
+        <input
+          type="date"
+          value={resetDate}
+          onChange={e => { setResetDate(e.target.value); setSaveOk(''); }}
+          className="form-input"
+        />
+        {resetDate && (
+          <p className="text-xs text-slate-500 mt-2">
+            Current window: <span className="font-semibold text-slate-700">{windowLabel(resetDate)}</span>
+          </p>
+        )}
+      </div>
+
+      {saveErr && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <AlertCircle size={14} className="text-red-500 flex-shrink-0" />
+          <p className="text-xs text-red-700">{saveErr}</p>
+        </div>
+      )}
+      {saveOk && (
+        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+          <CheckCircle size={14} className="text-green-600 flex-shrink-0" />
+          <p className="text-xs text-green-700">{saveOk}</p>
+        </div>
+      )}
+
+      <div className="flex justify-end border-t border-slate-100 pt-4">
+        <button onClick={handleSave} disabled={saving} className="btn-primary">
+          {saving ? 'Saving…' : 'Save Changes'}
+        </button>
       </div>
     </div>
   );
