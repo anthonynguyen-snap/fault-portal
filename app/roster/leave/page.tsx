@@ -5,7 +5,7 @@ import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw } from 'lucide-re
 import { RosterAgent, RosterLeave, RosterConfig, LeaveType, ShiftType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 
-const LEAVE_LABELS: Record<LeaveType, string>  = { sick: 'Sick', makeup: 'Make-up', other: 'Other' };
+const LEAVE_LABELS: Record<LeaveType, string>  = { sick: 'Sick', makeup: 'Make-up', other: 'Other', 'ph-holiday': '🇵🇭 PH Holiday' };
 
 // ── Shift helpers (mirrored from roster page) ─────────────────────────────
 const SHIFT_DAYS: Record<ShiftType, number[]> = {
@@ -90,9 +90,10 @@ function TodayStatusBar({ agents, config, todayLeave }: {
   );
 }
 const LEAVE_BADGE: Record<LeaveType, string> = {
-  sick:   'bg-red-100 text-red-700',
-  makeup: 'bg-amber-100 text-amber-700',
-  other:  'bg-slate-100 text-slate-600',
+  sick:         'bg-red-100 text-red-700',
+  makeup:       'bg-amber-100 text-amber-700',
+  other:        'bg-slate-100 text-slate-600',
+  'ph-holiday': 'bg-blue-100 text-blue-700',
 };
 
 function fmt(dateStr: string): string {
@@ -381,6 +382,7 @@ export default function LeavePage() {
                 <option value="sick">Sick</option>
                 <option value="makeup">Make-up</option>
                 <option value="other">Other</option>
+                <option value="ph-holiday">🇵🇭 PH Holiday</option>
               </select>
             </div>
             <div>
@@ -461,6 +463,7 @@ export default function LeavePage() {
                             <option value="sick">Sick</option>
                             <option value="makeup">Make-up</option>
                             <option value="other">Other</option>
+                            <option value="ph-holiday">🇵🇭 PH Holiday</option>
                           </select>
                         ) : (
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${LEAVE_BADGE[r.leaveType]}`}>
@@ -631,15 +634,16 @@ export default function LeavePage() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Type</label>
                 <div className="flex gap-2">
-                  {(['sick','makeup','other'] as LeaveType[]).map(t => (
+                  {(['sick','makeup','other','ph-holiday'] as LeaveType[]).map(t => (
                     <button
                       key={t}
                       onClick={() => setAddType(t)}
                       className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
                         addType === t
-                          ? t === 'sick'   ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
-                          : t === 'makeup' ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
-                          :                  'bg-slate-200 text-slate-700 ring-1 ring-slate-400'
+                          ? t === 'sick'       ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+                          : t === 'makeup'     ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+                          : t === 'ph-holiday' ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                          :                      'bg-slate-200 text-slate-700 ring-1 ring-slate-400'
                           : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                       }`}
                     >

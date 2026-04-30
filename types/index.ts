@@ -321,7 +321,7 @@ export interface ReplenishmentRequest {
 // ROSTER
 // =========================================================
 export type ShiftType  = 'mon-fri' | 'tue-sat' | 'sun-thu';
-export type LeaveType  = 'sick' | 'makeup' | 'other';
+export type LeaveType  = 'sick' | 'makeup' | 'other' | 'ph-holiday';
 
 export interface RosterAgent {
   id:         string;
