@@ -303,6 +303,56 @@ function LogRequestSlideOver({
   );
 }
 
+// ── Region helpers ─────────────────────────────────────────────────────────────
+type RegionFilter = 'all' | 'AU' | 'US';
+
+function detectRegion(orderNumber: string): 'AU' | 'US' | 'other' {
+  const upper = orderNumber.trim().toUpperCase();
+  if (upper.endsWith('AU'))  return 'AU';
+  if (upper.endsWith('US'))  return 'US';
+  return 'other';
+}
+
+function regionMatchesFilter(orderNumber: string, filter: RegionFilter): boolean {
+  if (filter === 'all') return true;
+  return detectRegion(orderNumber) === filter;
+}
+
+function RegionPills({
+  value, onChange, counts,
+}: {
+  value: RegionFilter;
+  onChange: (v: RegionFilter) => void;
+  counts: Record<RegionFilter, number>;
+}) {
+  const options: { key: RegionFilter; label: string; flag: string }[] = [
+    { key: 'all', label: 'All',   flag: '' },
+    { key: 'AU',  label: 'AU',    flag: '🇦🇺' },
+    { key: 'US',  label: 'US',    flag: '🇺🇸' },
+  ];
+  return (
+    <div className="flex items-center gap-1">
+      {options.map(({ key, label, flag }) => (
+        <button
+          key={key}
+          onClick={() => onChange(key)}
+          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+            value === key
+              ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-brand-400 hover:text-brand-600'
+          }`}
+        >
+          {flag && <span>{flag}</span>}
+          {label}
+          <span className={`ml-0.5 rounded-full px-1.5 py-0 text-[10px] font-bold ${
+            value === key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+          }`}>{counts[key]}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 type MainTab = 'requested' | 'processed';
 type FilterTab = 'all' | ReturnStatus | 'follow-up';
@@ -313,6 +363,7 @@ export default function ReturnsPage() {
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [loading, setLoading]       = useState(true);
   const [mainTab, setMainTab]       = useState<MainTab>('requested');
+  const [regionFilter, setRegionFilter] = useState<RegionFilter>('all');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [editingRequest, setEditingRequest] = useState<Return | null>(null);
 
@@ -381,13 +432,16 @@ export default function ReturnsPage() {
 
   const filteredRequests = useMemo(() => {
     const q = reqSearch.trim().toLowerCase();
-    if (!q) return requests;
-    return requests.filter(r =>
-      r.orderNumber.toLowerCase().includes(q) ||
-      r.customerName.toLowerCase().includes(q) ||
-      r.trackingNumber.toLowerCase().includes(q)
-    );
-  }, [requests, reqSearch]);
+    return requests.filter(r => {
+      if (!regionMatchesFilter(r.orderNumber, regionFilter)) return false;
+      if (!q) return true;
+      return (
+        r.orderNumber.toLowerCase().includes(q) ||
+        r.customerName.toLowerCase().includes(q) ||
+        r.trackingNumber.toLowerCase().includes(q)
+      );
+    });
+  }, [requests, reqSearch, regionFilter]);
 
   const pendingRequests   = filteredRequests.filter(r => !r.parcelReceived);
   const receivedRequests  = filteredRequests.filter(r => r.parcelReceived);
@@ -399,9 +453,36 @@ export default function ReturnsPage() {
   const processed = useMemo(() => allReturns.filter(r => r.stage === 'processed'), [allReturns]);
 
   const weekReturns = useMemo(() =>
-    processed.filter(r => r.date >= fmtDate(weekStart) && r.date <= fmtDate(weekEnd)),
-    [processed, weekStart, weekEnd]
+    processed.filter(r =>
+      r.date >= fmtDate(weekStart) &&
+      r.date <= fmtDate(weekEnd) &&
+      regionMatchesFilter(r.orderNumber, regionFilter)
+    ),
+    [processed, weekStart, weekEnd, regionFilter]
   );
+
+  // Region counts for the pills (Requested tab uses requests, Processed uses weekReturns-before-region-filter)
+  const reqRegionCounts: Record<RegionFilter, number> = useMemo(() => {
+    const base = requests.filter(r => {
+      const q = reqSearch.trim().toLowerCase();
+      if (!q) return true;
+      return r.orderNumber.toLowerCase().includes(q) || r.customerName.toLowerCase().includes(q) || r.trackingNumber.toLowerCase().includes(q);
+    });
+    return {
+      all: base.length,
+      AU:  base.filter(r => detectRegion(r.orderNumber) === 'AU').length,
+      US:  base.filter(r => detectRegion(r.orderNumber) === 'US').length,
+    };
+  }, [requests, reqSearch]);
+
+  const procRegionCounts: Record<RegionFilter, number> = useMemo(() => {
+    const base = processed.filter(r => r.date >= fmtDate(weekStart) && r.date <= fmtDate(weekEnd));
+    return {
+      all: base.length,
+      AU:  base.filter(r => detectRegion(r.orderNumber) === 'AU').length,
+      US:  base.filter(r => detectRegion(r.orderNumber) === 'US').length,
+    };
+  }, [processed, weekStart, weekEnd]);
 
   const teamFiltered = (list: Return[]) =>
     teamSearch.trim() ? list.filter(r => r.assignedTo.toLowerCase().includes(teamSearch.toLowerCase())) : list;
@@ -488,15 +569,18 @@ export default function ReturnsPage() {
       {/* ── REQUESTED TAB ─────────────────────────────────────────────────────── */}
       {mainTab === 'requested' && (
         <>
-          {/* Search */}
-          <div className="relative max-w-sm mb-4">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={reqSearch}
-              onChange={e => setReqSearch(e.target.value)}
-              placeholder="Search by order, name, or tracking…"
-              className="form-input pl-8 py-1.5 text-sm"
-            />
+          {/* Search + Region filter */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <div className="relative max-w-sm flex-1 min-w-0">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={reqSearch}
+                onChange={e => setReqSearch(e.target.value)}
+                placeholder="Search by order, name, or tracking…"
+                className="form-input pl-8 py-1.5 text-sm"
+              />
+            </div>
+            <RegionPills value={regionFilter} onChange={setRegionFilter} counts={reqRegionCounts} />
           </div>
 
           {loading ? <TableSkeleton rows={5} cols={5} /> : (
@@ -534,6 +618,9 @@ export default function ReturnsPage() {
                                   {copiedId === r.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                                 </button>
                               </span>
+                              {detectRegion(r.orderNumber) === 'US' && (
+                                <span className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">🇺🇸 US · via USPS</span>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <p className="font-medium text-slate-800">{r.customerName}</p>
@@ -656,13 +743,14 @@ export default function ReturnsPage() {
       {/* ── PROCESSED TAB ─────────────────────────────────────────────────────── */}
       {mainTab === 'processed' && (
         <>
-          {/* Week navigator + team search */}
+          {/* Week navigator + region filter + team search */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1 shadow-sm">
               <button onClick={() => setWeekStart(d => addDays(d, -7))} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"><ChevronLeft size={16} /></button>
               <span className="text-sm font-semibold text-slate-700 px-2 min-w-[120px] text-center">{weekLabel(weekStart)}</span>
               <button onClick={() => setWeekStart(d => addDays(d, 7))} disabled={isThisWeek} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight size={16} /></button>
             </div>
+            <RegionPills value={regionFilter} onChange={setRegionFilter} counts={procRegionCounts} />
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Filter by team member…" className="form-input pl-8 py-1.5 text-sm" />
