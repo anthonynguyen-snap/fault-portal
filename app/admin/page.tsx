@@ -794,15 +794,46 @@ function RosterSettingsPanel() {
   const [saveOk,    setSaveOk]    = useState('');
   const [saveErr,   setSaveErr]   = useState('');
 
+  // Per-agent leave reset dates
+  const [agents,          setAgents]          = useState<{ id: string; name: string; colour: string; leaveResetDate: string | null }[]>([]);
+  const [agentDates,      setAgentDates]      = useState<Record<string, string>>({});
+  const [agentSaving,     setAgentSaving]     = useState<string | null>(null);
+  const [agentSaveOk,     setAgentSaveOk]     = useState<string | null>(null);
+
   useEffect(() => {
-    fetch('/api/roster/config')
-      .then(r => r.json())
-      .then(json => {
-        setRotStart(json.data?.rotationStartDate ?? '');
-        setResetDate(json.data?.annualLeaveResetDate ?? '');
-      })
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch('/api/roster/config').then(r => r.json()),
+      fetch('/api/roster/agents').then(r => r.json()),
+    ]).then(([configJson, agentJson]) => {
+      setRotStart(configJson.data?.rotationStartDate ?? '');
+      setResetDate(configJson.data?.annualLeaveResetDate ?? '');
+      const agentData = agentJson.data ?? [];
+      setAgents(agentData);
+      const map: Record<string, string> = {};
+      agentData.forEach((a: { id: string; leaveResetDate: string | null }) => {
+        map[a.id] = a.leaveResetDate ?? '';
+      });
+      setAgentDates(map);
+    }).finally(() => setLoading(false));
   }, []);
+
+  async function handleAgentDateSave(agentId: string) {
+    setAgentSaving(agentId);
+    try {
+      const res = await fetch(`/api/roster/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaveResetDate: agentDates[agentId] || null }),
+      });
+      if (!res.ok) throw new Error('Failed to save');
+      setAgentSaveOk(agentId);
+      setTimeout(() => setAgentSaveOk(null), 2500);
+    } catch {
+      // silent — could add error state if needed
+    } finally {
+      setAgentSaving(null);
+    }
+  }
 
   function windowLabel(dateStr: string): string {
     if (!dateStr) return '';
@@ -891,6 +922,44 @@ function RosterSettingsPanel() {
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
+
+      {/* Per-agent leave reset date overrides */}
+      {agents.length > 0 && (
+        <div className="border-t border-slate-100 pt-6 space-y-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-800 mb-0.5">Agent Leave Reset Dates</h3>
+            <p className="text-xs text-slate-500">
+              Override the global reset date for individual agents. Leave blank to use the global date above.
+              Both annual and sick leave use this date.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {agents.map(agent => (
+              <div key={agent.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
+                <span className="text-sm font-semibold text-slate-700 w-24 flex-shrink-0">{agent.name}</span>
+                <input
+                  type="date"
+                  value={agentDates[agent.id] ?? ''}
+                  onChange={e => setAgentDates(prev => ({ ...prev, [agent.id]: e.target.value }))}
+                  className="form-input flex-1 text-sm"
+                  placeholder="Use global default"
+                />
+                <button
+                  onClick={() => handleAgentDateSave(agent.id)}
+                  disabled={agentSaving === agent.id}
+                  className="btn-primary text-xs px-3 py-1.5 flex-shrink-0"
+                >
+                  {agentSaving === agent.id ? '…' : agentSaveOk === agent.id ? '✓ Saved' : 'Save'}
+                </button>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-slate-400">
+            Tip: after updating, the Leave Log page will reflect each agent&apos;s new window immediately.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

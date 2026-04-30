@@ -98,8 +98,13 @@ const LEAVE_BADGE: Record<LeaveType, string> = {
 };
 
 const ANNUAL_LEAVE_DAYS = 5;
+const SICK_LEAVE_DAYS   = 5;
 
-function getAnnualLeaveWindow(resetDate: string): { start: string; end: string } {
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function getLeaveWindow(resetDate: string): { start: string; end: string } {
   const [, mm, dd] = resetDate.split('-');
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const thisYear = today.getFullYear();
@@ -108,7 +113,7 @@ function getAnnualLeaveWindow(resetDate: string): { start: string; end: string }
   const start = `${startYear}-${mm}-${dd}`;
   const endDate = new Date(`${startYear + 1}-${mm}-${dd}T00:00:00`);
   endDate.setDate(endDate.getDate() - 1);
-  return { start, end: endDate.toISOString().slice(0, 10) };
+  return { start, end: localDateStr(endDate) };
 }
 
 function fmt(dateStr: string): string {
@@ -194,24 +199,29 @@ export default function LeavePage() {
     return { owed, completed, remaining: Math.max(0, owed - completed) };
   }, [records, filterAgent]);
 
-  // Annual leave balance per agent (current 12-month window)
-  const annualBalance = useMemo(() => {
-    if (!config?.annualLeaveResetDate) return null;
-    const { start, end } = getAnnualLeaveWindow(config.annualLeaveResetDate);
-    const windowStart = new Date(start + 'T00:00:00');
-    const windowEnd   = new Date(end   + 'T00:00:00');
-    const fmt = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
-    const windowLabel = `${fmt(windowStart)} – ${fmt(windowEnd)}`;
-    const byAgent = agents.map(agent => {
-      const used = records.filter(r =>
-        r.agentId === agent.id &&
-        r.leaveType === 'annual' &&
-        r.date >= start &&
-        r.date <= end
-      ).length;
-      return { agent, used, remaining: Math.max(0, ANNUAL_LEAVE_DAYS - used) };
+  // Per-agent leave balances (annual + sick) — each agent may have their own reset date
+  const leaveBalances = useMemo(() => {
+    if (!config) return null;
+    const fmtD = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+    const rows = agents.map(agent => {
+      const resetDate = agent.leaveResetDate ?? config.annualLeaveResetDate;
+      if (!resetDate) {
+        return { agent, windowLabel: '', annualUsed: 0, annualRemaining: ANNUAL_LEAVE_DAYS, sickUsed: 0, sickRemaining: SICK_LEAVE_DAYS };
+      }
+      const { start, end } = getLeaveWindow(resetDate);
+      const windowLabel = `${fmtD(new Date(start + 'T00:00:00'))} – ${fmtD(new Date(end + 'T00:00:00'))}`;
+      const annualUsed = records.filter(r => r.agentId === agent.id && r.leaveType === 'annual' && r.date >= start && r.date <= end).length;
+      const sickUsed   = records.filter(r => r.agentId === agent.id && r.leaveType === 'sick'   && r.date >= start && r.date <= end).length;
+      return {
+        agent,
+        windowLabel,
+        annualUsed,
+        annualRemaining: Math.max(0, ANNUAL_LEAVE_DAYS - annualUsed),
+        sickUsed,
+        sickRemaining: Math.max(0, SICK_LEAVE_DAYS - sickUsed),
+      };
     });
-    return { byAgent, windowLabel };
+    return rows.length ? rows : null;
   }, [records, agents, config]);
 
   // Notice warning: annual leave date < 14 days from today
@@ -229,7 +239,7 @@ export default function LeavePage() {
     const end = new Date(to   + 'T00:00:00');
     while (cur <= end) {
       const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) dates.push(cur.toISOString().slice(0, 10));
+      if (dow !== 0 && dow !== 6) dates.push(localDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
     return dates;
@@ -359,7 +369,7 @@ export default function LeavePage() {
         <TodayStatusBar
           agents={agents}
           config={config}
-          todayLeave={records.filter(r => r.date === new Date().toISOString().slice(0, 10))}
+          todayLeave={records.filter(r => r.date === localDateStr(new Date()))}
         />
 
         {/* Make-up hours summary */}
@@ -402,34 +412,67 @@ export default function LeavePage() {
         )}
 
         {/* Annual leave balance */}
-        {annualBalance && (
+        {leaveBalances && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4">
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Annual Leave</p>
-                <p className="text-xs text-emerald-600 mt-0.5">{annualBalance.windowLabel}</p>
-              </div>
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">🏖️ Annual Leave</p>
               <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-200">
                 {ANNUAL_LEAVE_DAYS} days / window
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {annualBalance.byAgent.map(({ agent, used, remaining }) => (
+              {leaveBalances.map(({ agent, windowLabel, annualUsed, annualRemaining }) => (
                 <div key={agent.id} className="bg-white rounded-lg border border-emerald-100 px-3 py-2.5">
-                  <div className="flex items-center gap-1.5 mb-2">
+                  <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
                     <span className="text-xs font-semibold text-slate-700 truncate">{agent.name}</span>
                   </div>
+                  {windowLabel && <p className="text-[9px] text-slate-400 mb-1.5 truncate">{windowLabel}</p>}
                   <div className="flex items-end justify-between mb-1.5">
-                    <span className={`text-lg font-bold ${remaining === 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                      {remaining}
+                    <span className={`text-lg font-bold ${annualRemaining === 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                      {annualRemaining}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">{used} / {ANNUAL_LEAVE_DAYS} used</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{annualUsed} / {ANNUAL_LEAVE_DAYS} used</span>
                   </div>
                   <div className="h-1.5 bg-emerald-100 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${remaining === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
-                      style={{ width: `${Math.min(100, (used / ANNUAL_LEAVE_DAYS) * 100)}%` }}
+                      className={`h-full rounded-full transition-all ${annualRemaining === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.min(100, (annualUsed / ANNUAL_LEAVE_DAYS) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sick leave balance */}
+        {leaveBalances && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-red-700 uppercase tracking-wide">🤒 Sick Leave</p>
+              <span className="text-xs font-bold text-red-700 bg-red-100 px-2.5 py-1 rounded-full border border-red-200">
+                {SICK_LEAVE_DAYS} days / window
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {leaveBalances.map(({ agent, windowLabel, sickUsed, sickRemaining }) => (
+                <div key={agent.id} className="bg-white rounded-lg border border-red-100 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
+                    <span className="text-xs font-semibold text-slate-700 truncate">{agent.name}</span>
+                  </div>
+                  {windowLabel && <p className="text-[9px] text-slate-400 mb-1.5 truncate">{windowLabel}</p>}
+                  <div className="flex items-end justify-between mb-1.5">
+                    <span className={`text-lg font-bold ${sickRemaining === 0 ? 'text-red-700' : 'text-red-600'}`}>
+                      {sickRemaining}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">{sickUsed} / {SICK_LEAVE_DAYS} used</span>
+                  </div>
+                  <div className="h-1.5 bg-red-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${sickRemaining === 0 ? 'bg-red-600' : 'bg-red-400'}`}
+                      style={{ width: `${Math.min(100, (sickUsed / SICK_LEAVE_DAYS) * 100)}%` }}
                     />
                   </div>
                 </div>

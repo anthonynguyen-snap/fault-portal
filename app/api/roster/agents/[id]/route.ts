@@ -8,11 +8,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json();
     const patch: Record<string, unknown> = {};
-    if (body.name      !== undefined) patch.name       = body.name;
-    if (body.colour    !== undefined) patch.colour     = body.colour;
-    if (body.shiftType !== undefined) patch.shift_type = body.shiftType;
-    if (body.isAdmin   !== undefined) patch.is_admin   = body.isAdmin;
-    if (body.active    !== undefined) patch.active     = body.active;
+    if (body.name           !== undefined) patch.name             = body.name;
+    if (body.colour         !== undefined) patch.colour           = body.colour;
+    if (body.shiftType      !== undefined) patch.shift_type       = body.shiftType;
+    if (body.isAdmin        !== undefined) patch.is_admin         = body.isAdmin;
+    if (body.active         !== undefined) patch.active           = body.active;
+    if (body.leaveResetDate !== undefined) patch.leave_reset_date = body.leaveResetDate || null;
     const { error } = await getSupabase().from('roster_agents').update(patch).eq('id', id);
     if (error) throw error;
     return NextResponse.json({ success: true });

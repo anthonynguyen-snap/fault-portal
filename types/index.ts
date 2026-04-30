@@ -324,13 +324,14 @@ export type ShiftType  = 'mon-fri' | 'tue-sat' | 'sun-thu';
 export type LeaveType  = 'sick' | 'makeup' | 'other' | 'ph-holiday' | 'annual';
 
 export interface RosterAgent {
-  id:         string;
-  name:       string;
-  colour:     string;
-  shiftType:  ShiftType;
-  isAdmin:    boolean;
-  active:     boolean;
-  createdAt:  string;
+  id:              string;
+  name:            string;
+  colour:          string;
+  shiftType:       ShiftType;
+  isAdmin:         boolean;
+  active:          boolean;
+  leaveResetDate:  string | null;  // per-agent override; null = use global roster_config.annual_leave_reset_date
+  createdAt:       string;
 }
 
 export interface RosterConfig {

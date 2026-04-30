@@ -6,13 +6,14 @@ export const runtime = 'nodejs';
 
 function fromRow(row: Record<string, unknown>): RosterAgent {
   return {
-    id:        String(row.id ?? ''),
-    name:      String(row.name ?? ''),
-    colour:    String(row.colour ?? '#6366f1'),
-    shiftType: (row.shift_type ?? 'tue-sat') as RosterAgent['shiftType'],
-    isAdmin:   Boolean(row.is_admin ?? false),
-    active:    Boolean(row.active ?? true),
-    createdAt: String(row.created_at ?? ''),
+    id:             String(row.id ?? ''),
+    name:           String(row.name ?? ''),
+    colour:         String(row.colour ?? '#6366f1'),
+    shiftType:      (row.shift_type ?? 'tue-sat') as RosterAgent['shiftType'],
+    isAdmin:        Boolean(row.is_admin ?? false),
+    active:         Boolean(row.active ?? true),
+    leaveResetDate: row.leave_reset_date ? String(row.leave_reset_date) : null,
+    createdAt:      String(row.created_at ?? ''),
   };
 }
 
@@ -36,10 +37,11 @@ export async function POST(req: NextRequest) {
     const { data, error } = await getSupabase()
       .from('roster_agents')
       .insert({
-        name:       body.name,
-        colour:     body.colour ?? '#6366f1',
-        shift_type: body.shiftType ?? 'tue-sat',
-        is_admin:   body.isAdmin ?? false,
+        name:             body.name,
+        colour:           body.colour ?? '#6366f1',
+        shift_type:       body.shiftType ?? 'tue-sat',
+        is_admin:         body.isAdmin ?? false,
+        leave_reset_date: body.leaveResetDate || null,
       })
       .select()
       .single();
