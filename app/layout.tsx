@@ -8,6 +8,15 @@ import { SidebarProvider } from '@/components/layout/SidebarContext';
 export const metadata: Metadata = {
   title: 'SNAP Customer Care Portal',
   description: 'Internal fault tracking portal for customer care teams',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'SNAP Portal',
+    statusBarStyle: 'black-translucent',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export default function RootLayout({
@@ -17,6 +26,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/snap-logo.jpg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      </head>
       <body>
         <SidebarProvider>
           <div className="flex h-screen overflow-hidden bg-slate-50">
