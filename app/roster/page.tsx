@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { RosterAgent, RosterConfig, RosterLeave, RosterOverride, ShiftType, LeaveType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
-import { PH_HOLIDAY_MAP } from '@/lib/ph-holidays';
+import { PH_HOLIDAY_MAP, isDoublePay } from '@/lib/ph-holidays';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const SHIFT_DAYS: Record<ShiftType, number[]> = {
@@ -417,27 +417,30 @@ function RosterPageInner() {
         <div className="card overflow-hidden">
           <div className="grid grid-cols-7 divide-x divide-slate-100">
             {weekDays.map(day => {
-              const isToday   = toDateStr(day) === toDateStr(today);
-              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-              const ds        = toDateStr(day);
-              const dayLeave  = leaveByDate[ds] ?? [];
-              const phHoliday = PH_HOLIDAY_MAP[ds];
+              const isToday    = toDateStr(day) === toDateStr(today);
+              const isWeekend  = day.getDay() === 0 || day.getDay() === 6;
+              const ds         = toDateStr(day);
+              const dayLeave   = leaveByDate[ds] ?? [];
+              const phHoliday  = PH_HOLIDAY_MAP[ds];
+              // Only Regular Holidays get the 200%/no-pay treatment per contractor agreements
+              const isRegularHoliday = phHoliday ? isDoublePay(phHoliday) : false;
 
               return (
-                <div key={ds} className={`${phHoliday ? 'bg-blue-50/40' : isWeekend ? 'bg-amber-50/50' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}>
+                <div key={ds} className={`${isRegularHoliday ? 'bg-blue-50/40' : isWeekend ? 'bg-amber-50/50' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}>
                   {/* Day header */}
-                  <div className={`px-2.5 py-2.5 border-b border-slate-100 ${isToday ? 'bg-brand-50' : phHoliday ? 'bg-blue-50/60' : isWeekend ? 'bg-amber-50/80' : ''}`}>
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${phHoliday ? 'text-blue-600' : isWeekend ? 'text-amber-600' : 'text-slate-400'}`}>
+                  <div className={`px-2.5 py-2.5 border-b border-slate-100 ${isToday ? 'bg-brand-50' : isRegularHoliday ? 'bg-blue-50/60' : isWeekend ? 'bg-amber-50/80' : ''}`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${isRegularHoliday ? 'text-blue-600' : isWeekend ? 'text-amber-600' : 'text-slate-400'}`}>
                       {DAY_NAMES[day.getDay()]}
                     </p>
-                    <p className={`text-xl font-bold leading-tight mt-0.5 ${isToday ? 'text-brand-600' : phHoliday ? 'text-blue-700' : isWeekend ? 'text-amber-700' : 'text-slate-800'}`}>
+                    <p className={`text-xl font-bold leading-tight mt-0.5 ${isToday ? 'text-brand-600' : isRegularHoliday ? 'text-blue-700' : isWeekend ? 'text-amber-700' : 'text-slate-800'}`}>
                       {day.getDate()}
                     </p>
                     <p className="text-[9px] text-slate-400">{MONTH_NAMES[day.getMonth()].slice(0,3)}</p>
-                    {phHoliday && (
-                      <p className="text-[8px] font-bold text-blue-500 uppercase tracking-wide mt-0.5 leading-tight">
-                        🇵🇭 {phHoliday.name}
-                      </p>
+                    {isRegularHoliday && phHoliday && (
+                      <div className="mt-1 space-y-0.5">
+                        <p className="text-[8px] font-bold text-blue-600 leading-tight">🇵🇭 {phHoliday.name}</p>
+                        <p className="text-[7.5px] text-blue-400 leading-tight">No pay if off · 200% if worked</p>
+                      </div>
                     )}
                   </div>
 
@@ -468,8 +471,8 @@ function RosterPageInner() {
                             style={{ backgroundColor: hexToRgba(agent.colour, 0.12), borderLeft: `3px solid ${agent.colour}` }}
                             onClick={() => { setOverrideTarget({ date: ds, agentId: agent.id }); setOverrideForm({ isWorking: false, notes: '', hours: 0 }); }}>
                             <span className="text-[11px] font-bold truncate" style={{ color: agent.colour }}>{agent.name}</span>
-                            {phHoliday && (
-                              <span className="ml-auto text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded flex-shrink-0">2×</span>
+                            {isRegularHoliday && (
+                              <span className="ml-auto text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded flex-shrink-0">200%</span>
                             )}
                           </div>
                         );
@@ -519,31 +522,32 @@ function RosterPageInner() {
                 if (!day) return <div key={di} className="min-h-[80px] bg-slate-50/50" />;
                 const isToday   = toDateStr(day) === toDateStr(today);
                 const isWeekend = di >= 5;
-                const ds        = toDateStr(day);
-                const phHoliday = PH_HOLIDAY_MAP[ds];
-                const working   = filteredAgents.filter(a => getWorkingState(a, day) === 'working');
-                const onLeave   = filteredAgents.filter(a => getWorkingState(a, day) === 'leave');
+                const ds               = toDateStr(day);
+                const phHoliday        = PH_HOLIDAY_MAP[ds];
+                const isRegularHoliday = phHoliday ? isDoublePay(phHoliday) : false;
+                const working          = filteredAgents.filter(a => getWorkingState(a, day) === 'working');
+                const onLeave          = filteredAgents.filter(a => getWorkingState(a, day) === 'leave');
                 return (
                   <div key={ds}
-                    className={`min-h-[80px] p-2 cursor-pointer hover:bg-brand-50/30 transition-colors ${phHoliday ? 'bg-blue-50/30' : isWeekend ? 'bg-amber-50/40' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}
+                    className={`min-h-[80px] p-2 cursor-pointer hover:bg-brand-50/30 transition-colors ${isRegularHoliday ? 'bg-blue-50/30' : isWeekend ? 'bg-amber-50/40' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}
                     onClick={() => { setWeekStart(getMonday(day)); setView('week'); }}>
                     <div className="flex items-start justify-between gap-1 mb-1">
-                      <p className={`text-sm font-bold ${isToday ? 'text-brand-600' : phHoliday ? 'text-blue-700' : isWeekend ? 'text-amber-700' : 'text-slate-700'}`}>
+                      <p className={`text-sm font-bold ${isToday ? 'text-brand-600' : isRegularHoliday ? 'text-blue-700' : isWeekend ? 'text-amber-700' : 'text-slate-700'}`}>
                         {day.getDate()}
                       </p>
-                      {phHoliday && (
+                      {isRegularHoliday && (
                         <span className="text-[7px] font-bold text-blue-500 leading-tight text-right">🇵🇭</span>
                       )}
                     </div>
-                    {phHoliday && (
-                      <p className="text-[8px] font-semibold text-blue-500 leading-tight mb-1 truncate">{phHoliday.name}</p>
+                    {isRegularHoliday && (
+                      <p className="text-[8px] font-semibold text-blue-500 leading-tight mb-1 truncate">{phHoliday!.name}</p>
                     )}
                     <div className="space-y-0.5">
                       {working.map(a => (
                         <div key={a.id} className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: a.colour }} />
                           <span className="text-[10px] font-medium truncate" style={{ color: a.colour }}>{a.name}</span>
-                          {phHoliday && <span className="text-[8px] font-bold text-blue-500 ml-auto flex-shrink-0">2×</span>}
+                          {isRegularHoliday && <span className="text-[8px] font-bold text-blue-500 ml-auto flex-shrink-0">200%</span>}
                         </div>
                       ))}
                       {onLeave.map(a => (

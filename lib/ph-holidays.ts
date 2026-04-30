@@ -1,10 +1,20 @@
 // Philippine Public Holidays — Regular + Special Non-Working Days
 // Sources: Official Proclamations from the Office of the President of the Philippines
+//
+// PAY TREATMENT (per SnapWireless contractor agreements):
+//   regular  → No pay if day off; 200% rate if worked at Company request
+//   special  → Treated as normal working days; no premium applies
 
 export interface PhHoliday {
   date:  string;       // YYYY-MM-DD
   name:  string;
-  type:  'regular' | 'special'; // regular = paid non-working; special = paid but may differ
+  type:  'regular' | 'special';
+}
+
+// Only Regular Holidays trigger the 200%/no-pay rule.
+// Special Non-Working Days are standard working days per contractor agreements.
+export function isDoublePay(h: PhHoliday): boolean {
+  return h.type === 'regular';
 }
 
 export const PH_HOLIDAYS: PhHoliday[] = [
