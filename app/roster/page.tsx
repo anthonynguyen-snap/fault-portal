@@ -39,7 +39,12 @@ function addDays(d: Date, n: number): Date {
   date.setDate(date.getDate() + n);
   return date;
 }
-function toDateStr(d: Date): string { return d.toISOString().slice(0, 10); }
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 function hexToRgba(hex: string, a: number): string {
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
   return `rgba(${r},${g},${b},${a})`;
