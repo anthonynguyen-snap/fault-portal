@@ -409,6 +409,27 @@ export default function LeavePage() {
           </div>
         )}
 
+        {/* Leave policy notice */}
+        {leaveBalances && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-4 space-y-2.5">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Leave Policy</p>
+            <div className="flex gap-2.5">
+              <span className="text-slate-300 mt-0.5 flex-shrink-0">🏖️</span>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                <span className="font-semibold text-slate-700">Annual leave</span> must be requested at least 2 weeks in advance and is subject to Company approval.
+                Unused annual leave does not roll over beyond the 12-month period unless agreed in writing.
+              </p>
+            </div>
+            <div className="flex gap-2.5">
+              <span className="text-slate-300 mt-0.5 flex-shrink-0">🤒</span>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                <span className="font-semibold text-slate-700">Sick leave</span> requires same-day notification to the Company.
+                A medical certificate is required for absences of more than 2 consecutive days.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Annual leave balance */}
         {leaveBalances && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4">
