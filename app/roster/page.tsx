@@ -3,12 +3,61 @@ import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   ChevronLeft, ChevronRight, Plus, Settings, RefreshCw,
-  Users, Save, Trash2, UserPlus, X,
+  Users, Save, Trash2, UserPlus, X, Keyboard,
 } from 'lucide-react';
 import { RosterAgent, RosterConfig, RosterLeave, RosterOverride, ShiftType, LeaveType } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 import { PH_HOLIDAY_MAP, isDoublePay } from '@/lib/ph-holidays';
 import { AU_HOLIDAY_MAP } from '@/lib/au-holidays';
+
+// ── Keyboard shortcuts popover ─────────────────────────────────────────────
+const ROSTER_SHORTCUTS = [
+  { keys: ['←', '→'],  desc: 'Navigate weeks / months' },
+  { keys: ['N'],        desc: 'Open Add Leave' },
+  { keys: ['Esc'],      desc: 'Close any open modal' },
+  { keys: ['Click'],    desc: 'Click a working-day cell to set an override' },
+];
+
+function KeyboardShortcutsPopover() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`flex items-center gap-1.5 text-[10px] font-medium px-2 py-1 rounded-md border transition-colors select-none ${open ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+        title="Keyboard shortcuts"
+      >
+        <Keyboard size={11} />
+        Shortcuts
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-2 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-64">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">Keyboard Shortcuts</p>
+            <div className="space-y-2">
+              {ROSTER_SHORTCUTS.map(({ keys, desc }) => (
+                <div key={desc} className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-slate-600">{desc}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {keys.map(k => (
+                      <kbd key={k} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-[10px] font-mono text-slate-600 leading-tight">
+                        {k}
+                      </kbd>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400">Search bar: <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] font-mono">↑↓</kbd> navigate · <kbd className="px-1 py-0.5 bg-slate-100 border border-slate-200 rounded text-[9px] font-mono">↵</kbd> open</p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const SHIFT_DAYS: Record<ShiftType, number[]> = {
@@ -434,7 +483,7 @@ function RosterPageInner() {
             className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 ml-1">
             Today
           </button>
-          <span className="text-[10px] text-slate-300 ml-1.5 hidden sm:inline select-none" title="Arrow keys navigate weeks · N opens Add Leave">← → N</span>
+          <KeyboardShortcutsPopover />
         </div>
 
         <div className="flex items-center gap-2">

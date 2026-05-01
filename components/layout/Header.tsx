@@ -303,14 +303,19 @@ export default function Header() {
               <Search className="absolute left-3 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search cases, refunds, returns..."
+                placeholder="Search cases, refunds, returns…"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onFocus={() => query.length >= 2 && setShowDropdown(true)}
                 onKeyDown={handleKeyDown}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-9 pr-16 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 autoComplete="off"
               />
+              {!query && !isLoading && (
+                <span className="absolute right-3 text-[10px] text-slate-300 font-mono pointer-events-none select-none hidden sm:block">
+                  ↑↓ ↵ Esc
+                </span>
+              )}
               {isLoading && (
                 <Loader2 className="absolute right-3 w-4 h-4 text-slate-400 animate-spin" />
               )}
