@@ -390,6 +390,30 @@ export default function ReportsPage() {
               onChange={e => { setToDate(e.target.value); setClaimMonth(''); }}
               className="form-input" />
           </div>
+
+          {/* Product filter — only when a manufacturer is selected */}
+          {selectedManufacturer && (() => {
+            const allProductsForMfr = Array.from(
+              new Set(
+                cases
+                  .filter(c => c.manufacturerName === selectedManufacturer && c.product)
+                  .map(c => c.product)
+              )
+            ).sort();
+            const excluded = excludedProducts[selectedManufacturer] ?? [];
+            return (
+              <div className="flex flex-col justify-end">
+                <label className="form-label">Filter Products</label>
+                <ProductFilterPopover
+                  manufacturer={selectedManufacturer}
+                  products={allProductsForMfr}
+                  excluded={excluded}
+                  onToggle={product => toggleProductExclusion(selectedManufacturer, product)}
+                  onClear={() => clearExclusions(selectedManufacturer)}
+                />
+              </div>
+            );
+          })()}
         </div>
 
         {isExternal && (
