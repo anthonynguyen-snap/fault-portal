@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   Download, Printer, Eye, EyeOff, ExternalLink,
-  CheckCircle, Loader2, AlertTriangle, FileText,
+  CheckCircle, Loader2, AlertTriangle, FileText, Filter,
 } from 'lucide-react';
 import { FaultCase } from '@/types';
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT } from '@/lib/utils';
@@ -13,6 +13,91 @@ import {
 import { StatCardsSkeleton } from '@/components/ui/Skeleton';
 
 const COLORS = ['#1591b3','#2ab0d9','#94D8EE','#059669','#d97706','#dc2626'];
+
+function ProductFilterPopover({
+  manufacturer,
+  products,
+  excluded,
+  onToggle,
+  onClear,
+}: {
+  manufacturer: string;
+  products: string[];
+  excluded: string[];
+  onToggle: (product: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [open]);
+
+  const excludedCount = excluded.length;
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={() => setOpen(v => !v)}
+        title={excludedCount > 0 ? `${excludedCount} product${excludedCount !== 1 ? 's' : ''} excluded` : 'Filter products from this claim'}
+        className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
+          excludedCount > 0
+            ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+            : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
+        }`}
+      >
+        <Filter size={11} />
+        {excludedCount > 0 ? `${excludedCount} excluded` : 'Filter products'}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+          <div className="px-3 py-2.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-700">Exclude from claim</span>
+            {excludedCount > 0 && (
+              <button onClick={onClear} className="text-[10px] text-slate-400 hover:text-red-500 transition-colors">
+                Clear all
+              </button>
+            )}
+          </div>
+          <div className="max-h-52 overflow-y-auto py-1">
+            {products.length === 0 ? (
+              <p className="text-xs text-slate-400 px-3 py-3 text-center">No products found</p>
+            ) : products.map(product => {
+              const isExcluded = excluded.includes(product);
+              return (
+                <label key={product} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isExcluded}
+                    onChange={() => onToggle(product)}
+                    className="w-3.5 h-3.5 rounded border-slate-300 accent-brand-600"
+                  />
+                  <span className={`text-xs leading-snug ${isExcluded ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                    {product}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {excludedCount > 0 && (
+            <div className="px-3 py-2 border-t border-slate-100 bg-amber-50">
+              <p className="text-[10px] text-amber-600">
+                {excludedCount} product{excludedCount !== 1 ? 's' : ''} excluded from this manufacturer's claim
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ReportsPage() {
   const [cases, setCases] = useState<FaultCase[]>([]);
@@ -27,6 +112,32 @@ export default function ReportsPage() {
   const [rowResults, setRowResults] = useState<Record<string, { id: string; count: number } | string>>({});
   const [generatingAll, setGeneratingAll] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Per-manufacturer product exclusion lists, persisted to localStorage
+  const [excludedProducts, setExcludedProducts] = useState<Record<string, string[]>>(() => {
+    try {
+      const stored = localStorage.getItem('reportProductExclusions');
+      return stored ? JSON.parse(stored) : {};
+    } catch { return {}; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('reportProductExclusions', JSON.stringify(excludedProducts)); } catch {}
+  }, [excludedProducts]);
+
+  function toggleProductExclusion(manufacturer: string, product: string) {
+    setExcludedProducts(prev => {
+      const current = prev[manufacturer] ?? [];
+      const next = current.includes(product)
+        ? current.filter(p => p !== product)
+        : [...current, product];
+      return { ...prev, [manufacturer]: next };
+    });
+  }
+
+  function clearExclusions(manufacturer: string) {
+    setExcludedProducts(prev => ({ ...prev, [manufacturer]: [] }));
+  }
 
   // Last 13 months for the claim month dropdown
   const months = useMemo(() => {
@@ -80,11 +191,20 @@ export default function ReportsPage() {
 
   const filteredCases = useMemo(() => {
     let result = [...cases];
-    if (selectedManufacturer) result = result.filter(c => c.manufacturerName === selectedManufacturer);
+    if (selectedManufacturer) {
+      result = result.filter(c => c.manufacturerName === selectedManufacturer);
+      const excluded = excludedProducts[selectedManufacturer] ?? [];
+      if (excluded.length > 0) result = result.filter(c => !excluded.includes(c.product));
+    } else {
+      result = result.filter(c => {
+        const excluded = excludedProducts[c.manufacturerName] ?? [];
+        return !excluded.includes(c.product);
+      });
+    }
     if (fromDate) result = result.filter(c => c.date >= fromDate);
     if (toDate)   result = result.filter(c => c.date <= toDate);
     return result.sort((a, b) => b.date.localeCompare(a.date));
-  }, [cases, selectedManufacturer, fromDate, toDate]);
+  }, [cases, selectedManufacturer, fromDate, toDate, excludedProducts]);
 
   // All cases in the selected month (regardless of manufacturer filter) for the claim summary
   const allMonthCases = useMemo(() => {
@@ -92,19 +212,35 @@ export default function ReportsPage() {
     return cases.filter(c => c.date >= fromDate && c.date <= toDate);
   }, [cases, claimMonth, fromDate, toDate]);
 
-  // Per-manufacturer summary of unsubmitted faults for the selected month
+  // All products per manufacturer (before exclusions, so the popover shows everything)
+  const manufacturerProducts = useMemo(() => {
+    const byMfr: Record<string, Set<string>> = {};
+    for (const c of allMonthCases) {
+      if (c.claimStatus !== 'Unsubmitted') continue;
+      if (!c.manufacturerName || !c.product) continue;
+      if (!byMfr[c.manufacturerName]) byMfr[c.manufacturerName] = new Set();
+      byMfr[c.manufacturerName].add(c.product);
+    }
+    return Object.fromEntries(
+      Object.entries(byMfr).map(([mfr, products]) => [mfr, Array.from(products).sort()])
+    );
+  }, [allMonthCases]);
+
+  // Per-manufacturer summary of unsubmitted faults for the selected month (respects exclusions)
   const manufacturerSummary = useMemo(() => {
     const byMfr: Record<string, FaultCase[]> = {};
     for (const c of allMonthCases) {
       if (c.claimStatus !== 'Unsubmitted') continue;
       if (!c.manufacturerName) continue;
+      const excluded = excludedProducts[c.manufacturerName] ?? [];
+      if (excluded.includes(c.product)) continue;
       if (!byMfr[c.manufacturerName]) byMfr[c.manufacturerName] = [];
       byMfr[c.manufacturerName].push(c);
     }
     return Object.entries(byMfr)
       .map(([manufacturer, mfrCases]) => ({ manufacturer, cases: mfrCases, count: mfrCases.length }))
       .sort((a, b) => b.count - a.count);
-  }, [allMonthCases]);
+  }, [allMonthCases, excludedProducts]);
 
   const stats = useMemo(() => {
     const totalCost = filteredCases.reduce((s, c) => s + c.unitCostUSD, 0);
@@ -306,12 +442,29 @@ export default function ReportsPage() {
                         return (
                           <tr key={row.manufacturer} className="hover:bg-slate-50">
                             <td className="px-4 py-3 font-medium text-slate-800">{row.manufacturer}</td>
-                            <td className="px-4 py-3 text-slate-600">{row.count} fault{row.count !== 1 ? 's' : ''}</td>
-                            <td className="px-4 py-3 text-right">
+                            <td className="px-4 py-3 text-slate-600">
+                              <div className="flex items-center gap-2">
+                                <span>{row.count} fault{row.count !== 1 ? 's' : ''}</span>
+                                {(excludedProducts[row.manufacturer] ?? []).length > 0 && (
+                                  <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                                    {(excludedProducts[row.manufacturer] ?? []).length} excluded
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-2">
+                                <ProductFilterPopover
+                                  manufacturer={row.manufacturer}
+                                  products={manufacturerProducts[row.manufacturer] ?? []}
+                                  excluded={excludedProducts[row.manufacturer] ?? []}
+                                  onToggle={product => toggleProductExclusion(row.manufacturer, product)}
+                                  onClear={() => clearExclusions(row.manufacturer)}
+                                />
                               {state === 'idle' && (
                                 <button
                                   onClick={() => handleGenerateForManufacturer(row.manufacturer, row.cases.map(c => c.id))}
-                                  className="btn-secondary flex items-center gap-1.5 ml-auto text-xs py-1.5 px-3"
+                                  className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-3"
                                 >
                                   <FileText size={12} /> Generate
                                 </button>
@@ -331,6 +484,7 @@ export default function ReportsPage() {
                                   <AlertTriangle size={12} /> {typeof result === 'string' ? result : 'Error'}
                                 </span>
                               )}
+                              </div>
                             </td>
                           </tr>
                         );
