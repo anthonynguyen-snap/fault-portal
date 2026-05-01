@@ -15,7 +15,8 @@ const ROSTER_SHORTCUTS = [
   { keys: ['←', '→'],  desc: 'Navigate weeks / months' },
   { keys: ['N'],        desc: 'Open Add Leave' },
   { keys: ['Esc'],      desc: 'Close any open modal' },
-  { keys: ['Click'],    desc: 'Click a working-day cell to set an override' },
+  { keys: ['Click'],    desc: 'Click agent in Today bar or calendar to override' },
+  { keys: ['Drag'],     desc: 'Drag a working chip to another day to mark working' },
 ];
 
 function KeyboardShortcutsPopover() {
@@ -112,12 +113,13 @@ function isWorkingDay(shift: ShiftType, date: Date): boolean {
 
 // ── Today Status Bar ───────────────────────────────────────────────────────
 function TodayStatusBar({
-  agents, config, leaveToday, overrideMap,
+  agents, config, leaveToday, overrideMap, onAgentClick,
 }: {
   agents: RosterAgent[];
   config: RosterConfig | null;
   leaveToday: RosterLeave[];
   overrideMap: Record<string, RosterOverride>;
+  onAgentClick?: (agentId: string, date: string) => void;
 }) {
   if (!config || !agents.length) return null;
   const today    = new Date(); today.setHours(0,0,0,0);
@@ -146,8 +148,12 @@ function TodayStatusBar({
         const brdColor = state === 'online' ? hexToRgba(agent.colour, 0.30) : state === 'leave' ? '#fecaca' : '#e2e8f0';
         const txtColor = state === 'online' ? agent.colour : state === 'leave' ? '#dc2626' : '#94a3b8';
         return (
-          <div key={agent.id}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-colors"
+          <button
+            key={agent.id}
+            type="button"
+            onClick={() => onAgentClick?.(agent.id, todayStr)}
+            title={`Click to override ${agent.name}'s status for today`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all hover:opacity-80 hover:shadow-sm active:scale-95 cursor-pointer"
             style={{ backgroundColor: bgColor, borderColor: brdColor }}>
             {state === 'online' ? (
               <span className="relative flex h-2 w-2 flex-shrink-0">
@@ -167,9 +173,10 @@ function TodayStatusBar({
             {state === 'off' && (
               <span className="text-[9px] text-slate-400">OFF</span>
             )}
-          </div>
+          </button>
         );
       })}
+      <span className="text-[9px] text-slate-300 ml-auto hidden sm:block">Click to override</span>
     </div>
   );
 }
@@ -209,6 +216,10 @@ function RosterPageInner() {
   // Override form
   const [overrideForm, setOverrideForm] = useState({ isWorking: false, notes: '', hours: 0 });
   const [savingOverride, setSavingOverride] = useState(false);
+
+  // Drag-and-drop state
+  const [draggingAgentId, setDraggingAgentId] = useState<string | null>(null);
+  const [dragOverDay,     setDragOverDay]     = useState<string | null>(null);
 
   async function fetchLeaveAndOverrides(from: string, to: string) {
     const [l, o] = await Promise.all([
@@ -381,6 +392,34 @@ function RosterPageInner() {
     } finally { setSavingOverride(false); }
   }
 
+  // Quick override — used by drag-and-drop and Today bar click
+  async function handleQuickWorkingOverride(agentId: string, date: string) {
+    try {
+      const res = await fetch('/api/roster/overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId, date, isWorking: true, notes: '', hours: 0 }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      const agentName = agents.find(a => a.id === agentId)?.name ?? '';
+      success('Override applied', `${agentName} marked as working on ${date}.`);
+      // Refresh leave+overrides for the visible range
+      const from = toDateStr(weekStart);
+      const to   = toDateStr(addDays(weekStart, 6));
+      await fetchLeaveAndOverrides(from, to);
+    } catch (err: unknown) {
+      toastError('Failed', err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Open override modal for a given agent+date, prefilling from any existing override
+  function openOverrideModal(agentId: string, date: string) {
+    const ov = overrideMap[`${agentId}:${date}`];
+    setOverrideTarget({ agentId, date });
+    setOverrideForm({ isWorking: ov ? ov.isWorking : true, notes: ov?.notes ?? '', hours: ov?.hours ?? 0 });
+  }
+
   async function handleSaveAdmin() {
     setSavingAdmin(true);
     try {
@@ -466,6 +505,7 @@ function RosterPageInner() {
         config={config}
         leaveToday={leaveByDate[toDateStr(today)] ?? []}
         overrideMap={overrideMap}
+        onAgentClick={(agentId, date) => openOverrideModal(agentId, date)}
       />
 
       {/* Controls row */}
@@ -541,8 +581,31 @@ function RosterPageInner() {
               // Only Regular Holidays get the 200%/no-pay treatment per contractor agreements
               const isRegularHoliday = phHoliday ? isDoublePay(phHoliday) : false;
 
+              // Drop target highlight: show when an agent is being dragged and isn't already working this day
+              const isDragTarget = draggingAgentId !== null && dragOverDay === ds &&
+                getWorkingState(agents.find(a => a.id === draggingAgentId)!, day) !== 'working';
+
               return (
-                <div key={ds} className={`${isRegularHoliday ? 'bg-blue-50/40' : auHoliday ? 'bg-green-50/40' : isWeekend ? 'bg-amber-50/50' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''}`}>
+                <div
+                  key={ds}
+                  className={`transition-colors ${isRegularHoliday ? 'bg-blue-50/40' : auHoliday ? 'bg-green-50/40' : isWeekend ? 'bg-amber-50/50' : 'bg-white'} ${isToday ? 'ring-2 ring-inset ring-brand-400' : ''} ${isDragTarget ? 'ring-2 ring-inset ring-brand-400 bg-brand-50/30' : ''}`}
+                  onDragOver={e => {
+                    if (!draggingAgentId) return;
+                    e.preventDefault();
+                    setDragOverDay(ds);
+                  }}
+                  onDragLeave={() => setDragOverDay(null)}
+                  onDrop={e => {
+                    e.preventDefault();
+                    setDragOverDay(null);
+                    if (!draggingAgentId) return;
+                    const agent = agents.find(a => a.id === draggingAgentId);
+                    if (!agent) return;
+                    if (getWorkingState(agent, day) === 'working') return; // already working
+                    setDraggingAgentId(null);
+                    handleQuickWorkingOverride(draggingAgentId, ds);
+                  }}
+                >
                   {/* Day header */}
                   <div className={`px-2.5 py-2.5 border-b border-slate-100 ${isToday ? 'bg-brand-50' : isRegularHoliday ? 'bg-blue-50/60' : auHoliday ? 'bg-green-50/60' : isWeekend ? 'bg-amber-50/80' : ''}`}>
                     <p className={`text-[10px] font-bold uppercase tracking-wider ${isRegularHoliday ? 'text-blue-600' : auHoliday ? 'text-green-700' : isWeekend ? 'text-amber-600' : 'text-slate-400'}`}>
@@ -596,9 +659,13 @@ function RosterPageInner() {
                       }
 
                       if (state === 'working') {
+                        const isDragging = draggingAgentId === agent.id;
                         return (
                           <div key={agent.id}
-                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer hover:opacity-75 transition-opacity select-none"
+                            draggable
+                            onDragStart={() => setDraggingAgentId(agent.id)}
+                            onDragEnd={() => { setDraggingAgentId(null); setDragOverDay(null); }}
+                            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-grab active:cursor-grabbing hover:opacity-75 transition-opacity select-none ${isDragging ? 'opacity-40 ring-1 ring-brand-300' : ''}`}
                             style={{ backgroundColor: hexToRgba(agent.colour, 0.12), borderLeft: `3px solid ${agent.colour}` }}
                             onClick={() => {
                               const ov = overrideMap[`${agent.id}:${ds}`];
@@ -627,7 +694,7 @@ function RosterPageInner() {
           </div>
 
           {/* Weekend coverage indicator */}
-          <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-3">
+          <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center gap-3 flex-wrap">
             {[{ label: 'Sat coverage', idx: 5 }, { label: 'Sun coverage', idx: 6 }].map(({ label, idx }) => {
               const day = weekDays[idx];
               const working = agents.filter(a => getWorkingState(a, day) === 'working');
@@ -638,7 +705,32 @@ function RosterPageInner() {
                 </span>
               );
             })}
+            <span className="ml-auto text-[10px] text-slate-300 hidden sm:block select-none">Drag a name to mark working on a different day</span>
           </div>
+
+          {/* 5-day overwork alert */}
+          {(() => {
+            const overworked = agents
+              .map(agent => ({
+                agent,
+                days: weekDays.filter(d => getWorkingState(agent, d) === 'working').length,
+              }))
+              .filter(({ days }) => days > 5);
+            if (!overworked.length) return null;
+            return (
+              <div className="px-4 py-2.5 border-t border-amber-100 bg-amber-50 flex items-center gap-2 flex-wrap">
+                <span className="text-amber-500 flex-shrink-0">⚠</span>
+                <span className="text-xs font-semibold text-amber-700">Over 5-day limit this week:</span>
+                {overworked.map(({ agent, days }) => (
+                  <span key={agent.id} className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
+                    {agent.name} — {days} days
+                  </span>
+                ))}
+                <span className="text-xs text-amber-500 ml-1">· Team members need at least 2 days off per week</span>
+              </div>
+            );
+          })()}
         </div>
       )}
 
