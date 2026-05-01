@@ -2,6 +2,33 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PlusCircle, TrendingUp, Clock, DollarSign, AlertCircle, Package } from 'lucide-react';
+
+function CorporateTabs({ active }: { active: 'wholesale' | 'retail' }) {
+  return (
+    <div className="flex gap-1 border-b border-slate-200 mb-6">
+      <Link
+        href="/corporate"
+        className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+          active === 'wholesale'
+            ? 'border-brand-600 text-brand-700'
+            : 'border-transparent text-slate-500 hover:text-slate-700'
+        }`}
+      >
+        Wholesale
+      </Link>
+      <Link
+        href="/corporate/retail"
+        className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+          active === 'retail'
+            ? 'border-brand-600 text-brand-700'
+            : 'border-transparent text-slate-500 hover:text-slate-700'
+        }`}
+      >
+        Retail Orders
+      </Link>
+    </div>
+  );
+}
 import { CorporateOrder, CorporateStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 
@@ -86,6 +113,8 @@ export default function CorporateDashboard() {
           <PlusCircle size={16} /> New Order
         </Link>
       </div>
+
+      <CorporateTabs active="wholesale" />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

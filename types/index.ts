@@ -427,3 +427,58 @@ export interface CorporateOrder {
   referenceNumber: string;
   conversationLink: string;
 }
+
+// =========================================================
+// RETAIL ORDERS (3PL / Direct-to-Consumer)
+// =========================================================
+export type RetailOrderStatus =
+  | 'Pending'
+  | 'Processing'
+  | 'Picked'
+  | 'Packed'
+  | 'Shipped'
+  | 'Delivered'
+  | 'Exception'
+  | 'Cancelled';
+
+export interface RetailOrderItem {
+  id: string;
+  orderId: string;
+  product: string;
+  sku: string;
+  quantityOrdered: number;
+  quantityShipped: number;
+}
+
+export interface RetailOrder {
+  id: string;
+  createdAt: string;
+  // Reference
+  orderNumber: string;
+  platform: string;
+  orderDate: string;
+  // Customer
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  shippingAddress: string;
+  shippingCity: string;
+  shippingState: string;
+  shippingPostcode: string;
+  shippingCountry: string;
+  // 3PL
+  thirdPlReference: string;
+  warehouse: string;
+  thirdPlNotes: string;
+  // Tracking
+  carrier: string;
+  trackingNumber: string;
+  trackingUrl: string;
+  status: RetailOrderStatus;
+  shippedDate: string;
+  deliveredDate: string;
+  estimatedDelivery: string;
+  // Items & notes
+  items: RetailOrderItem[];
+  notes: string;
+}
