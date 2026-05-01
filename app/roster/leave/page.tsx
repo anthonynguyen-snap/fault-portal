@@ -209,6 +209,7 @@ export default function LeavePage() {
   }
 
   useEffect(() => { load(); }, []); // eslint-disable-line
+  useEffect(() => { document.title = 'Leave Log · SNAP Portal'; }, []);
 
   // Escape key closes modal
   useEffect(() => {

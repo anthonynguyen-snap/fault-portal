@@ -297,6 +297,7 @@ export default function PromotionsPage() {
     }
   }
 
+  useEffect(() => { document.title = 'Promotions · SNAP Portal'; }, []);
   useEffect(() => { load(); }, []);
 
   async function addPromo(data: Partial<Promotion>) {

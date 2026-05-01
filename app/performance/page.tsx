@@ -249,6 +249,9 @@ export default function PerformancePage() {
   // AI summary
   const [summary,        setSummary]        = useState('');
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState<Date | null>(null);
+
+  useEffect(() => { document.title = 'Team Performance · SNAP Portal'; }, []);
 
   // Fetch KPI targets on mount
   useEffect(() => {
@@ -283,7 +286,7 @@ export default function PerformancePage() {
       body: JSON.stringify({ data, from, to, periodLabel }),
     })
       .then(r => r.json())
-      .then(json => setSummary(json.summary ?? ''))
+      .then(json => { setSummary(json.summary ?? ''); setSummaryGeneratedAt(new Date()); })
       .catch(() => setSummary(''))
       .finally(() => setSummaryLoading(false));
   }
@@ -630,7 +633,14 @@ export default function PerformancePage() {
                 Analysing performance data…
               </div>
             ) : summary ? (
-              <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
+              <>
+                <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
+                {summaryGeneratedAt && (
+                  <p className="text-[10px] text-slate-400 mt-2 font-mono">
+                    Generated {summaryGeneratedAt.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })} · {periodLabel}
+                  </p>
+                )}
+              </>
             ) : (
               <p className="text-sm text-slate-400 italic">Click Generate to create an AI-written summary of this period's performance.</p>
             )}

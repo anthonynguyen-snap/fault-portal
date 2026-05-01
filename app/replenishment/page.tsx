@@ -90,6 +90,7 @@ function ReplenishmentPageInner() {
     finally { setLoading(false); }
   }
 
+  useEffect(() => { document.title = 'Replenishment · SNAP Portal'; }, []);
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
@@ -107,9 +108,11 @@ function ReplenishmentPageInner() {
         setForm(f => ({ ...f, store: store as typeof STORES[number] }));
       }
       setShowModal(true);
+      window.history.replaceState({}, '', '/replenishment');
     }
     const dupId = searchParams.get('duplicate');
     if (dupId) {
+      window.history.replaceState({}, '', '/replenishment');
       fetch(`/api/replenishment/${dupId}`)
         .then(r => r.json())
         .then(({ data }) => {
@@ -299,6 +302,13 @@ function ReplenishmentPageInner() {
           )}
         </div>
       </div>
+
+      {/* Filter count */}
+      {!loading && (filter !== 'All' || filterFrom || filterTo) && (
+        <p className="text-xs text-slate-400 -mt-2">
+          Showing <span className="font-semibold text-slate-600">{displayed.length}</span> of <span className="font-semibold text-slate-600">{requests.length}</span> requests
+        </p>
+      )}
 
       {/* Table */}
       {loading ? (

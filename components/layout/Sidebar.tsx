@@ -55,6 +55,7 @@ function RefundAlertBadge() {
 
   useEffect(() => {
     function check() {
+      if (document.visibilityState === 'hidden') return;
       fetch('/api/refunds/alerts')
         .then(r => r.json())
         .then(d => setCount(d.count ?? 0))
@@ -62,7 +63,11 @@ function RefundAlertBadge() {
     }
     check();
     const interval = setInterval(check, 30_000);
-    return () => clearInterval(interval);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', check);
+    };
   }, []);
 
   if (!count) return null;
@@ -79,6 +84,7 @@ function ReplenishmentAlertBadge() {
 
   useEffect(() => {
     function check() {
+      if (document.visibilityState === 'hidden') return;
       fetch('/api/replenishment/alerts')
         .then(r => r.json())
         .then(d => setCount(d.count ?? 0))
@@ -86,7 +92,11 @@ function ReplenishmentAlertBadge() {
     }
     check();
     const interval = setInterval(check, 60_000);
-    return () => clearInterval(interval);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', check);
+    };
   }, []);
 
   if (!count) return null;

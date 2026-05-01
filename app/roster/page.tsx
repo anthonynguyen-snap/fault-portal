@@ -182,19 +182,26 @@ function RosterPageInner() {
       setAgents(agentsRes.data ?? []);
       setConfig(configRes.data ?? null);
       await fetchLeaveAndOverrides(from, to);
-    } catch { /* silent */ }
+    } catch (err: unknown) {
+      toastError('Load failed', err instanceof Error ? err.message : 'Could not load roster data.');
+    }
     finally { setLoading(false); }
   }
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line
+  useEffect(() => { document.title = 'Roster · SNAP Portal'; }, []);
 
   useEffect(() => {
-    if (searchParams.get('addLeave') === '1') setShowAddLeave(true);
+    if (searchParams.get('addLeave') === '1') {
+      setShowAddLeave(true);
+      window.history.replaceState({}, '', '/roster');
+    }
     const d = searchParams.get('date');
     if (d) {
       const dt = new Date(d + 'T00:00:00');
       setWeekStart(getMonday(dt));
       setMonthDate(dt);
+      window.history.replaceState({}, '', '/roster');
     }
   }, [searchParams]); // eslint-disable-line
 
@@ -206,10 +213,11 @@ function RosterPageInner() {
       if (modal || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       if (e.key === 'ArrowLeft')  { setWeekStart(w => addDays(w, -7)); setMonthDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1)); }
       if (e.key === 'ArrowRight') { setWeekStart(w => addDays(w, 7));  setMonthDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1)); }
+      if (e.key === 'n' || e.key === 'N') { setLeaveForm({ ...emptyLeaveForm, agentId: agents[0]?.id ?? '' }); setShowAddLeave(true); }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showAddLeave, showAdmin, overrideTarget]);
+  }, [showAddLeave, showAdmin, overrideTarget, agents]); // eslint-disable-line
 
   useEffect(() => {
     if (!loading) {
@@ -302,6 +310,21 @@ function RosterPageInner() {
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       success('Override saved', `Day override applied.`);
+      setOverrideTarget(null);
+      await fetchLeaveAndOverrides(toDateStr(weekStart), toDateStr(addDays(weekStart, 6)));
+    } catch (err: unknown) {
+      toastError('Failed', err instanceof Error ? err.message : String(err));
+    } finally { setSavingOverride(false); }
+  }
+
+  async function handleRemoveOverride() {
+    if (!overrideTarget) return;
+    setSavingOverride(true);
+    try {
+      const res = await fetch(`/api/roster/overrides?agentId=${overrideTarget.agentId}&date=${overrideTarget.date}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      success('Override removed', 'Day reverted to scheduled shift.');
       setOverrideTarget(null);
       await fetchLeaveAndOverrides(toDateStr(weekStart), toDateStr(addDays(weekStart, 6)));
     } catch (err: unknown) {
@@ -411,7 +434,7 @@ function RosterPageInner() {
             className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 ml-1">
             Today
           </button>
-          <span className="text-[10px] text-slate-300 ml-1.5 hidden sm:inline select-none" title="Use arrow keys to navigate weeks">← →</span>
+          <span className="text-[10px] text-slate-300 ml-1.5 hidden sm:inline select-none" title="Arrow keys navigate weeks · N opens Add Leave">← → N</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -528,7 +551,11 @@ function RosterPageInner() {
                           <div key={agent.id}
                             className="flex items-center gap-1.5 px-2 py-1.5 rounded-md cursor-pointer hover:opacity-75 transition-opacity select-none"
                             style={{ backgroundColor: hexToRgba(agent.colour, 0.12), borderLeft: `3px solid ${agent.colour}` }}
-                            onClick={() => { setOverrideTarget({ date: ds, agentId: agent.id }); setOverrideForm({ isWorking: false, notes: '', hours: 0 }); }}>
+                            onClick={() => {
+                              const ov = overrideMap[`${agent.id}:${ds}`];
+                              setOverrideTarget({ date: ds, agentId: agent.id });
+                              setOverrideForm({ isWorking: ov ? ov.isWorking : false, notes: ov?.notes ?? '', hours: ov?.hours ?? 0 });
+                            }}>
                             <span className="text-[11px] font-bold truncate" style={{ color: agent.colour }}>{agent.name}</span>
                             {isRegularHoliday && agent.leaveResetDate && (
                               <span className="ml-auto text-[8px] font-bold bg-blue-100 text-blue-600 px-1 py-0.5 rounded flex-shrink-0">200%</span>
@@ -742,17 +769,25 @@ function RosterPageInner() {
       {/* ── Override Modal ────────────────────────────────────────────────── */}
       {overrideTarget && (() => {
         const agent = agents.find(a => a.id === overrideTarget.agentId);
+        const existingOverride = overrideMap[`${overrideTarget.agentId}:${overrideTarget.date}`];
         return (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                 <div>
-                  <h2 className="font-semibold text-slate-900">Override Day</h2>
+                  <h2 className="font-semibold text-slate-900">{existingOverride ? 'Edit Override' : 'Override Day'}</h2>
                   <p className="text-xs text-slate-500 mt-0.5">{agent?.name} · {overrideTarget.date}</p>
                 </div>
                 <button onClick={() => setOverrideTarget(null)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
               </div>
               <div className="p-6 space-y-4">
+                {existingOverride && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                    <span className="text-xs text-orange-700 font-medium">Current override:</span>
+                    <span className="text-xs text-orange-600">{existingOverride.isWorking ? 'Working' : 'Day Off'}</span>
+                    {existingOverride.notes && <span className="text-xs text-orange-500 truncate">· {existingOverride.notes}</span>}
+                  </div>
+                )}
                 <div>
                   <label className="form-label">Mark as</label>
                   <div className="flex gap-2 mt-1">
@@ -770,11 +805,21 @@ function RosterPageInner() {
                     className="form-input" placeholder="Reason for override…" />
                 </div>
               </div>
-              <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
-                <button onClick={() => setOverrideTarget(null)} className="btn-secondary">Cancel</button>
-                <button onClick={handleSaveOverride} disabled={savingOverride} className="btn-primary">
-                  {savingOverride ? 'Saving…' : 'Save Override'}
-                </button>
+              <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
+                <div>
+                  {existingOverride && (
+                    <button onClick={handleRemoveOverride} disabled={savingOverride}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors disabled:opacity-40">
+                      Remove override
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setOverrideTarget(null)} className="btn-secondary">Cancel</button>
+                  <button onClick={handleSaveOverride} disabled={savingOverride} className="btn-primary">
+                    {savingOverride ? 'Saving…' : existingOverride ? 'Update' : 'Save Override'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

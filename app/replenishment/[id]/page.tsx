@@ -80,6 +80,7 @@ export default function ReplenishmentDetailPage() {
 
   // Allow editing even after dispatch
   const [unlocked, setUnlocked] = useState(false);
+  const [showDeliverConfirm, setShowDeliverConfirm] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -125,6 +126,7 @@ export default function ReplenishmentDetailPage() {
   }
 
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { document.title = 'Replenishment · SNAP Portal'; }, []);
 
   async function handleStatusSave() {
     if (!request || !editStatus) return;
@@ -836,7 +838,7 @@ export default function ReplenishmentDetailPage() {
           <div className="flex items-center gap-2">
             {request.status === 'Dispatched' && (
               <button
-                onClick={markDelivered}
+                onClick={() => setShowDeliverConfirm(true)}
                 disabled={markingDelivered || saving}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-40">
                 <CheckCircle size={14} /> {markingDelivered ? 'Saving…' : 'Mark Delivered'}
@@ -925,6 +927,38 @@ export default function ReplenishmentDetailPage() {
               <button onClick={() => handleSplitDispatch('Storeroom')} disabled={saving}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
                 <Send size={14} /> {saving ? 'Dispatching…' : 'Confirm Storeroom Dispatch'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Deliver confirm modal ───────────────────────────────────────────── */}
+      {showDeliverConfirm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-900">Confirm Delivery</h2>
+            </div>
+            <div className="p-6 space-y-3">
+              <p className="text-sm text-slate-600">
+                This will mark the request as <strong>Delivered</strong> and save the received quantities. This action cannot be undone.
+              </p>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-emerald-700 mb-1">Items being received</p>
+                {request.items.filter(i => !(itemSkipped[i.id] ?? i.skipped)).map(i => (
+                  <p key={i.id} className="text-xs text-emerald-600 font-mono">
+                    {i.stockItemName} — {qtyReceived[i.id] ?? i.quantitySent ?? 0} units
+                  </p>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <button onClick={() => setShowDeliverConfirm(false)} className="btn-secondary">Cancel</button>
+              <button
+                onClick={() => { setShowDeliverConfirm(false); markDelivered(); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+                <CheckCircle size={14} /> Confirm Delivered
               </button>
             </div>
           </div>
