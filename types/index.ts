@@ -429,6 +429,23 @@ export interface CorporateOrder {
 }
 
 // =========================================================
+// RETAIL CUSTOMERS
+// =========================================================
+export interface RetailCustomer {
+  id: string;
+  createdAt: string;
+  name: string;
+  email: string;
+  phone: string;
+  shippingAddress: string;
+  shippingCity: string;
+  shippingState: string;
+  shippingPostcode: string;
+  shippingCountry: string;
+  notes: string;
+}
+
+// =========================================================
 // RETAIL ORDERS (3PL / Direct-to-Consumer)
 // =========================================================
 export type RetailOrderStatus =
@@ -481,4 +498,6 @@ export interface RetailOrder {
   // Items & notes
   items: RetailOrderItem[];
   notes: string;
+  // Linked customer
+  customerId: string;
 }

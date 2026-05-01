@@ -40,6 +40,7 @@ function fromRow(row: Record<string, unknown>): RetailOrder {
     deliveredDate: (row.delivered_date as string) || '',
     estimatedDelivery: (row.estimated_delivery as string) || '',
     notes: (row.notes as string) || '',
+    customerId: (row.customer_id as string) || '',
     items: rawItems.map(fromItemRow),
   };
 }
@@ -70,6 +71,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     shippingState: 'shipping_state', shippingPostcode: 'shipping_postcode', shippingCountry: 'shipping_country',
     thirdPlReference: 'third_pl_reference', warehouse: 'warehouse', thirdPlNotes: 'third_pl_notes',
     carrier: 'carrier', trackingNumber: 'tracking_number', trackingUrl: 'tracking_url',
+    customerId: 'customer_id',
     status: 'status', shippedDate: 'shipped_date', deliveredDate: 'delivered_date',
     estimatedDelivery: 'estimated_delivery', notes: 'notes',
   };

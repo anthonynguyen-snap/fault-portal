@@ -40,6 +40,7 @@ function fromRow(row: Record<string, unknown>): RetailOrder {
     deliveredDate: (row.delivered_date as string) || '',
     estimatedDelivery: (row.estimated_delivery as string) || '',
     notes: (row.notes as string) || '',
+    customerId: (row.customer_id as string) || '',
     items: rawItems.map(fromItemRow),
   };
 }
@@ -80,6 +81,7 @@ export async function POST(req: Request) {
       tracking_number: fields.trackingNumber || '',
       tracking_url: fields.trackingUrl || '',
       status: fields.status || 'Pending',
+      customer_id: fields.customerId || null,
       shipped_date: fields.shippedDate || null,
       delivered_date: fields.deliveredDate || null,
       estimated_delivery: fields.estimatedDelivery || null,
