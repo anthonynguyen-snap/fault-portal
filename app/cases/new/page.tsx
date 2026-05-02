@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { Product, FaultType } from '@/types';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface StaffMember { id: string; name: string; }
 import { formatCurrency } from '@/lib/utils';
@@ -35,6 +36,8 @@ function getFileIcon(type: string) {
 
 export default function NewCasePage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [products, setProducts] = useState<Product[]>([]);
   const [faultTypes, setFaultTypes] = useState<FaultType[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -79,6 +82,13 @@ export default function NewCasePage() {
       setStaff(sRes.data || []);
     });
   }, []);
+
+  // Auto-fill submittedBy for staff (non-admin) once user is loaded
+  useEffect(() => {
+    if (user && !isAdmin) {
+      setForm(f => ({ ...f, submittedBy: user.name }));
+    }
+  }, [user, isAdmin]);
 
   // When switching modes, auto-expand More Details if it has values
   function handleModeSwitch(newMode: Mode) {
@@ -276,6 +286,7 @@ export default function NewCasePage() {
   ].filter(Boolean).length;
 
   function resetForm() {
+    const preservedName = isAdmin ? form.submittedBy : (user?.name ?? '');
     setForm({
       date: new Date().toISOString().slice(0, 10),
       orderNumber: '',
@@ -287,7 +298,7 @@ export default function NewCasePage() {
       faultNotes: '',
       evidenceLink: '',
       unitCostUSD: 0,
-      submittedBy: form.submittedBy,
+      submittedBy: preservedName,
     });
     setUploadedFiles([]);
     setErrors({});
@@ -385,16 +396,22 @@ export default function NewCasePage() {
           </div>
           <div className="flex-1">
             <label className="block text-sm font-semibold text-slate-700 mb-1">
-              Who is submitting this? <span className="text-red-500">*</span>
+              Submitted By <span className="text-red-500">*</span>
             </label>
-            <select
-              value={form.submittedBy}
-              onChange={e => handleChange('submittedBy', e.target.value)}
-              className={`form-input ${errors.submittedBy ? 'border-red-300' : ''}`}
-            >
-              <option value="">Select your name…</option>
-              {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
+            {isAdmin ? (
+              <select
+                value={form.submittedBy}
+                onChange={e => handleChange('submittedBy', e.target.value)}
+                className={`form-input ${errors.submittedBy ? 'border-red-300' : ''}`}
+              >
+                <option value="">Select name…</option>
+                {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            ) : (
+              <div className="form-input bg-white text-slate-700 cursor-default select-none">
+                {form.submittedBy || '—'}
+              </div>
+            )}
             {errors.submittedBy && <p className="form-error">{errors.submittedBy}</p>}
           </div>
         </div>

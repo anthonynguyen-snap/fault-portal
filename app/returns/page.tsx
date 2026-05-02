@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
+import { useAuth } from '@/components/auth/AuthProvider';
 import Link from 'next/link';
 import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
@@ -98,14 +99,16 @@ function blankRequest(): RequestForm {
 }
 
 function LogRequestSlideOver({
-  open, onClose, onSaved, existingRequests, editing,
+  open, onClose, onSaved, existingRequests, editing, currentUser,
 }: {
   open: boolean;
   onClose: () => void;
   onSaved: (r: Return) => void;
   existingRequests: Return[];
   editing?: Return | null;
+  currentUser?: { name: string; role: string } | null;
 }) {
+  const isAdmin = currentUser?.role === 'admin';
   const [form, setForm] = useState<RequestForm>(blankRequest());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -132,10 +135,13 @@ function LogRequestSlideOver({
         submittedBy:           editing.processedBy,
       });
     } else {
-      setForm(blankRequest());
+      const blank = blankRequest();
+      // Auto-fill submittedBy for staff
+      if (!isAdmin && currentUser?.name) blank.submittedBy = currentUser.name;
+      setForm(blank);
     }
     setError('');
-  }, [open, editing]);
+  }, [open, editing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Duplicate detection — skip when editing (the match IS the record being edited)
   const duplicate = useMemo(() => {
@@ -284,10 +290,16 @@ function LogRequestSlideOver({
           </div>
           <div>
             <label className="form-label">Logged By</label>
-            <select value={form.submittedBy} onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))} className="form-input">
-              <option value="">Select your name…</option>
-              {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
+            {isAdmin ? (
+              <select value={form.submittedBy} onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))} className="form-input">
+                <option value="">Select name…</option>
+                {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+              </select>
+            ) : (
+              <div className="form-input bg-slate-50 text-slate-700 cursor-default select-none">
+                {form.submittedBy || '—'}
+              </div>
+            )}
           </div>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
@@ -386,6 +398,7 @@ type ReturnSortKey = 'date' | 'customerName' | 'totalRefundAmount' | 'status';
 type SortDir = 'asc' | 'desc';
 
 export default function ReturnsPage() {
+  const { user } = useAuth();
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [loading, setLoading]       = useState(true);
   const [mainTab, setMainTab]       = useState<MainTab>('requested');
@@ -943,6 +956,7 @@ export default function ReturnsPage() {
         }}
         existingRequests={requests}
         editing={editingRequest}
+        currentUser={user}
       />
     </div>
   );
