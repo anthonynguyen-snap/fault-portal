@@ -38,6 +38,7 @@ import {
 import { DashboardStats, Return, ReplenishmentRequest, ReplenishmentStatus } from '@/types';
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge } from '@/lib/utils';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 // ── Week helpers ───────────────────────────────────────────────────────────────
 function getMondayOf(d: Date): Date {
@@ -160,6 +161,8 @@ type PeriodView = 'thisWeek' | 'lastWeek' | 'thisMonth';
 
 // ── Main Dashboard Page ────────────────────────────────────────────────────────
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [allReturns, setAllReturns] = useState<Return[]>([]);
@@ -593,14 +596,16 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Replenishment */}
-      <ReplenishmentSection sectionHeader={<SectionHeader icon={Truck} title="Replenishment" href="/replenishment" linkLabel="View all" />} />
+      {/* Replenishment — admin only */}
+      {isAdmin && (
+        <ReplenishmentSection sectionHeader={<SectionHeader icon={Truck} title="Replenishment" href="/replenishment" linkLabel="View all" />} />
+      )}
 
       {/* Today's Activity */}
       <TodayActivityCard sectionHeader={<SectionHeader icon={Activity} title="Today's Activity" href="/log" linkLabel="Full log" />} />
 
-      {/* AI Briefing */}
-      <AiBriefingCard />
+      {/* AI Briefing — admin only */}
+      {isAdmin && <AiBriefingCard />}
 
     </div>
   );
