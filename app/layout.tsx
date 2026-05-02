@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 import Providers from '@/components/Providers';
 import { SidebarProvider } from '@/components/layout/SidebarContext';
+import { headers } from 'next/headers';
 
 export const metadata: Metadata = {
   title: 'SNAP Customer Care Portal',
@@ -19,11 +20,29 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const headersList = await headers();
+  const pathname = headersList.get('x-pathname') || '';
+  const isLoginPage = pathname === '/login' || pathname.startsWith('/login');
+
+  if (isLoginPage) {
+    return (
+      <html lang="en">
+        <head>
+          <link rel="apple-touch-icon" href="/snap-logo.jpg" />
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        </head>
+        <body>
+          <Providers>{children}</Providers>
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en">
       <head>

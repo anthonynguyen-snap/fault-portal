@@ -1,11 +1,8 @@
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../api/auth/[...nextauth]/route";
+import { verifySession } from "@/lib/auth";
 import { FaultForm } from "@/components/FaultForm";
 
 export default async function NewFaultPage() {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  const session = await verifySession();
 
   return (
     <div>
@@ -15,7 +12,7 @@ export default async function NewFaultPage() {
           Fill in all required fields and attach any evidence photos or videos.
         </p>
       </div>
-      <FaultForm staffName={session.user?.name ?? ""} />
+      <FaultForm staffName={session?.name ?? ""} />
     </div>
   );
 }

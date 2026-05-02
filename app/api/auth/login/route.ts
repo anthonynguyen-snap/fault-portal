@@ -1,34 +1,65 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import { getSupabase } from '@/lib/supabase';
+import { createSession } from '@/lib/auth';
 
-export const runtime = 'nodejs';
+export async function POST(req: Request) {
+  const { email, password } = await req.json();
 
-export async function POST(req: NextRequest) {
-  try {
-    const { password } = await req.json();
-
-    const correctPassword = process.env.PORTAL_PASSWORD;
-    const secret          = process.env.PORTAL_SECRET;
-
-    if (!correctPassword || !secret) {
-      return NextResponse.json({ error: 'Server not configured — set PORTAL_PASSWORD and PORTAL_SECRET env vars.' }, { status: 500 });
-    }
-
-    if (!password || password !== correctPassword) {
-      // Small delay to slow brute-force attempts
-      await new Promise(r => setTimeout(r, 500));
-      return NextResponse.json({ error: 'Incorrect password. Try again.' }, { status: 401 });
-    }
-
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set('snap_portal_auth', secret, {
-      httpOnly: true,
-      secure:   process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge:   60 * 60 * 24 * 30, // 30 days
-      path:     '/',
-    });
-    return res;
-  } catch {
-    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
+  if (!email || !password) {
+    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
   }
+
+  const supabase = getSupabase();
+
+  // Look up agent by email
+  const { data: agent, error } = await supabase
+    .from('roster_agents')
+    .select('id, name, email, password_hash, role')
+    .eq('email', email.toLowerCase().trim())
+    .single();
+
+  if (error || !agent) {
+    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+  }
+
+  if (!agent.password_hash) {
+    return NextResponse.json({ error: 'Account not set up — contact admin' }, { status: 401 });
+  }
+
+  const valid = await bcrypt.compare(password, agent.password_hash);
+  if (!valid) {
+    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
+  }
+
+  // Clock in: create shift log
+  const today = new Date().toISOString().split('T')[0];
+  const { data: shiftLog } = await supabase
+    .from('shift_logs')
+    .insert([{
+      agent_id: agent.id,
+      date: today,
+      clock_in: new Date().toISOString(),
+    }])
+    .select('id')
+    .single();
+
+  // Create session
+  await createSession({
+    agentId: agent.id,
+    name: agent.name,
+    email: agent.email,
+    role: agent.role as 'admin' | 'staff',
+    shiftLogId: shiftLog?.id,
+  });
+
+  return NextResponse.json({
+    success: true,
+    user: {
+      id: agent.id,
+      name: agent.name,
+      email: agent.email,
+      role: agent.role,
+    },
+  });
 }

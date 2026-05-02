@@ -1,111 +1,128 @@
 'use client';
-import { Suspense, useState } from 'react';
+
+import { useState, FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, Eye, EyeOff, RefreshCw } from 'lucide-react';
 
-function LoginForm() {
-  const [password, setPassword] = useState('');
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
-  const [showPw,   setShowPw]   = useState(false);
+export default function LoginPage() {
   const router = useRouter();
-  const params = useSearchParams();
+  const searchParams = useSearchParams();
+  const from = searchParams.get('from') || '/';
 
-  async function submit(e: React.FormEvent) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!password) return;
-    setLoading(true);
     setError('');
+    setLoading(true);
+
     try {
       const res = await fetch('/api/auth/login', {
-        method:  'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       });
+
+      const data = await res.json();
+
       if (!res.ok) {
-        const json = await res.json();
-        setError(json.error ?? 'Incorrect password. Try again.');
+        setError(data.error || 'Login failed');
+        setLoading(false);
         return;
       }
-      router.push(params.get('from') ?? '/');
+
+      router.push(from);
+      router.refresh();
     } catch {
       setError('Something went wrong. Please try again.');
-    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-950">
       <div className="w-full max-w-sm">
-
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-               style={{ backgroundColor: '#1591b3' }}>
-            <Lock size={24} className="text-white" />
+        {/* Logo / branding */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 mb-4">
+            <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">SNAP Customer Care</h1>
-          <p className="text-sm text-slate-500 mt-1">Enter the team password to continue</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">SNAP Portal</h1>
+          <p className="text-gray-400 text-sm mt-1">Sign in to your account</p>
         </div>
 
         {/* Form */}
-        <form onSubmit={submit} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Password
-            </label>
-            <div className="relative">
+        <form onSubmit={handleSubmit} className="bg-gray-900 rounded-2xl p-8 shadow-xl border border-gray-800">
+          <div className="space-y-5">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1.5">
+                Email address
+              </label>
               <input
-                type={showPw ? 'text' : 'password'}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter team password"
-                className="w-full px-3 py-2.5 pr-10 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                autoFocus
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                placeholder="you@example.com"
               />
-              <button
-                type="button"
-                onClick={() => setShowPw(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                tabIndex={-1}
-              >
-                {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
             </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1.5">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                placeholder="••••••••"
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/50 border border-red-900 rounded-lg px-3.5 py-2.5">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Signing in…
+                </span>
+              ) : (
+                'Sign in'
+              )}
+            </button>
           </div>
-
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading || !password}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-semibold text-white transition-all disabled:opacity-50"
-            style={{ backgroundColor: '#1591b3' }}
-          >
-            {loading
-              ? <RefreshCw size={14} className="animate-spin" />
-              : <Lock size={14} />}
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
         </form>
 
-        <p className="text-center text-xs text-slate-400 mt-5">
-          SNAP Wireless · Internal use only
+        <p className="text-center text-xs text-gray-600 mt-6">
+          Trouble signing in? Contact your admin.
         </p>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
   );
 }

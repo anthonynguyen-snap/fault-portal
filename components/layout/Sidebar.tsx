@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 type AlertLevel = 'red' | 'amber' | null;
 
@@ -108,12 +109,25 @@ function ReplenishmentAlertBadge() {
   );
 }
 
-const navGroups = [
+type NavItem = {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  adminOnly?: boolean;
+};
+
+type NavGroup = {
+  label: string;
+  adminOnly?: boolean;
+  items: NavItem[];
+};
+
+const navGroups: NavGroup[] = [
   {
     label: 'Fault Management',
     items: [
       { label: 'All Cases', href: '/cases',   icon: AlertTriangle },
-      { label: 'Claims',    href: '/claims',  icon: FileText },
+      { label: 'Claims',    href: '/claims',  icon: FileText, adminOnly: true },
     ],
   },
   {
@@ -128,12 +142,13 @@ const navGroups = [
     label: 'Inventory',
     items: [
       { label: 'Promotions',    href: '/promotions',    icon: Tag },
-      { label: 'Stock Room',    href: '/stock',         icon: Package },
-      { label: 'Replenishment', href: '/replenishment', icon: Truck },
+      { label: 'Stock Room',    href: '/stock',         icon: Package,  adminOnly: true },
+      { label: 'Replenishment', href: '/replenishment', icon: Truck,    adminOnly: true },
     ],
   },
   {
     label: 'Wholesale',
+    adminOnly: true,
     items: [
       { label: 'Corporate', href: '/corporate', icon: Briefcase },
     ],
@@ -149,9 +164,9 @@ const navGroups = [
     label: 'System',
     items: [
       { label: 'Activity Log',      href: '/log',         icon: Activity },
-      { label: 'Reports',          href: '/reports',     icon: BarChart2 },
-      { label: 'Team Performance', href: '/performance', icon: Users2 },
-      { label: 'Admin',            href: '/admin',       icon: Settings },
+      { label: 'Reports',           href: '/reports',     icon: BarChart2,  adminOnly: true },
+      { label: 'Team Performance',  href: '/performance', icon: Users2 },
+      { label: 'Admin',             href: '/admin',       icon: Settings,   adminOnly: true },
     ],
   },
 ];
@@ -159,6 +174,8 @@ const navGroups = [
 export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
+  const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   // Close drawer on route change (iPad nav)
   useEffect(() => { close(); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -166,6 +183,11 @@ export function Sidebar() {
   function isActive(href: string) {
     return href === '/' ? pathname === '/' : pathname.startsWith(href);
   }
+
+  // Get initials for avatar
+  const initials = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    : 'CC';
 
   return (
     <>
@@ -242,48 +264,57 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-        {navGroups.map((group) => (
-          <div key={group.label}>
-            <div className="flex items-center gap-2 px-3 mb-1.5">
-              <div className="w-3 h-px bg-slate-700 flex-shrink-0" />
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.12em] flex-shrink-0">
-                {group.label}
-              </p>
-              <div className="flex-1 h-px bg-slate-800" />
-            </div>
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group',
-                      active
-                        ? 'bg-brand-600 text-white'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-                    )}
-                  >
-                    <Icon
-                      size={16}
+        {navGroups.map((group) => {
+          // Hide admin-only groups from staff
+          if (group.adminOnly && !isAdmin) return null;
+
+          // Filter items
+          const visibleItems = group.items.filter(item => !item.adminOnly || isAdmin);
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={group.label}>
+              <div className="flex items-center gap-2 px-3 mb-1.5">
+                <div className="w-3 h-px bg-slate-700 flex-shrink-0" />
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.12em] flex-shrink-0">
+                  {group.label}
+                </p>
+                <div className="flex-1 h-px bg-slate-800" />
+              </div>
+              <div className="space-y-0.5">
+                {visibleItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
                       className={cn(
-                        'flex-shrink-0 transition-colors',
-                        active ? 'text-white' : 'group-hover:text-white'
+                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group',
+                        active
+                          ? 'bg-brand-600 text-white'
+                          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       )}
-                    />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {item.href === '/returns'       && <ReturnAlertBadge />}
-                    {item.href === '/refunds'       && <RefundAlertBadge />}
-                    {item.href === '/replenishment' && <ReplenishmentAlertBadge />}
-                    {active && <ChevronRight size={13} className="text-white/50" />}
-                  </Link>
-                );
-              })}
+                    >
+                      <Icon
+                        size={16}
+                        className={cn(
+                          'flex-shrink-0 transition-colors',
+                          active ? 'text-white' : 'group-hover:text-white'
+                        )}
+                      />
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {item.href === '/returns'       && <ReturnAlertBadge />}
+                      {item.href === '/refunds'       && <RefundAlertBadge />}
+                      {item.href === '/replenishment' && <ReplenishmentAlertBadge />}
+                      {active && <ChevronRight size={13} className="text-white/50" />}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Pinned Home button */}
@@ -309,23 +340,27 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Footer */}
+      {/* Footer — user info + logout */}
       <div className="px-4 py-4 border-t border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
-            <span className="text-[11px] font-semibold text-slate-300">CC</span>
+          <div className="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center flex-shrink-0">
+            <span className="text-[11px] font-semibold text-white">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-slate-300 truncate">Customer Care Team</p>
-            <p className="text-xs text-slate-500 truncate">Internal Portal</p>
+            <p className="text-xs font-medium text-slate-300 truncate">
+              {user?.name || 'Loading…'}
+            </p>
+            <p className="text-xs text-slate-500 truncate capitalize">
+              {user?.role || ''}
+            </p>
           </div>
-          <a
-            href="/api/auth/logout"
+          <button
+            onClick={logout}
             title="Sign out"
             className="text-slate-600 hover:text-slate-300 transition-colors flex-shrink-0"
           >
             <LogOut size={14} />
-          </a>
+          </button>
         </div>
       </div>
     </aside>

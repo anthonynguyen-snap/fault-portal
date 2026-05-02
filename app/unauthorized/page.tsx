@@ -1,10 +1,10 @@
 "use client";
-import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { ShieldX } from "lucide-react";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 export default function UnauthorizedPage() {
-  const { data: session } = useSession();
+  const { user, logout } = useAuth();
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
@@ -15,11 +15,11 @@ export default function UnauthorizedPage() {
 
         <h1 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h1>
         <p className="text-sm text-gray-500 mb-2">
-          This section is only available to SNAP Wireless staff.
+          This section is only available to admin users.
         </p>
-        {session?.user?.email && (
+        {user?.email && (
           <p className="text-xs text-gray-400 mb-6">
-            Signed in as <span className="font-medium">{session.user.email}</span>
+            Signed in as <span className="font-medium">{user.email}</span>
           </p>
         )}
 
@@ -28,7 +28,7 @@ export default function UnauthorizedPage() {
             Back to Dashboard
           </Link>
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={logout}
             className="btn-secondary w-full text-sm py-2"
           >
             Sign out

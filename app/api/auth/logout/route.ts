@@ -1,18 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { getSupabase } from '@/lib/supabase';
+import { verifySession, clearSession } from '@/lib/auth';
 
-export const runtime = 'nodejs';
+export async function POST() {
+  const session = await verifySession();
 
-export async function GET(req: NextRequest) {
-  const url = req.nextUrl.clone();
-  url.pathname = '/login';
-  url.search   = '';
-  const res = NextResponse.redirect(url);
-  res.cookies.set('snap_portal_auth', '', {
-    httpOnly: true,
-    secure:   process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge:   0,
-    path:     '/',
-  });
-  return res;
+  if (session?.shiftLogId) {
+    // Clock out: update shift log with clock_out time
+    const supabase = getSupabase();
+    await supabase
+      .from('shift_logs')
+      .update({ clock_out: new Date().toISOString() })
+      .eq('id', session.shiftLogId)
+      .is('clock_out', null);
+  }
+
+  await clearSession();
+
+  return NextResponse.json({ success: true });
 }

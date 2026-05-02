@@ -14,11 +14,14 @@ import {
   Users,
   Target,
   CalendarDays,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 
 // Generic CRUD panel used for all three entity types
-type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'kpiTargets' | 'roster';
+type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('products');
@@ -28,6 +31,7 @@ export default function AdminPage() {
     { key: 'manufacturers', label: 'Manufacturers', icon: Building2    },
     { key: 'faultTypes',    label: 'Fault Types',   icon: Tag          },
     { key: 'staff',         label: 'Staff',         icon: Users        },
+    { key: 'logins',        label: 'Logins',        icon: KeyRound     },
     { key: 'kpiTargets',    label: 'KPI Targets',   icon: Target       },
     { key: 'roster',        label: 'Roster',        icon: CalendarDays },
   ];
@@ -61,6 +65,7 @@ export default function AdminPage() {
       {activeTab === 'manufacturers' && <ManufacturersPanel />}
       {activeTab === 'faultTypes'    && <FaultTypesPanel />}
       {activeTab === 'staff'         && <StaffPanel />}
+      {activeTab === 'logins'        && <LoginsPanel />}
       {activeTab === 'kpiTargets'    && <KpiTargetsPanel />}
       {activeTab === 'roster'        && <RosterSettingsPanel />}
     </div>
@@ -526,6 +531,250 @@ function StaffPanel() {
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Logins Panel ─────────────────────────────────────────────────────────────
+
+interface AgentWithAuth {
+  id: string;
+  name: string;
+  email: string | null;
+  role: 'admin' | 'staff';
+  hasPassword: boolean;
+}
+
+function LoginsPanel() {
+  const [agents, setAgents] = useState<AgentWithAuth[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<AgentWithAuth | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '', role: 'staff' as 'admin' | 'staff' });
+  const [showPw, setShowPw] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch('/api/staff/auth');
+    const json = await res.json();
+    setAgents(json.data || []);
+    setLoading(false);
+  }
+
+  function openEdit(agent: AgentWithAuth) {
+    setEditing(agent);
+    setForm({ email: agent.email || '', password: '', confirmPassword: '', role: agent.role });
+    setError('');
+    setShowPw(false);
+    setShowModal(true);
+  }
+
+  async function handleSave() {
+    if (!editing) return;
+    if (form.password && form.password !== form.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (form.password && form.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    setSaving(true); setError('');
+    try {
+      // Update email and role
+      const emailRes = await fetch('/api/auth/set-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: editing.id, email: form.email }),
+      });
+      const emailJson = await emailRes.json();
+      if (emailJson.error) throw new Error(emailJson.error);
+
+      // Update role
+      await fetch('/api/staff/auth', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: editing.id, role: form.role }),
+      });
+
+      // Update password if provided
+      if (form.password) {
+        const pwRes = await fetch('/api/auth/set-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId: editing.id, password: form.password }),
+        });
+        const pwJson = await pwRes.json();
+        if (pwJson.error) throw new Error(pwJson.error);
+      }
+
+      setShowModal(false);
+      setSuccess(`${editing.name} updated.`);
+      setTimeout(() => setSuccess(''), 3000);
+      await load();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-slate-900">Staff Logins</h2>
+          <p className="text-xs text-slate-500">Set email, password and role for each team member's portal access</p>
+        </div>
+        {success && (
+          <span className="flex items-center gap-1.5 text-emerald-700 text-xs font-medium">
+            <CheckCircle size={13} /> {success}
+          </span>
+        )}
+      </div>
+
+      <div className="card overflow-hidden">
+        {loading ? (
+          <div className="py-12 text-center">
+            <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto" />
+          </div>
+        ) : agents.length === 0 ? (
+          <div className="py-12 text-center text-slate-400 text-sm">No staff members found.</div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Password</th>
+                <th className="w-20">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agents.map(agent => (
+                <tr key={agent.id}>
+                  <td className="font-medium">{agent.name}</td>
+                  <td className="text-slate-500 text-xs">{agent.email || <span className="text-amber-500 italic">Not set</span>}</td>
+                  <td>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      agent.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {agent.role}
+                    </span>
+                  </td>
+                  <td>
+                    {agent.hasPassword ? (
+                      <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                        <CheckCircle size={12} /> Set
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-500 font-medium flex items-center gap-1">
+                        <AlertCircle size={12} /> Not set
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <button onClick={() => openEdit(agent)} className="text-brand-600 hover:text-brand-800 p-1">
+                      <Pencil size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+        <strong>Note:</strong> Staff members need an email and password to log in. Admins have access to all pages; staff see a limited view.
+        Login automatically clocks staff in, and logout clocks them out.
+      </div>
+
+      {showModal && editing && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="font-semibold text-slate-900">Edit Login — {editing.name}</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Leave password blank to keep current</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="form-label">Email address</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  className="form-input"
+                  placeholder="name@example.com"
+                />
+              </div>
+              <div>
+                <label className="form-label">Role</label>
+                <select
+                  value={form.role}
+                  onChange={e => setForm(f => ({ ...f, role: e.target.value as 'admin' | 'staff' }))}
+                  className="form-input"
+                >
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">New password</label>
+                <div className="relative">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    className="form-input pr-10"
+                    placeholder={editing.hasPassword ? 'Leave blank to keep current' : 'Set a password'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+              {form.password && (
+                <div>
+                  <label className="form-label">Confirm password</label>
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={form.confirmPassword}
+                    onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                    className="form-input"
+                    placeholder="Repeat new password"
+                  />
+                </div>
+              )}
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500" />
+                  <p className="text-xs text-red-700">{error}</p>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
