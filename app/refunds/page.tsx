@@ -9,6 +9,7 @@ import {
 import { RefundRequest, RefundResolution, REFUND_REASONS } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StaffMember { id: string; name: string; }
@@ -94,6 +95,9 @@ export default function RefundsPage() {
 
 function RefundsInner() {
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const [requests, setRequests]   = useState<RefundRequest[]>([]);
   const [staff, setStaff]         = useState<StaffMember[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -116,7 +120,7 @@ function RefundsInner() {
   const [processResolution, setProcessResolution] = useState<RefundResolution>('Cash Refund');
   const [processedAmount, setProcessedAmount] = useState('');
   const [adjustmentReason, setAdjustmentReason] = useState('');
-  const [processedBy, setProcessedBy] = useState('Anthony');
+  const [processedBy, setProcessedBy] = useState('');
   const [expanded, setExpanded]   = useState<string | null>(null);
 
   // Auto-detect currency from order number suffix (only when not manually overridden mid-session)
@@ -174,7 +178,9 @@ function RefundsInner() {
   }, [openId, loading, requests]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function resetForm() {
-    setForm({ orderNumber: '', customerName: '', amount: '', currency: 'AUD', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: '' });
+    // Auto-fill submittedBy for staff; leave blank for admin to pick
+    const autoName = !isAdmin && user?.name ? user.name : '';
+    setForm({ orderNumber: '', customerName: '', amount: '', currency: 'AUD', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: autoName });
     setFormError('');
   }
 
@@ -291,7 +297,7 @@ function RefundsInner() {
       setProcessResolution('Cash Refund');
       setProcessedAmount('');
       setAdjustmentReason('');
-      setProcessedBy('Anthony');
+      setProcessedBy(!isAdmin && user?.name ? user.name : '');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -555,7 +561,7 @@ function RefundsInner() {
                         </button>
                         {isPending ? (
                           <button
-                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); setProcessedAmount(req.amount > 0 ? String(req.amount) : ''); setAdjustmentReason(''); setProcessedBy(''); }}
+                            onClick={() => { setProcessing(req); setProcessNotes(''); setProcessResolution('Cash Refund'); setProcessedAmount(req.amount > 0 ? String(req.amount) : ''); setAdjustmentReason(''); setProcessedBy(!isAdmin && user?.name ? user.name : ''); }}
                             className="btn-primary text-xs py-1 px-3"
                           >
                             Process
@@ -716,16 +722,22 @@ function RefundsInner() {
           {/* Submitted by */}
           <div>
             <label className="form-label">Submitted By <span className="text-red-400">*</span></label>
-            <select
-              value={form.submittedBy}
-              onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))}
-              className="form-input"
-            >
-              <option value="">Select your name…</option>
-              {staff.map(s => (
-                <option key={s.id} value={s.name}>{s.name}</option>
-              ))}
-            </select>
+            {isAdmin ? (
+              <select
+                value={form.submittedBy}
+                onChange={e => setForm(f => ({ ...f, submittedBy: e.target.value }))}
+                className="form-input"
+              >
+                <option value="">Select name…</option>
+                {staff.map(s => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="form-input bg-slate-50 text-slate-700 cursor-default select-none">
+                {form.submittedBy || user?.name || '—'}
+              </div>
+            )}
           </div>
 
           {formError && (
@@ -887,10 +899,16 @@ function RefundsInner() {
             {/* Processed by */}
             <div>
               <label className="form-label">Processed By <span className="text-red-400">*</span></label>
-              <select value={processedBy} onChange={e => setProcessedBy(e.target.value)} className="form-input">
-                <option value="">Select your name…</option>
-                {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
+              {isAdmin ? (
+                <select value={processedBy} onChange={e => setProcessedBy(e.target.value)} className="form-input">
+                  <option value="">Select name…</option>
+                  {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                </select>
+              ) : (
+                <div className="form-input bg-slate-50 text-slate-700 cursor-default select-none">
+                  {user?.name || processedBy || '—'}
+                </div>
+              )}
             </div>
 
             {/* Actions */}

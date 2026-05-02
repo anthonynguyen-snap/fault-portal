@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { FAULT_TYPES } from "@/lib/types";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 interface Props {
   staffName?: string;
@@ -25,6 +26,10 @@ function today() {
 
 export function FaultForm({ staffName = "" }: Props) {
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  // Staff always use their own name; admin can type freely
+  const resolvedName = isAdmin ? staffName : (user?.name ?? staffName);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<FormState>({
@@ -36,7 +41,7 @@ export function FaultForm({ staffName = "" }: Props) {
     faultType:    FAULT_TYPES[0],
     description:  "",
     internalCost: "",
-    staffMember:  staffName,
+    staffMember:  resolvedName,
   });
 
   const [files, setFiles]         = useState<File[]>([]);
@@ -162,8 +167,14 @@ export function FaultForm({ staffName = "" }: Props) {
 
           <div>
             <label className="label">Staff Member <span className="text-red-500">*</span></label>
-            <input type="text" className="input-field" placeholder="Your name" required
-              value={form.staffMember} onChange={(e) => setField("staffMember", e.target.value)} />
+            {isAdmin ? (
+              <input type="text" className="input-field" placeholder="Your name" required
+                value={form.staffMember} onChange={(e) => setField("staffMember", e.target.value)} />
+            ) : (
+              <div className="input-field bg-slate-50 text-slate-700 cursor-default select-none">
+                {form.staffMember || '—'}
+              </div>
+            )}
           </div>
 
           <div>
