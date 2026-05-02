@@ -343,16 +343,16 @@ export function Sidebar() {
       {/* Footer — user info + logout */}
       <div className="px-4 py-4 border-t border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center flex-shrink-0">
+          <Link href="/account/password" title="Change password" className="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center flex-shrink-0 hover:bg-indigo-600 transition-colors">
             <span className="text-[11px] font-semibold text-white">{initials}</span>
-          </div>
+          </Link>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-slate-300 truncate">
               {user?.name || 'Loading…'}
             </p>
-            <p className="text-xs text-slate-500 truncate capitalize">
-              {user?.role || ''}
-            </p>
+            <Link href="/account/password" className="text-xs text-slate-500 hover:text-slate-400 truncate capitalize transition-colors">
+              Change password
+            </Link>
           </div>
           <button
             onClick={logout}

@@ -543,6 +543,23 @@ interface AgentWithAuth {
   email: string | null;
   role: 'admin' | 'staff';
   hasPassword: boolean;
+  lastLogin: string | null;
+}
+
+function formatLastLogin(iso: string | null): string {
+  if (!iso) return 'Never';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffMins < 2) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
 
 function LoginsPanel() {
@@ -653,6 +670,7 @@ function LoginsPanel() {
                 <th>Email</th>
                 <th>Role</th>
                 <th>Password</th>
+                <th>Last Login</th>
                 <th className="w-20">Actions</th>
               </tr>
             </thead>
@@ -678,6 +696,9 @@ function LoginsPanel() {
                         <AlertCircle size={12} /> Not set
                       </span>
                     )}
+                  </td>
+                  <td className="text-xs text-slate-500">
+                    {formatLastLogin(agent.lastLogin)}
                   </td>
                   <td>
                     <button onClick={() => openEdit(agent)} className="text-brand-600 hover:text-brand-800 p-1">

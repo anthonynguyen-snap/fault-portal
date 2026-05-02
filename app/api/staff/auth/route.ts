@@ -16,12 +16,30 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Fetch last login for each agent
+  const agentIds = (data || []).map((a: Record<string, unknown>) => a.id as string);
+  const { data: shifts } = await supabase
+    .from('shift_logs')
+    .select('agent_id, clock_in')
+    .in('agent_id', agentIds)
+    .order('clock_in', { ascending: false });
+
+  // Build a map of agentId → most recent clock_in
+  const lastLoginMap: Record<string, string> = {};
+  for (const shift of (shifts || [])) {
+    const s = shift as { agent_id: string; clock_in: string };
+    if (!lastLoginMap[s.agent_id]) {
+      lastLoginMap[s.agent_id] = s.clock_in;
+    }
+  }
+
   const agents = (data || []).map((a: Record<string, unknown>) => ({
     id: a.id as string,
     name: a.name as string,
     email: (a.email as string) || null,
     role: ((a.role as string) || 'staff') as 'admin' | 'staff',
     hasPassword: !!(a.password_hash as string),
+    lastLogin: lastLoginMap[a.id as string] || null,
   }));
 
   return NextResponse.json({ data: agents });
