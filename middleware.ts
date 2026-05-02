@@ -24,21 +24,29 @@ function getSecretKey() {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths through
+  // Always inject x-pathname so the layout knows which page it's rendering
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', pathname);
+
+  // Allow public paths through (with x-pathname injected so layout hides sidebar)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // Allow API routes except protected ones (API routes handle their own auth where needed)
+  // Allow auth API routes through — they handle their own logic
   if (pathname.startsWith('/api/auth')) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   // Get session token
   const token = request.cookies.get(COOKIE_NAME)?.value;
 
   if (!token) {
-    // Redirect to login
+    // API routes: return 401 JSON (don't redirect — the browser would follow it)
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+    }
+    // Pages: redirect to login
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('from', pathname);
     return NextResponse.redirect(loginUrl);
@@ -50,7 +58,12 @@ export async function middleware(request: NextRequest) {
     const { payload: p } = await jwtVerify(token, getSecretKey());
     payload = p as typeof payload;
   } catch {
-    // Invalid/expired token — clear cookie and redirect
+    // Invalid/expired token
+    if (pathname.startsWith('/api/')) {
+      const response = NextResponse.json({ error: 'Session expired' }, { status: 401 });
+      response.cookies.delete(COOKIE_NAME);
+      return response;
+    }
     const loginUrl = new URL('/login', request.url);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete(COOKIE_NAME);
@@ -61,29 +74,23 @@ export async function middleware(request: NextRequest) {
   if (payload.role === 'staff') {
     const isAdminOnly = ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
     if (isAdminOnly) {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       return NextResponse.redirect(new URL('/', request.url));
     }
   }
 
   // Inject agent info into headers for server components
-  const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-agent-id', payload.agentId);
   requestHeaders.set('x-agent-name', payload.name);
   requestHeaders.set('x-agent-role', payload.role);
-  requestHeaders.set('x-pathname', pathname);
 
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico
-     * - public folder files
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
