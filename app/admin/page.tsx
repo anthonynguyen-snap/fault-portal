@@ -738,6 +738,8 @@ function LoginsPanel() {
         Login automatically clocks staff in, and logout clocks them out.
       </div>
 
+      <LoginHistoryFeed agents={agents.map(a => ({ id: a.id, name: a.name }))} />
+
       {showModal && editing && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -817,6 +819,170 @@ function LoginsPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Login History Feed ────────────────────────────────────────────────────────
+
+interface LoginEvent {
+  id: string;
+  agentId: string;
+  name: string;
+  role: string;
+  loggedIn: string;
+  date: string;
+}
+
+function fmtLoginTime(iso: string): { time: string; relative: string } {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  const time = d.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  let relative = '';
+  if (diffMins < 2) relative = 'just now';
+  else if (diffMins < 60) relative = `${diffMins}m ago`;
+  else if (diffHours < 24) relative = `${diffHours}h ago`;
+  else if (diffDays === 1) relative = 'yesterday';
+  else if (diffDays < 7) relative = `${diffDays}d ago`;
+  else relative = d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+
+  return { time, relative };
+}
+
+function groupByDay(events: LoginEvent[]): { label: string; items: LoginEvent[] }[] {
+  const groups: Record<string, LoginEvent[]> = {};
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  for (const e of events) {
+    const day = e.date || e.loggedIn.slice(0, 10);
+    if (!groups[day]) groups[day] = [];
+    groups[day].push(e);
+  }
+
+  return Object.entries(groups)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([day, items]) => ({
+      label: day === today ? 'Today' : day === yesterday ? 'Yesterday' : new Date(day + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' }),
+      items,
+    }));
+}
+
+function LoginHistoryFeed({ agents }: { agents: { id: string; name: string }[] }) {
+  const [events, setEvents]           = useState<LoginEvent[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [filterAgent, setFilterAgent] = useState('');
+  const [days, setDays]               = useState(7);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ days: String(days) });
+    if (filterAgent) params.set('agentId', filterAgent);
+    fetch(`/api/admin/login-history?${params}`)
+      .then(r => r.json())
+      .then(d => setEvents(d.data || []))
+      .catch(err => console.error('[LoginHistoryFeed]', err))
+      .finally(() => setLoading(false));
+  }, [days, filterAgent]);
+
+  const groups = groupByDay(events);
+
+  return (
+    <div className="space-y-3 pt-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">Login History</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Every portal login by staff over the selected period</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={filterAgent}
+            onChange={e => setFilterAgent(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-brand-300"
+          >
+            <option value="">All staff</option>
+            {agents.map(a => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+          <select
+            value={days}
+            onChange={e => setDays(Number(e.target.value))}
+            className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-brand-300"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={14}>Last 14 days</option>
+            <option value={30}>Last 30 days</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="card overflow-hidden">
+        {loading ? (
+          <div className="divide-y divide-slate-50">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-7 h-7 rounded-full bg-slate-100 animate-pulse flex-shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 bg-slate-100 rounded animate-pulse w-1/3" />
+                  <div className="h-2.5 bg-slate-50 rounded animate-pulse w-1/5" />
+                </div>
+                <div className="h-3 bg-slate-100 rounded animate-pulse w-16" />
+              </div>
+            ))}
+          </div>
+        ) : events.length === 0 ? (
+          <div className="py-10 text-center">
+            <p className="text-sm text-slate-400">No logins recorded in this period</p>
+          </div>
+        ) : (
+          <div>
+            {groups.map(({ label, items }) => (
+              <div key={label}>
+                {/* Day header */}
+                <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">{label}</span>
+                  <span className="text-[10px] text-slate-400 font-medium">{items.length} login{items.length !== 1 ? 's' : ''}</span>
+                </div>
+                {/* Events */}
+                <div className="divide-y divide-slate-50">
+                  {items.map(e => {
+                    const { time, relative } = fmtLoginTime(e.loggedIn);
+                    const initials = e.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                    return (
+                      <div key={e.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-white text-[10px] font-bold ${
+                          e.role === 'admin' ? 'bg-indigo-500' : 'bg-brand-500'
+                        }`}>
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800">{e.name}</p>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                            e.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {e.role}
+                          </span>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-xs font-medium text-slate-700">{time}</p>
+                          <p className="text-[10px] text-slate-400">{relative}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
