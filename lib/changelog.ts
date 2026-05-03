@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.2',
+    label: 'Internal Notes',
+    date: '2026-05-03',
+    isLatest: true,
+    summary: 'Append-only internal notes on fault cases, returns, and refund requests.',
+    changes: [
+      { category: 'Cases', text: 'Internal notes panel on case detail pages — timestamped, author-attributed, append-only thread with ⌘↵ shortcut' },
+      { category: 'Returns', text: 'Internal notes panel on return detail pages — same timeline component as cases' },
+      { category: 'Refunds', text: 'Notes button on each refund row — opens a modal with the full notes thread; badge shows note count when notes exist' },
+      { category: 'UI/UX', text: 'Shared InternalNotes component with coloured author avatars, relative timestamps, and a textarea composer' },
+      { category: 'Admin', text: 'Notes stored as JSON on Google Sheets (cases, col O) and Supabase JSONB (returns + refund_requests)' },
+    ],
+  },
+  {
     version: 'v2.1',
     label: 'Claim Outcomes & Recovery Tracking',
     date: '2026-05-03',
-    isLatest: true,
+    isLatest: false,
     summary: 'Manufacturer claim outcomes with partial credit support, recovery rate summary, and outcome detail modal.',
     changes: [
       { category: 'Cases', text: 'New "Partial Credit" claim status — for when a manufacturer approves only a portion of a claim batch' },

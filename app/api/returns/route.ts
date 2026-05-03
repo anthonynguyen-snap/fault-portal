@@ -51,6 +51,7 @@ function fromRow(row: Record<string, unknown>): Return {
     followUpStatus:        row.follow_up_status as Return['followUpStatus'],
     followUpNotes:         String(row.follow_up_notes ?? ''),
     notes:                 String(row.notes ?? ''),
+    internalNotes:         Array.isArray(row.internal_notes) ? row.internal_notes : [],
     status:                row.status as Return['status'],
     processedBy:           String(row.processed_by ?? ''),
     conversationLink:      String(row.conversation_link ?? ''),

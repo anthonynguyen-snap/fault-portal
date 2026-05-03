@@ -2,6 +2,13 @@
 // FAULT PORTAL — SHARED TYPE DEFINITIONS
 // =========================================================
 
+export interface InternalNote {
+  id: string;          // unique ID e.g. "note-1746123456789"
+  text: string;
+  author: string;      // staff name from session
+  createdAt: string;   // ISO timestamp
+}
+
 export type ClaimStatus =
   | 'Unsubmitted'
   | 'Claim Raised'
@@ -25,6 +32,7 @@ export interface FaultCase {
   claimStatus: ClaimStatus;
   submittedBy: string;
   createdAt: string;            // ISO timestamp
+  internalNotes?: InternalNote[];
 }
 
 export interface Product {
@@ -173,6 +181,7 @@ export interface Return {
   conversationLink: string;
   starshipitOrderNumber: string;
   createdAt: string;
+  internalNotes?: InternalNote[];
 }
 
 // =========================================================
@@ -276,6 +285,7 @@ export interface RefundRequest {
   resolution: RefundResolution;
   createdAt: string;
   processedAt: string | null;
+  internalNotes?: InternalNote[];
 }
 
 // =========================================================

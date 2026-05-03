@@ -18,8 +18,9 @@ import {
   Clock,
   CheckCircle,
 } from 'lucide-react';
-import { FaultCase, ClaimStatus, Product } from '@/types';
+import { FaultCase, ClaimStatus, Product, InternalNote } from '@/types';
 import { formatCurrency, formatDate, formatDateTime, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
+import { InternalNotes } from '@/components/ui/InternalNotes';
 
 function InfoRow({ icon: Icon, label, value, href }: {
   icon: React.ElementType;
@@ -59,6 +60,7 @@ export default function CaseDetailPage() {
   const [editForm, setEditForm] = useState<Partial<FaultCase>>({});
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [notes, setNotes] = useState<InternalNote[]>([]);
 
   // Derived — which product is selected in the edit form
   const editingProduct = products.find(p => p.name === (editForm.product ?? ''));
@@ -72,6 +74,7 @@ export default function CaseDetailPage() {
         if (caseJson.error) throw new Error(caseJson.error);
         setCaseData(caseJson.data);
         setEditForm(caseJson.data);
+        setNotes(caseJson.data?.internalNotes || []);
         setProducts(prodJson.data ?? []);
       })
       .catch(err => setError(err.message))
@@ -380,6 +383,22 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Internal Notes */}
+      <InternalNotes
+        notes={notes}
+        entityLabel="case"
+        onAdd={async (text) => {
+          const res = await fetch(`/api/cases/${id}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          const json = await res.json();
+          if (json.error) throw new Error(json.error);
+          setNotes(json.data);
+        }}
+      />
     </div>
   );
 }

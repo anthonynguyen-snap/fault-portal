@@ -6,10 +6,11 @@ import {
   ExternalLink, Clock, ChevronDown, ChevronUp, AlertTriangle, Pencil,
   Copy, Check, ArrowUpDown,
 } from 'lucide-react';
-import { RefundRequest, RefundResolution, REFUND_REASONS } from '@/types';
+import { RefundRequest, RefundResolution, REFUND_REASONS, InternalNote } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { InternalNotes } from '@/components/ui/InternalNotes';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StaffMember { id: string; name: string; }
@@ -122,6 +123,9 @@ function RefundsInner() {
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [processedBy, setProcessedBy] = useState('');
   const [expanded, setExpanded]   = useState<string | null>(null);
+  // Notes modal
+  const [notesRefund, setNotesRefund] = useState<RefundRequest | null>(null);
+  const [notesMap, setNotesMap] = useState<Record<string, InternalNote[]>>({});
 
   // Auto-detect currency from order number suffix (only when not manually overridden mid-session)
   useEffect(() => {
@@ -158,7 +162,12 @@ function RefundsInner() {
       ]);
       const refJson   = await refRes.json();
       const staffJson = await staffRes.json();
-      setRequests(refJson.data ?? []);
+      const loaded: RefundRequest[] = refJson.data ?? [];
+      setRequests(loaded);
+      // Seed notesMap from loaded data
+      const map: Record<string, InternalNote[]> = {};
+      for (const r of loaded) map[r.id] = r.internalNotes || [];
+      setNotesMap(map);
       setStaff(staffJson.data ?? []);
     } catch {
       setError('Failed to load refund requests');
@@ -553,6 +562,18 @@ function RefundsInner() {
                       </div>
                       <div className="flex items-center gap-1.5 justify-end">
                         <button
+                          onClick={() => setNotesRefund(req)}
+                          className="btn-ghost text-xs py-1 px-2 gap-1"
+                          title="Internal notes"
+                        >
+                          Notes
+                          {(notesMap[req.id]?.length ?? 0) > 0 && (
+                            <span className="bg-brand-600 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                              {notesMap[req.id].length}
+                            </span>
+                          )}
+                        </button>
+                        <button
                           onClick={() => openEdit(req)}
                           className="btn-ghost text-xs py-1 px-2 gap-1"
                           title="Edit"
@@ -938,6 +959,41 @@ function RefundsInner() {
           </div>
         )}
       </SlideOver>
+
+      {/* Internal Notes Modal */}
+      {notesRefund && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="font-semibold text-slate-900">Internal Notes</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {notesRefund.customerName} · #{notesRefund.orderNumber}
+                </p>
+              </div>
+              <button onClick={() => setNotesRefund(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              <InternalNotes
+                notes={notesMap[notesRefund.id] || []}
+                entityLabel="refund request"
+                onAdd={async (text) => {
+                  const res = await fetch(`/api/refunds/${notesRefund.id}/notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                  });
+                  const json = await res.json();
+                  if (json.error) throw new Error(json.error);
+                  setNotesMap(prev => ({ ...prev, [notesRefund.id]: json.data }));
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

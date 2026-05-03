@@ -42,10 +42,14 @@ const SHEET_ID = process.env.GOOGLE_SPREADSHEET_ID!;
 // FAULT CASES
 // =========================================================
 
-const CASES_RANGE = 'Cases!A2:N';
-const CASES_COLUMNS = 'Cases!A:N';
+const CASES_RANGE = 'Cases!A2:O';
+const CASES_COLUMNS = 'Cases!A:O';
 
 function rowToCase(row: string[]): FaultCase {
+  let internalNotes: FaultCase['internalNotes'] = [];
+  try {
+    if (row[14]) internalNotes = JSON.parse(row[14]);
+  } catch { /* ignore malformed JSON */ }
   return {
     id:                 row[0]  || '',
     date:               row[1]  || '',
@@ -61,6 +65,7 @@ function rowToCase(row: string[]): FaultCase {
     claimStatus:        (row[11] as ClaimStatus) || 'Unsubmitted',
     submittedBy:        row[12] || '',
     createdAt:          row[13] || '',
+    internalNotes,
   };
 }
 
@@ -80,6 +85,7 @@ function caseToRow(c: FaultCase): string[] {
     c.claimStatus,
     c.submittedBy,
     c.createdAt,
+    JSON.stringify(c.internalNotes || []),
   ];
 }
 
@@ -133,7 +139,7 @@ export async function updateCase(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `Cases!A${sheetRow}:N${sheetRow}`,
+    range: `Cases!A${sheetRow}:O${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [caseToRow(updated)] },
   });
@@ -509,7 +515,7 @@ export async function bulkUpdateCaseStatuses(
     const sheetRow = idx + 2;
     const updated = { ...allCases[idx], claimStatus: status };
     data.push({
-      range: `Cases!A${sheetRow}:N${sheetRow}`,
+      range: `Cases!A${sheetRow}:O${sheetRow}`,
       values: [caseToRow(updated)],
     });
   }

@@ -23,6 +23,7 @@ function fromRow(row: Record<string, unknown>): RefundRequest {
     resolution:      (row.resolution as RefundResolution) ?? 'Pending',
     createdAt:       String(row.created_at ?? ''),
     processedAt:     row.processed_at ? String(row.processed_at) : null,
+    internalNotes:   Array.isArray(row.internal_notes) ? row.internal_notes : [],
   };
 }
 

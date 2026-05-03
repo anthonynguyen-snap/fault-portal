@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Mail, Save, CheckCircle, ExternalLink } from 'lucide-react';
-import { Return, ReturnStatus, FollowUpStatus, ReturnCondition, ReturnDecision, ReturnItem } from '@/types';
+import { Return, ReturnStatus, FollowUpStatus, ReturnCondition, ReturnDecision, ReturnItem, InternalNote } from '@/types';
+import { InternalNotes } from '@/components/ui/InternalNotes';
 
 const STATUS_OPTIONS: ReturnStatus[] = ['Received', 'Inspected', 'Processed', 'Closed'];
 const FOLLOW_UP_OPTIONS: FollowUpStatus[] = ['N/A', 'Pending', 'Completed'];
@@ -40,6 +41,7 @@ export default function ReturnDetailPage() {
   const [followUpStatus, setFollowUpStatus] = useState<FollowUpStatus>('N/A');
   const [status, setStatus] = useState<ReturnStatus>('Received');
   const [editableItems, setEditableItems] = useState<ReturnItem[]>([]);
+  const [notes, setNotes] = useState<InternalNote[]>([]);
 
   useEffect(() => {
     fetch(`/api/returns/${id}`)
@@ -51,6 +53,7 @@ export default function ReturnDetailPage() {
           setFollowUpNotes(json.data.followUpNotes || '');
           setFollowUpStatus(json.data.followUpStatus || 'N/A');
           setStatus(json.data.status || 'Received');
+          setNotes(json.data.internalNotes || []);
         }
         setLoading(false);
       });
@@ -257,6 +260,22 @@ export default function ReturnDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Internal Notes */}
+      <InternalNotes
+        notes={notes}
+        entityLabel="return"
+        onAdd={async (text) => {
+          const res = await fetch(`/api/returns/${id}/notes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          const json = await res.json();
+          if (json.error) throw new Error(json.error);
+          setNotes(json.data);
+        }}
+      />
     </div>
   );
 }
