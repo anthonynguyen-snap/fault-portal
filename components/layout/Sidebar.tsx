@@ -136,10 +136,11 @@ const navGroups: NavGroup[] = [
   {
     label: 'Customer',
     items: [
-      { label: 'Request Refund', href: '/refunds?new=1', icon: CreditCard, isAction: true },
-      { label: 'Order Lookup',   href: '/orders',        icon: ShoppingBag },
-      { label: 'Returns',        href: '/returns',       icon: RotateCcw },
-      { label: 'Refunds',        href: '/refunds',       icon: CreditCard },
+      { label: 'Log Return Request', href: '/returns?new=1',  icon: RotateCcw,  isAction: true },
+      { label: 'Request Refund',     href: '/refunds?new=1',  icon: CreditCard, isAction: true },
+      { label: 'Order Lookup',       href: '/orders',         icon: ShoppingBag },
+      { label: 'Returns',            href: '/returns',        icon: RotateCcw },
+      { label: 'Refunds',            href: '/refunds',        icon: CreditCard },
     ],
   },
   {

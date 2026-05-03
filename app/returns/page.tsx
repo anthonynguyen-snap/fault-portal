@@ -2,6 +2,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
@@ -309,7 +310,7 @@ function LogRequestSlideOver({
         </div>
         <div className="px-6 py-4 border-t border-slate-200 flex gap-2">
           <button onClick={submit} disabled={saving} className="btn-primary flex-1">
-            {saving ? 'Saving…' : editing ? 'Save Changes' : 'Log Request'}
+            {saving ? 'Saving…' : editing ? 'Save Changes' : 'Log Return Request'}
           </button>
           <button onClick={onClose} className="btn-secondary">Cancel</button>
         </div>
@@ -402,12 +403,21 @@ type SortDir = 'asc' | 'desc';
 
 export default function ReturnsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [loading, setLoading]       = useState(true);
   const [mainTab, setMainTab]       = useState<MainTab>('requested');
   const [regionFilter, setRegionFilter] = useState<RegionFilter>('all');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [editingRequest, setEditingRequest] = useState<Return | null>(null);
+
+  // Auto-open the Log Request slide-over when ?new=1 is in the URL (sidebar action link)
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setMainTab('requested');
+      setShowRequestForm(true);
+    }
+  }, [searchParams]);
 
   // Processed tab state
   const [filter, setFilter]         = useState<FilterTab>('all');
@@ -597,18 +607,7 @@ export default function ReturnsPage() {
           <h1 className="page-title">Returns</h1>
           <p className="page-subtitle">Track return requests and processed parcels</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={load} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
-          {mainTab === 'requested' ? (
-            <button onClick={() => setShowRequestForm(true)} className="btn-primary flex items-center gap-2">
-              <PlusCircle size={16} /> Log Request
-            </button>
-          ) : (
-            <Link href="/returns/new" className="btn-primary flex items-center gap-2">
-              <PlusCircle size={16} /> Log Return
-            </Link>
-          )}
-        </div>
+        <button onClick={load} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
       </div>
 
       {/* Main tabs */}
@@ -810,7 +809,7 @@ export default function ReturnsPage() {
 
               {requests.length === 0 && !loading && (
                 <div className="card">
-                  <EmptyState icon={RotateCcw} title="No return requests" description="Log a request when a customer asks to return an item." action={{ label: 'Log Request', onClick: () => setShowRequestForm(true) }} />
+                  <EmptyState icon={RotateCcw} title="No return requests" description="Log a request when a customer asks to return an item." action={{ label: 'Log Return Request', onClick: () => setShowRequestForm(true) }} />
                 </div>
               )}
             </div>
@@ -821,7 +820,7 @@ export default function ReturnsPage() {
       {/* ── PROCESSED TAB ─────────────────────────────────────────────────────── */}
       {mainTab === 'processed' && (
         <>
-          {/* Week navigator + region filter + team search */}
+          {/* Week navigator + region filter + team search + Log Return */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1 shadow-sm">
               <button onClick={() => { setWeekStart(d => addDays(d, -7)); setProcPage(1); }} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"><ChevronLeft size={16} /></button>
@@ -833,6 +832,9 @@ export default function ReturnsPage() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Filter by team member…" className="form-input pl-8 py-1.5 text-sm" />
             </div>
+            <Link href="/returns/new" className="btn-secondary flex items-center gap-1.5 text-sm ml-auto">
+              <PlusCircle size={14} /> Log Return
+            </Link>
           </div>
 
           {/* Filter tabs */}
