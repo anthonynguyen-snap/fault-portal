@@ -839,6 +839,38 @@ function AiBriefingCard() {
   );
 }
 
+
+// ── Shared promo helpers ───────────────────────────────────────────────────────
+type PromoStrip = {
+  id: string; name: string; code: string; platform: string;
+  description: string; discountType: string; discountValue: string;
+  productsCovered: string; startDate: string; endDate: string | null;
+  isMajor: boolean; enabled?: boolean;
+};
+
+const STORE_ORDER = ['All Stores', 'AU (+ Popup)', 'US', 'UK-NZ-ROW'] as const;
+
+const STORE_META: Record<string, { label: string; bg: string; text: string }> = {
+  'AU (+ Popup)': { label: '🇦🇺 AU',  bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  'US':           { label: '🇺🇸 US',  bg: 'bg-blue-100',    text: 'text-blue-700'    },
+  'UK-NZ-ROW':    { label: '🌐 ROW',  bg: 'bg-purple-100',  text: 'text-purple-700'  },
+  'All Stores':   { label: '🌐 All',  bg: 'bg-brand-100',   text: 'text-brand-700'   },
+};
+
+function fmtShort(iso: string) {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
+function daysUntil(isoDate: string): number {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return Math.ceil((new Date(isoDate + 'T00:00:00').getTime() - today.getTime()) / 86_400_000);
+}
+function discountStr(p: PromoStrip): string | null {
+  if (!p.discountValue) return null;
+  if (p.discountType === '% Off') return `${p.discountValue}% off`;
+  if (p.discountType === '$ Off') return `$${p.discountValue} off`;
+  return `${p.discountValue} ${p.discountType}`;
+}
+
 // ── Major Sale Banner ─────────────────────────────────────────────────────────
 function MajorSaleBanner() {
   const [sales, setSales] = useState<PromoStrip[]>([]);
@@ -848,12 +880,11 @@ function MajorSaleBanner() {
       .then(r => r.json())
       .then(d => {
         const today = new Date().toISOString().slice(0, 10);
-        const major = (d.data ?? []).filter((p: any) =>
+        setSales((d.data ?? []).filter((p: PromoStrip) =>
           p.isMajor && p.enabled !== false && (!p.endDate || p.endDate >= today)
-        );
-        setSales(major);
+        ));
       })
-      .catch(err => console.error('[SalesBanner] fetch failed:', err));
+      .catch(err => console.error('[MajorSaleBanner]', err));
   }, []);
 
   if (!sales.length) return null;
@@ -861,115 +892,59 @@ function MajorSaleBanner() {
   return (
     <>
       {sales.map(p => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const daysLeft = p.endDate
-          ? Math.ceil((new Date(p.endDate + 'T00:00:00').getTime() - today.getTime()) / 86400000)
-          : null;
-
-        // Build ticker segments — repeat 6× for a seamless infinite loop
-        const tickerLabel = [
-          p.name,
-          p.discountValue ? `${p.discountValue}${p.discountType === '% Off' ? '% OFF' : p.discountType === '$ Off' ? ' OFF' : ` · ${p.discountType}`}` : null,
-          p.productsCovered || null,
-        ].filter(Boolean).join('  ·  ');
-
-        // Build letterboard rows — no emojis in scrambled text, no discount duplication
-        const discountStr = p.discountValue
-          ? (p.discountType === '% Off' ? `${p.discountValue}% OFF` : p.discountType === '$ Off' ? `$${p.discountValue} OFF` : `${p.discountValue} ${p.discountType}`.toUpperCase())
-          : null;
-        const boardRow1 = ['MAJOR SALE', p.platform ? p.platform.toUpperCase() : null].filter(Boolean).join('  ·  ');
-        const boardRow2 = p.name.toUpperCase();
-        // Avoid repeating discount if description already contains the value
-        const descUpper = p.description ? p.description.toUpperCase() : null;
-        const descAlreadyHasDiscount = descUpper && discountStr && descUpper.includes(p.discountValue);
-        const boardRow3 = [
-          descAlreadyHasDiscount ? null : discountStr,
-          descUpper,
-        ].filter(Boolean).join('  ·  ');
-        const boardRow4 = [
-          p.code || null,
-          `${fmtShort(p.startDate).toUpperCase()} – ${p.endDate ? fmtShort(p.endDate).toUpperCase() : 'ONGOING'}`,
-        ].filter(Boolean).join('  ·  ');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const daysLeft = p.endDate ? Math.ceil((new Date(p.endDate + 'T00:00:00').getTime() - today.getTime()) / 86400000) : null;
+        const disc = discountStr(p);
 
         return (
-          <div key={p.id} className="overflow-hidden rounded-xl border border-amber-200 shadow-sm">
-
-            {/* ── Scrolling ticker bar ───────────────────────────────────────── */}
-            <div className="overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 h-9 flex items-center">
-              <div className="animate-marquee flex whitespace-nowrap">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <span key={i} className="inline-flex items-center gap-3 px-6 text-white text-[11px] font-bold uppercase tracking-widest">
-                    <span>⭐</span>
-                    <span>{tickerLabel}</span>
-                    <span className="opacity-40 text-lg font-thin">|</span>
-                  </span>
-                ))}
-              </div>
+          <div key={p.id} className="card overflow-hidden border-amber-200">
+            {/* Amber header bar */}
+            <div className="flex items-center gap-2.5 px-5 py-3 bg-amber-50 border-b border-amber-200">
+              <span className="relative flex h-2 w-2 flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+              <span className="text-xs font-bold text-amber-700 uppercase tracking-widest">Major Sale Active</span>
+              <span className="text-xs text-amber-600 opacity-70">— all other promotions are overridden</span>
             </div>
 
-            {/* ── Letterboard body ──────────────────────────────────────────── */}
-            <div className="flex items-stretch" style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fefce8 100%)' }}>
-
-              {/* Left: letterboard panel */}
-              <div className="flex-1 min-w-0 p-4">
-                <div className="rounded-lg overflow-hidden border border-amber-100" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #fffdf5 100%)' }}>
-
-                  {/* Column header */}
-                  <div className="flex items-center border-b border-amber-100 bg-amber-50/70 px-4 py-1.5">
-                    <span className="text-[8px] font-bold text-amber-400 uppercase tracking-widest">SALE DETAILS</span>
-                  </div>
-
-                  {/* Row 1: label + platform */}
-                  <div className="px-4 py-2 border-b border-amber-100 font-mono text-[11px] tracking-wide font-bold text-amber-500">
-                    ★ <ScrambleRow text={boardRow1} delay={0} />
-                  </div>
-
-                  {/* Row 2: sale name — larger */}
-                  <div className="px-4 py-2.5 border-b border-amber-100 font-mono text-[15px] tracking-wide font-bold text-slate-800">
-                    <ScrambleRow text={boardRow2} delay={180} />
-                  </div>
-
-                  {/* Row 3: discount + description */}
-                  {boardRow3 && (
-                    <div className="px-4 py-2 border-b border-amber-100 font-mono text-[11.5px] tracking-wide text-slate-600">
-                      <ScrambleRow text={boardRow3} delay={360} />
-                    </div>
+            {/* Body */}
+            <div className="px-5 py-4 flex items-center gap-5">
+              {/* Main info */}
+              <div className="flex-1 min-w-0">
+                <p className="text-lg font-bold text-slate-900 leading-snug">{p.name}</p>
+                {p.description && <p className="text-sm text-slate-500 mt-0.5">{p.description}</p>}
+                <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                  {disc && (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
+                      {disc}
+                    </span>
                   )}
-
-                  {/* Row 4: code + dates */}
-                  {boardRow4 && (
-                    <div className="px-4 py-2 font-mono text-[11px] tracking-wide text-slate-400">
-                      <ScrambleRow text={boardRow4} delay={540} />
-                    </div>
+                  {p.code && (
+                    <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 tracking-wider">
+                      {p.code}
+                    </span>
                   )}
+                  {p.platform && (
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STORE_META[p.platform]?.bg ?? 'bg-slate-100'} ${STORE_META[p.platform]?.text ?? 'text-slate-600'}`}>
+                      {STORE_META[p.platform]?.label ?? p.platform}
+                    </span>
+                  )}
+                  <span className="text-xs text-slate-400">
+                    {fmtShort(p.startDate)} → {p.endDate ? fmtShort(p.endDate) : 'ongoing'}
+                  </span>
                 </div>
-                <p className="text-[10px] text-amber-600/60 italic mt-2.5 px-0.5">
-                  ⚠️ During a major sale, all other promo codes and discounts are overridden.
-                </p>
               </div>
 
-              {/* Right: discount badge + countdown */}
-              <div className="flex items-center gap-4 flex-shrink-0 pr-5">
-                {p.discountValue && (
-                  <div className="text-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl px-5 py-3 shadow-md text-white">
-                    <p className="text-4xl font-black leading-none">
-                      {p.discountValue}{p.discountType === '% Off' ? '%' : ''}
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-90">
-                      {p.discountType === '% Off' ? 'OFF' : p.discountType}
-                    </p>
-                  </div>
-                )}
-                {daysLeft !== null && daysLeft >= 0 && (
-                  <div className="text-center bg-white border border-amber-200 rounded-xl px-4 py-3 shadow-sm">
-                    <p className="text-3xl font-extrabold text-amber-500 leading-none">{daysLeft}</p>
-                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mt-1">
-                      {daysLeft === 1 ? 'day left' : 'days left'}
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* Countdown */}
+              {daysLeft !== null && daysLeft >= 0 && (
+                <div className="flex-shrink-0 text-center bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
+                  <p className="text-3xl font-extrabold text-amber-600 leading-none">{daysLeft}</p>
+                  <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wide mt-1">
+                    {daysLeft === 1 ? 'day left' : 'days left'}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -979,133 +954,6 @@ function MajorSaleBanner() {
 }
 
 // ── Active Promotions Strip ────────────────────────────────────────────────────
-type PromoStrip = { id: string; name: string; code: string; platform: string; description: string; discountType: string; discountValue: string; productsCovered: string; startDate: string; endDate: string | null; isMajor: boolean };
-
-const STORE_ORDER = ['All Stores', 'AU (+ Popup)', 'US', 'UK-NZ-ROW'] as const;
-const STORE_LABEL: Record<string, { label: string; color: string }> = {
-  'AU (+ Popup)': { label: '🇦🇺 AU',  color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
-  'US':           { label: '🇺🇸 US',  color: 'text-blue-700 bg-blue-50 border-blue-200'         },
-  'UK-NZ-ROW':    { label: '🌐 ROW', color: 'text-purple-700 bg-purple-50 border-purple-200'   },
-  'All Stores':   { label: '🌐 All', color: 'text-brand-700 bg-brand-50 border-brand-200'      },
-};
-
-function fmtShort(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-}
-
-function daysUntil(isoDate: string): number {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const end   = new Date(isoDate + 'T00:00:00');
-  return Math.ceil((end.getTime() - today.getTime()) / 86_400_000);
-}
-
-// Store-tinted pill colours
-const PILL_STORE_STYLE: Record<string, { pill: string; code: string }> = {
-  'AU (+ Popup)': { pill: 'bg-emerald-50 border-emerald-200 hover:border-emerald-300', code: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  'US':           { pill: 'bg-blue-50 border-blue-200 hover:border-blue-300',           code: 'bg-blue-100 text-blue-700 border-blue-200'           },
-  'UK-NZ-ROW':    { pill: 'bg-purple-50 border-purple-200 hover:border-purple-300',     code: 'bg-purple-100 text-purple-700 border-purple-200'     },
-  'All Stores':   { pill: 'bg-brand-50 border-brand-200 hover:border-brand-300',        code: 'bg-brand-100 text-brand-700 border-brand-200'        },
-};
-
-function PromoPill({ p, store }: { p: PromoStrip; store: string }) {
-  const days     = p.endDate ? daysUntil(p.endDate) : null;
-  const expiring = days !== null && days <= 7 && days >= 0;
-  const urgent   = days !== null && days <= 2;
-  const storeStyle = PILL_STORE_STYLE[store] ?? { pill: 'bg-white border-slate-200 hover:border-slate-300', code: 'bg-slate-100 text-slate-600 border-slate-200' };
-
-  const borderCls = expiring
-    ? (urgent ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50')
-    : storeStyle.pill;
-
-  return (
-    <span className={`inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border shadow-sm transition-colors ${borderCls}`}>
-      <span className="font-semibold text-slate-800 leading-snug">{p.name}</span>
-
-      {p.description && (
-        <span className="text-slate-500 font-normal hidden sm:inline">{p.description}</span>
-      )}
-
-      {p.discountValue && (
-        <span className="font-bold text-slate-700">
-          {p.discountValue}{p.discountType === '% Off' ? '% off' : p.discountType === '$ Off' ? ' off' : ` · ${p.discountType}`}
-        </span>
-      )}
-
-      {p.code && (
-        <span className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded border tracking-wider ${storeStyle.code}`}>
-          {p.code}
-        </span>
-      )}
-
-      <span className="text-slate-400 text-[10px] font-normal whitespace-nowrap">
-        {fmtShort(p.startDate)} – {p.endDate ? fmtShort(p.endDate) : 'ongoing'}
-      </span>
-
-      {expiring && (
-        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${urgent ? 'bg-red-200 text-red-700' : 'bg-amber-200 text-amber-700'}`}>
-          {days === 0 ? 'Today!' : `${days}d left`}
-        </span>
-      )}
-    </span>
-  );
-}
-
-// ── Letterboard scramble helpers ──────────────────────────────────────────────
-const BOARD_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·×—';
-
-function ScrambleRow({ text, delay = 0 }: { text: string; delay?: number }) {
-  const spanRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const el = spanRef.current;
-    if (!el || !text) return;
-
-    const duration = Math.max(900, 700 + text.length * 16);
-    let raf: number;
-    let t0: number | null = null;
-
-    // Initialise with random chars immediately
-    el.textContent = text.split('').map(c =>
-      c === ' ' ? ' ' : BOARD_CHARS[Math.floor(Math.random() * BOARD_CHARS.length)]
-    ).join('');
-
-    const id = setTimeout(() => {
-      const step = (ts: number) => {
-        if (t0 === null) t0 = ts;
-        const pct = Math.min((ts - t0) / duration, 1);
-        const resolved = Math.floor(pct * text.length);
-        // Write directly to DOM — no React state, no re-renders
-        el.textContent = text.split('').map((c, i) => {
-          if (c === ' ') return ' ';
-          if (i < resolved) return c;
-          return BOARD_CHARS[Math.floor(Math.random() * BOARD_CHARS.length)];
-        }).join('');
-        if (pct < 1) raf = requestAnimationFrame(step);
-        else el.textContent = text;
-      };
-      raf = requestAnimationFrame(step);
-    }, delay);
-
-    return () => { clearTimeout(id); cancelAnimationFrame(raf); };
-  }, [text, delay]);
-
-  return <span ref={spanRef} />;
-}
-
-function buildBoardLine(p: PromoStrip): string {
-  const parts: string[] = [];
-  if (p.discountValue) {
-    const discount = p.discountType === '% Off' ? `${p.discountValue}% OFF` :
-                     p.discountType === '$ Off' ? `$${p.discountValue} OFF` :
-                     `${p.discountValue} ${p.discountType}`.toUpperCase();
-    parts.push(discount);
-  }
-  if (p.name) parts.push(p.name.toUpperCase());
-  if (p.code) parts.push(p.code.toUpperCase());
-  if (p.endDate) parts.push(`ENDS ${fmtShort(p.endDate).toUpperCase()}`);
-  return parts.join('  ·  ');
-}
-
 function ActivePromosStrip() {
   const [promos, setPromos] = useState<PromoStrip[]>([]);
 
@@ -1114,187 +962,114 @@ function ActivePromosStrip() {
       .then(r => r.json())
       .then(d => {
         const today = new Date().toISOString().slice(0, 10);
-        const active = (d.data ?? []).filter((p: any) => !p.isMajor && p.enabled !== false && (!p.endDate || p.endDate >= today));
-        setPromos(active);
+        setPromos((d.data ?? []).filter((p: PromoStrip) =>
+          !p.isMajor && p.enabled !== false && (!p.endDate || p.endDate >= today)
+        ));
       })
-      .catch(err => console.error('[ActivePromosStrip] fetch failed:', err));
+      .catch(err => console.error('[ActivePromosStrip]', err));
   }, []);
 
   if (!promos.length) return null;
 
+  // Group by store order
   const groups = STORE_ORDER
     .map(store => ({ store, items: promos.filter(p => p.platform === store) }))
     .filter(g => g.items.length > 0);
 
-  const tickerItems = groups.flatMap(({ store, items }) => {
-    const meta = STORE_LABEL[store] ?? { label: store, color: '' };
-    return items.map(p => {
-      const parts = [p.name, p.code, p.description].filter(Boolean).join(' · ');
-      return `[${meta.label}]  ${parts}`;
-    });
-  });
-
-  // Flatten all rows for consistent staggered delay
-  const flatRows: { store: string; p: PromoStrip; isFirstInGroup: boolean; delay: number }[] = [];
-  groups.forEach(({ store, items }) => {
-    items.forEach((p, i) => {
-      flatRows.push({ store, p, isFirstInGroup: i === 0, delay: flatRows.length * 160 });
-    });
-  });
-
   return (
-    <div className="bg-brand-50 border border-brand-100 rounded-xl overflow-hidden">
-
-      {/* ── Scrolling ticker ─────────────────────────────────────────────────── */}
-      <div className="overflow-hidden bg-brand-600 h-8 flex items-center">
-        <div className="animate-marquee flex whitespace-nowrap" style={{ animationDuration: '55s' }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <span key={i} className="inline-flex items-center gap-3 px-5 text-white text-[11px] font-semibold">
-              {tickerItems.map((item, j) => (
-                <span key={j} className="inline-flex items-center gap-3">
-                  <span>{item}</span>
-                  <span className="opacity-30 font-thin text-base">|</span>
-                </span>
-              ))}
-            </span>
-          ))}
+    <div className="card overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-2 w-2 flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+          </span>
+          <Tag size={13} className="text-slate-400" />
+          <h3 className="text-sm font-semibold text-slate-800">Live Promotions</h3>
+          <span className="text-xs text-slate-400">{promos.length} active</span>
         </div>
+        <Link href="/promotions" className="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">
+          Manage <ArrowRight size={11} />
+        </Link>
       </div>
 
-      {/* ── Header ───────────────────────────────────────────────────────────── */}
-      <div className="px-4 pt-3.5 pb-2.5 flex items-center gap-2">
-        <span className="relative flex h-2 w-2 flex-shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-        </span>
-        <Tag size={12} className="text-brand-600 flex-shrink-0" />
-        <span className="text-xs font-bold text-brand-700 uppercase tracking-widest">Live Promos</span>
-      </div>
-
-      {/* ── Letterboard panel ────────────────────────────────────────────────── */}
-      <div className="mx-4 mb-4 rounded-lg overflow-hidden border border-slate-200" style={{ background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)' }}>
-
-        {/* Column header row */}
-        <div className="flex items-center border-b border-slate-100 bg-slate-50/80">
-          <div className="w-12 flex-shrink-0 border-r border-slate-100 py-1.5 flex items-center justify-center">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">STR</span>
-          </div>
-          <div className="flex-1 px-4 py-1.5">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">PROMOTION</span>
-          </div>
-          <div className="w-36 flex-shrink-0 pr-3 flex items-center justify-end">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">DATES</span>
-          </div>
-        </div>
-
-        {/* Promo rows */}
-        <div className="divide-y divide-slate-100">
-          {flatRows.map(({ store, p, isFirstInGroup, delay }) => {
-            const meta     = STORE_LABEL[store] ?? { label: store };
-            const today2   = new Date().toISOString().slice(0, 10);
+      {/* Promo rows */}
+      <div className="divide-y divide-slate-100">
+        {groups.map(({ store, items }) => {
+          const meta = STORE_META[store];
+          return items.map((p, idx) => {
+            const today2 = new Date().toISOString().slice(0, 10);
             const upcoming = p.startDate > today2;
+            const days = p.endDate ? daysUntil(p.endDate) : null;
             const daysToStart = upcoming ? daysUntil(p.startDate) : null;
-            const days     = p.endDate ? daysUntil(p.endDate) : null;
-            const urgent   = days !== null && days <= 2;
-            const expiring = days !== null && days <= 7;
-            const storeColor =
-              store === 'AU (+ Popup)' ? 'text-emerald-600' :
-              store === 'US'           ? 'text-sky-600'     :
-              store === 'UK-NZ-ROW'    ? 'text-purple-600'  : 'text-brand-600';
-
-            // Build description line parts
-            const discountStr = p.discountValue
-              ? p.discountType === '% Off' ? `${p.discountValue}% OFF`
-              : p.discountType === '$ Off' ? `$${p.discountValue} OFF`
-              : `${p.discountValue} ${p.discountType}`.toUpperCase()
-              : null;
-            const descUpper = p.description ? p.description.toUpperCase() : null;
-            const descHasDiscount = discountStr && descUpper && descUpper.includes(p.discountValue);
-            const showDiscount = descHasDiscount ? null : discountStr;
-            const hasSubline = showDiscount || descUpper || p.code;
+            const expiring = days !== null && days <= 7 && days >= 0;
+            const urgent   = days !== null && days <= 2 && days >= 0;
+            const disc = discountStr(p);
 
             return (
-              <div key={p.id} className="flex items-stretch hover:bg-brand-50/40 transition-colors">
+              <div key={p.id} className={`flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors ${upcoming ? 'opacity-60' : ''}`}>
 
-                {/* Store column */}
-                <div className="w-12 flex-shrink-0 self-stretch flex items-center justify-center border-r border-slate-100">
-                  {isFirstInGroup && (
-                    <span className={`text-[9px] font-black tracking-widest ${storeColor}`}>
+                {/* Store badge — only show on first item of each group */}
+                <div className="w-14 flex-shrink-0">
+                  {idx === 0 && meta && (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${meta.bg} ${meta.text}`}>
                       {meta.label}
                     </span>
                   )}
                 </div>
 
-                {/* Main content block */}
-                <div className="flex-1 px-4 py-2.5 overflow-hidden">
-
-                  {/* Line 1: promo name + date range */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className={`font-mono text-[11.5px] tracking-wide font-semibold truncate ${upcoming ? 'text-slate-400' : 'text-slate-700'}`}>
-                      <ScrambleRow text={p.name.toUpperCase()} delay={delay} />
-                    </div>
-                    <div className="flex-shrink-0 w-36 text-right flex flex-col items-end gap-0.5">
-                      <span className="font-mono text-[10px] tabular-nums text-slate-400">
-                        {fmtShort(p.startDate)}
-                        <span className="text-slate-300 mx-1">→</span>
-                        {p.endDate ? (
-                          <span className={urgent ? 'text-red-500 font-bold' : expiring ? 'text-amber-500 font-semibold' : ''}>
-                            {fmtShort(p.endDate)}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 italic">ongoing</span>
-                        )}
-                      </span>
-                      {upcoming && daysToStart !== null && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-sky-100 text-sky-700">
-                          {daysToStart === 1 ? 'tomorrow' : `in ${daysToStart}d`}
-                        </span>
-                      )}
-                      {!upcoming && p.endDate && days !== null && days >= 0 && (
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
-                          days === 0      ? 'bg-red-100 text-red-700' :
-                          days === 1      ? 'bg-red-100 text-red-700' :
-                          days <= 7       ? 'bg-red-50 text-red-500'  :
-                          days <= 14      ? 'bg-amber-50 text-amber-600' :
-                                            'bg-slate-100 text-slate-400'
-                        }`}>
-                          {days === 0 ? 'ends today' : days === 1 ? 'tomorrow' : `${days}d left`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Line 2: discount (bold) · description + code */}
-                  {hasSubline && (
-                    <div className="flex items-center justify-between gap-3 mt-0.5">
-                      <p className="font-mono text-[10.5px] tracking-wide leading-snug truncate">
-                        {showDiscount && (
-                          <span className="font-bold text-slate-600">{showDiscount}</span>
-                        )}
-                        {showDiscount && descUpper && (
-                          <span className="text-slate-300">  ·  </span>
-                        )}
-                        {descUpper && (
-                          <span className="text-slate-400">{descUpper}</span>
-                        )}
-                      </p>
-                      {p.code && (
-                        <span className="font-mono text-[10px] text-slate-400 flex-shrink-0">
-                          {p.code.toUpperCase()}
-                        </span>
-                      )}
-                    </div>
+                {/* Name + description */}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold text-slate-800 truncate ${upcoming ? 'text-slate-400' : ''}`}>{p.name}</p>
+                  {p.description && (
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{p.description}</p>
                   )}
-
                 </div>
 
+                {/* Discount */}
+                {disc && (
+                  <span className="flex-shrink-0 text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                    {disc}
+                  </span>
+                )}
+
+                {/* Code chip */}
+                {p.code ? (
+                  <span className="flex-shrink-0 font-mono text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-brand-50 text-brand-700 border border-brand-200 tracking-wider">
+                    {p.code}
+                  </span>
+                ) : (
+                  <span className="flex-shrink-0 w-16" />
+                )}
+
+                {/* Date range */}
+                <span className="flex-shrink-0 text-xs text-slate-400 whitespace-nowrap hidden md:inline">
+                  {fmtShort(p.startDate)} → {p.endDate ? fmtShort(p.endDate) : <span className="italic">ongoing</span>}
+                </span>
+
+                {/* Countdown / upcoming badge */}
+                <div className="flex-shrink-0 w-20 text-right">
+                  {upcoming && daysToStart !== null && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 whitespace-nowrap">
+                      {daysToStart === 1 ? 'tomorrow' : `in ${daysToStart}d`}
+                    </span>
+                  )}
+                  {!upcoming && expiring && days !== null && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${urgent ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {days === 0 ? 'ends today' : days === 1 ? 'ends tomorrow' : `${days}d left`}
+                    </span>
+                  )}
+                </div>
               </div>
             );
-          })}
-        </div>
+          });
+        })}
       </div>
 
-      <p className="text-[10px] text-slate-400 italic px-4 pb-3">* Promotions cannot be combined unless otherwise stated.</p>
+      <div className="px-5 py-2.5 border-t border-slate-100 bg-slate-50/60">
+        <p className="text-[10px] text-slate-400">Promotions cannot be combined unless otherwise stated.</p>
+      </div>
     </div>
   );
 }
