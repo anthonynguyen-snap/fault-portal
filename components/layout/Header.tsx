@@ -43,7 +43,7 @@ function NotificationBell() {
     fetch('/api/notifications')
       .then(r => r.json())
       .then(d => setNotifications(d.notifications ?? []))
-      .catch(() => {});
+      .catch(err => console.warn('[Header notifications]', err));
   }
 
   useEffect(() => {

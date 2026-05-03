@@ -56,6 +56,17 @@ export async function POST(req: NextRequest) {
     if (!commsLink?.trim()) return NextResponse.json({ error: 'Conversation link is required' }, { status: 400 });
     if (!submittedBy?.trim()) return NextResponse.json({ error: 'Submitted by is required' }, { status: 400 });
 
+    // Validate amount bounds
+    const parsedAmount = Number(amount) || 0;
+    if (parsedAmount < 0 || parsedAmount > 99_999) {
+      return NextResponse.json({ error: 'Amount must be between 0 and 99,999' }, { status: 400 });
+    }
+
+    // Validate URLs are at least http/https
+    const isUrl = (v: string) => /^https?:\/\/.+/.test(v.trim());
+    if (!isUrl(shopifyLink)) return NextResponse.json({ error: 'Shopify link must be a valid URL (https://...)' }, { status: 400 });
+    if (!isUrl(commsLink))   return NextResponse.json({ error: 'Conversation link must be a valid URL (https://...)' }, { status: 400 });
+
     const { data, error } = await getSupabase()
       .from('refund_requests')
       .insert({

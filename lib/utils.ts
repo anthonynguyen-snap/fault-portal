@@ -125,6 +125,40 @@ export function getMonthName(date: Date): string {
   return format(date, 'MMMM yyyy');
 }
 
+// ── Shared date/week helpers (used across returns, roster, dashboard) ──────────
+
+/** Return the Monday of the week containing d. */
+export function getMondayOf(d: Date): Date {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
+}
+
+/** Add n days to d, returning a new Date. */
+export function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+/** Format a Date as YYYY-MM-DD. */
+export function fmtDateISO(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Parse a date string safely, handling both ISO and date-only formats. */
+export function parseDate(dateStr: string): Date | null {
+  try {
+    const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
 // Truncate long strings
 export function truncate(str: string, length: number): string {
   if (!str) return '';

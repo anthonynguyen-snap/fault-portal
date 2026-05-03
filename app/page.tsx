@@ -631,6 +631,7 @@ function ReplenishmentSection({ sectionHeader }: { sectionHeader: React.ReactNod
   const [requests, setRequests] = useState<ReplenishmentRequest[]>([]);
   const [alertCount, setAlertCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -639,7 +640,10 @@ function ReplenishmentSection({ sectionHeader }: { sectionHeader: React.ReactNod
     ]).then(([reqJson, alertJson]) => {
       setRequests(reqJson.data ?? []);
       setAlertCount(alertJson.count ?? 0);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(err => {
+      console.error('[ReplenishmentSection] fetch failed:', err);
+      setError(true);
+    }).finally(() => setLoading(false));
   }, []);
 
   if (loading) return (
@@ -648,6 +652,13 @@ function ReplenishmentSection({ sectionHeader }: { sectionHeader: React.ReactNod
       <div className="grid grid-cols-3 gap-4">
         {[1,2,3].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl animate-pulse" />)}
       </div>
+    </>
+  );
+
+  if (error) return (
+    <>
+      {sectionHeader}
+      <p className="text-sm text-slate-500 px-1">Could not load replenishment data. Please refresh.</p>
     </>
   );
 
@@ -779,12 +790,16 @@ const ACTIVITY_ACTION_LABELS: Record<string, string> = {
 function TodayActivityCard({ sectionHeader }: { sectionHeader: React.ReactNode }) {
   const [rows, setRows]       = useState<ActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(false);
 
   useEffect(() => {
     fetch('/api/activity?days=1')
       .then(r => r.json())
       .then(d => setRows(d.data ?? []))
-      .catch(() => {})
+      .catch(err => {
+        console.error('[TodayActivityCard] fetch failed:', err);
+        setError(true);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -806,7 +821,11 @@ function TodayActivityCard({ sectionHeader }: { sectionHeader: React.ReactNode }
           </div>
         )}
 
-        {!loading && rows.length === 0 && (
+        {!loading && error && (
+          <p className="px-4 py-3 text-sm text-slate-500">Could not load activity. Please refresh.</p>
+        )}
+
+        {!loading && !error && rows.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 text-center px-4">
             <Activity size={24} className="text-slate-200 mb-2" />
             <p className="text-sm text-slate-400">No activity yet today</p>
@@ -814,7 +833,7 @@ function TodayActivityCard({ sectionHeader }: { sectionHeader: React.ReactNode }
           </div>
         )}
 
-        {!loading && rows.length > 0 && (
+        {!loading && !error && rows.length > 0 && (
           <div className="divide-y divide-slate-50">
             {rows.slice(0, 8).map(row => {
               const cfg  = ACTIVITY_ENTITY_CONFIG[row.entityType];
@@ -977,7 +996,7 @@ function MajorSaleBanner() {
         );
         setSales(major);
       })
-      .catch(() => {});
+      .catch(err => console.error('[SalesBanner] fetch failed:', err));
   }, []);
 
   if (!sales.length) return null;
@@ -1241,7 +1260,7 @@ function ActivePromosStrip() {
         const active = (d.data ?? []).filter((p: any) => !p.isMajor && p.enabled !== false && (!p.endDate || p.endDate >= today));
         setPromos(active);
       })
-      .catch(() => {});
+      .catch(err => console.error('[ActivePromosStrip] fetch failed:', err));
   }, []);
 
   if (!promos.length) return null;

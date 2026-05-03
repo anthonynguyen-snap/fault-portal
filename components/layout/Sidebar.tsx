@@ -37,7 +37,7 @@ function ReturnAlertBadge() {
     fetch('/api/returns/alerts')
       .then(r => r.json())
       .then(d => setLevel(d.level ?? null))
-      .catch(() => {});
+      .catch(err => console.warn('[ReturnAlertBadge]', err));
   }, []);
   if (!level) return null;
   return (
@@ -56,7 +56,7 @@ function RefundAlertBadge() {
       fetch('/api/refunds/alerts')
         .then(r => r.json())
         .then(d => setCount(d.count ?? 0))
-        .catch(() => {});
+        .catch(err => console.warn('[RefundAlertBadge]', err));
     }
     check();
     const interval = setInterval(check, 30_000);
@@ -79,7 +79,7 @@ function ReplenishmentAlertBadge() {
       fetch('/api/replenishment/alerts')
         .then(r => r.json())
         .then(d => setCount(d.count ?? 0))
-        .catch(() => {});
+        .catch(err => console.warn('[ReplenishmentAlertBadge]', err));
     }
     check();
     const interval = setInterval(check, 60_000);

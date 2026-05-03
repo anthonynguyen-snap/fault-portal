@@ -97,7 +97,7 @@ function ReplenishmentPageInner() {
     fetch('/api/replenishment/alerts')
       .then(r => r.json())
       .then(d => setTrackingAlerts(d.items ?? []))
-      .catch(() => {});
+      .catch(err => console.warn('[ReplenishmentPage] alerts fetch failed:', err));
   }, [requests]); // re-check whenever requests reload
 
   // Auto-open modal — new request or duplicate
@@ -129,7 +129,7 @@ function ReplenishmentPageInner() {
           })));
           setShowModal(true);
         })
-        .catch(() => {});
+        .catch(err => console.error('[ReplenishmentPage] duplicate prefill failed:', err));
     }
   }, [searchParams]);
 

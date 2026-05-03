@@ -70,7 +70,7 @@ export default function NewReturnPage() {
     fetch('/api/returns?stage=requested')
       .then(r => r.json())
       .then(d => setOpenRequests((d.data ?? []).filter((r: Return) => !r.parcelReceived)))
-      .catch(() => {});
+      .catch(err => console.error('[LogReturnPage] failed to load open requests:', err));
   }, []);
 
   // Reset dismiss when order number changes

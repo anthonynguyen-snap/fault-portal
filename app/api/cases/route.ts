@@ -74,17 +74,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Validate unitCostUSD bounds
+    const unitCost = parseFloat(body.unitCostUSD) || 0;
+    if (unitCost < 0 || unitCost > 99_999) {
+      return NextResponse.json({ error: 'unitCostUSD must be between 0 and 99,999' }, { status: 400 });
+    }
+
+    // Validate evidenceLink is a non-empty string (URLs already validated client-side)
+    if (typeof body.evidenceLink !== 'string' || !body.evidenceLink.trim()) {
+      return NextResponse.json({ error: 'Evidence link is required' }, { status: 400 });
+    }
+
     const newCase = await createCase({
       date:               body.date,
-      orderNumber:        body.orderNumber,
-      customerName:       body.customerName,
+      orderNumber:        body.orderNumber.trim(),
+      customerName:       body.customerName.trim(),
       product:            body.product,
       manufacturerName:   body.manufacturerName,
       manufacturerNumber: body.manufacturerNumber || '',
       faultType:          body.faultType,
       faultNotes:         body.faultNotes || '',
-      evidenceLink:       body.evidenceLink,
-      unitCostUSD:        parseFloat(body.unitCostUSD) || 0,
+      evidenceLink:       body.evidenceLink.trim(),
+      unitCostUSD:        unitCost,
       claimStatus:        body.claimStatus || 'Unsubmitted',
       submittedBy:        body.submittedBy || '',
     });
