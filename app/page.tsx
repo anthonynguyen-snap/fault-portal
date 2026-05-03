@@ -5,12 +5,9 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
-  DollarSign,
-  Calendar,
   RefreshCw,
   ArrowRight,
   RotateCcw,
-  Mail,
   LucideIcon,
   Sparkles,
   Tag,
@@ -27,26 +24,13 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { DashboardStats, Return, ReplenishmentRequest, ReplenishmentStatus } from '@/types';
 import {
-  ChartRowSkeleton,
-  ChartSkeleton,
+  WeeklyFaultChartSkeleton,
 } from '@/components/dashboard/DashboardCharts';
 
-// Lazily loaded chart components — Recharts (~200KB) excluded from initial bundle
-const TrendCharts = dynamic(
-  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.TrendCharts })),
-  { ssr: false, loading: () => <ChartRowSkeleton /> },
-);
-const ProductBarChart = dynamic(
-  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.ProductBarChart })),
-  { ssr: false, loading: () => <ChartSkeleton height={280} /> },
-);
-const ProductTrendChart = dynamic(
-  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.ProductTrendChart })),
-  { ssr: false, loading: () => <ChartSkeleton height={300} /> },
-);
-const ReturnsVolumeChart = dynamic(
-  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.ReturnsVolumeChart })),
-  { ssr: false, loading: () => <ChartSkeleton height={230} /> },
+// Lazily loaded — Recharts excluded from initial bundle
+const WeeklyFaultChart = dynamic(
+  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.WeeklyFaultChart })),
+  { ssr: false, loading: () => <WeeklyFaultChartSkeleton /> },
 );
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge } from '@/lib/utils';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
@@ -65,112 +49,33 @@ function addDays(d: Date, n: number): Date {
   const r = new Date(d); r.setDate(r.getDate() + n); return r;
 }
 function fmtDate(d: Date) { return d.toISOString().slice(0, 10); }
-// ── Card colour schemes ────────────────────────────────────────────────────────
-const CARD_SCHEMES: Record<string, { bg: string; border: string; label: string; accent: string; iconBg: string; iconColor: string; divider: string }> = {
-  slate:  { bg: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: 'border-slate-200',  label: 'text-slate-500',  accent: 'text-slate-900', iconBg: 'bg-slate-100',  iconColor: 'text-slate-500',  divider: 'border-slate-200'  },
-  teal:   { bg: 'linear-gradient(135deg, #f0fdff 0%, #d4f4fb 100%)', border: 'border-brand-200',  label: 'text-brand-600',  accent: 'text-slate-900', iconBg: 'bg-brand-50',   iconColor: 'text-brand-600',  divider: 'border-brand-100'  },
-  indigo: { bg: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', border: 'border-indigo-100', label: 'text-indigo-600', accent: 'text-slate-900', iconBg: 'bg-indigo-50',  iconColor: 'text-indigo-500', divider: 'border-indigo-100' },
-  purple: { bg: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)', border: 'border-purple-100', label: 'text-purple-600', accent: 'text-slate-900', iconBg: 'bg-purple-50',  iconColor: 'text-purple-500', divider: 'border-purple-100' },
-  green:  { bg: 'linear-gradient(135deg, #f0fdf4 0%, #d1fae5 100%)', border: 'border-green-100',  label: 'text-green-600',  accent: 'text-slate-900', iconBg: 'bg-green-50',   iconColor: 'text-green-500',  divider: 'border-green-100'  },
-  amber:  { bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: 'border-amber-100',  label: 'text-amber-600',  accent: 'text-slate-900', iconBg: 'bg-amber-50',   iconColor: 'text-amber-500',  divider: 'border-amber-100'  },
-};
-
-// ── Trend delta pill ──────────────────────────────────────────────────────────
-function TrendDelta({ countDelta, costDelta }: { countDelta: number | null; costDelta: number | null }) {
-  if (countDelta === null && costDelta === null) return null;
-  const fmt = (d: number) => `${Math.abs(d) < 1 ? '<1' : Math.round(Math.abs(d))}%`;
-  // For faults, DOWN is good (green), UP is bad (red)
-  const countUp = countDelta !== null && countDelta > 0;
-  const costUp  = costDelta  !== null && costDelta  > 0;
-  return (
-    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-black/5">
-      {countDelta !== null && (
-        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${countUp ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
-          {countUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-          {fmt(countDelta)} faults
-        </span>
-      )}
-      {costDelta !== null && (
-        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${costUp ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
-          {costUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-          {fmt(costDelta)} cost
-        </span>
-      )}
-      <span className="text-[10px] text-slate-400 ml-auto">vs prev week</span>
-    </div>
-  );
-}
-
-// ── Paired Stat Card ───────────────────────────────────────────────────────────
-function PairedStatCard({
-  label, count, countSub, cost, costSub, icon: Icon, color = 'slate',
-  countDelta, costDelta,
+// ── Quick Stat Cell ────────────────────────────────────────────────────────────
+function QuickStat({
+  label, value, sub, href, alert = false, trend,
 }: {
-  label: string;
-  count: string | number;
-  countSub: string;
-  cost: string;
-  costSub: string;
-  icon: LucideIcon;
-  color?: string;
-  countDelta?: number | null;
-  costDelta?: number | null;
+  label: string; value: string | number; sub: string;
+  href?: string; alert?: boolean; trend?: number | null;
 }) {
-  const s = CARD_SCHEMES[color] ?? CARD_SCHEMES.slate;
-  return (
-    <div className={`rounded-xl border ${s.border}`} style={{ background: s.bg, boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.06)' }}>
-      <div className="p-5">
-        <div className="flex items-start justify-between mb-5">
-          <p className={`text-[11px] font-bold uppercase tracking-widest ${s.label}`}>{label}</p>
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${s.iconBg}`}>
-            <Icon size={17} className={s.iconColor} />
-          </div>
-        </div>
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className={`text-3xl font-bold font-mono leading-none ${s.accent}`}>{count}</p>
-            <p className="text-[11px] text-slate-400 mt-1.5">{countSub}</p>
-          </div>
-          <div className={`text-right border-l pl-4 ${s.divider}`}>
-            <p className={`text-xl font-bold font-mono leading-none ${s.accent}`}>{cost}</p>
-            <p className="text-[11px] text-slate-400 mt-1.5">{costSub}</p>
-          </div>
-        </div>
-        {(countDelta != null || costDelta != null) && (
-          <TrendDelta countDelta={countDelta ?? null} costDelta={costDelta ?? null} />
+  const cell = (
+    <div className={`card p-4 h-full transition-shadow hover:shadow-md ${alert ? 'border-amber-200 bg-amber-50/40' : ''}`}>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</p>
+      <p className={`text-3xl font-bold font-mono leading-none ${alert ? 'text-amber-700' : 'text-slate-900'}`}>{value}</p>
+      <div className="flex items-center justify-between mt-2 gap-2">
+        <p className="text-[11px] text-slate-400 leading-tight">{sub}</p>
+        {trend != null && (
+          <span className={`flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${
+            trend > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            {trend > 0 ? <TrendingUp size={9} /> : <TrendingDown size={9} />}
+            {Math.abs(trend) < 1 ? '<1' : Math.round(Math.abs(trend))}%
+          </span>
         )}
       </div>
     </div>
   );
-}
-
-// ── Simple Stat Card (for returns) ────────────────────────────────────────────
-function StatCard({
-  label, value, sub, icon: Icon, color = 'slate',
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  icon: LucideIcon;
-  color?: string;
-}) {
-  const s = CARD_SCHEMES[color] ?? CARD_SCHEMES.slate;
-  return (
-    <div className={`rounded-xl border ${s.border}`} style={{ background: s.bg, boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.06)' }}>
-      <div className="p-5">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className={`text-[11px] font-bold uppercase tracking-widest ${s.label}`}>{label}</p>
-            <p className={`text-3xl font-bold font-mono mt-1.5 ${s.accent}`}>{value}</p>
-            {sub && <p className="text-[11px] text-slate-400 mt-1">{sub}</p>}
-          </div>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.iconBg}`}>
-            <Icon size={20} className={s.iconColor} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return href
+    ? <Link href={href} className="block h-full">{cell}</Link>
+    : cell;
 }
 
 // ── Section Header ─────────────────────────────────────────────────────────────
@@ -197,8 +102,6 @@ function SectionHeader({
   );
 }
 
-type PeriodView = 'thisWeek' | 'lastWeek' | 'thisMonth';
-
 // ── Main Dashboard Page ────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -209,8 +112,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [productTrendView, setProductTrendView] = useState<'weekly' | 'monthly'>('weekly');
-  const [periodView, setPeriodView] = useState<PeriodView>('thisWeek');
 
   async function loadStats() {
     try {
@@ -275,21 +176,22 @@ export default function DashboardPage() {
   const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
   const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
 
-  // ── Week-over-week trend deltas (from existing weeklyTrend data) ───────────
+  // ── Week-over-week trend deltas ───────────────────────────────────────────
   const wt = stats.weeklyTrend ?? [];
   const wtCurr = wt.length >= 1 ? wt[wt.length - 1] : null;
   const wtPrev = wt.length >= 2 ? wt[wt.length - 2] : null;
   const weekCountDelta = wtCurr && wtPrev && wtPrev.count > 0
-    ? ((wtCurr.count - wtPrev.count) / wtPrev.count) * 100
-    : null;
+    ? ((wtCurr.count - wtPrev.count) / wtPrev.count) * 100 : null;
   const weekCostDelta = wtCurr && wtPrev && wtPrev.cost > 0
-    ? ((wtCurr.cost - wtPrev.cost) / wtPrev.cost) * 100
-    : null;
+    ? ((wtCurr.cost - wtPrev.cost) / wtPrev.cost) * 100 : null;
+
+  // ── Awaiting parcel count ─────────────────────────────────────────────────
+  const awaitingParcel = allReturns.filter(r => !r.processedBy && !r.parcelReceived).length;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-5">
 
-      {/* ── Page Header ─────────────────────────────────────────────────────── */}
+      {/* ── Page Header ───────────────────────────────────────────────────── */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Dashboard</h1>
@@ -322,111 +224,132 @@ export default function DashboardPage() {
         </Link>
       )}
 
-      {/* ── Major Sale Banner + Active Promotions Strip ──────────────────── */}
-      <MajorSaleBanner />
-      <ActivePromosStrip />
+      {/* ── Quick Stat Strip ──────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <QuickStat
+          label="Faults This Week"
+          value={stats.faultsThisWeek}
+          sub={`${stats.faultsFY} faults this financial year`}
+          trend={weekCountDelta}
+          href="/cases"
+        />
+        <QuickStat
+          label="Cost at Risk"
+          value={formatCurrency(stats.costLostThisWeek)}
+          sub="this week"
+          trend={weekCostDelta}
+        />
+        <QuickStat
+          label="Awaiting Parcel"
+          value={awaitingParcel}
+          sub="return requests pending"
+          href="/returns"
+          alert={awaitingParcel > 0}
+        />
+        <QuickStat
+          label="Follow-ups Due"
+          value={pendingFollowUps}
+          sub="returns need action"
+          href="/returns?filter=follow-up"
+          alert={pendingFollowUps > 0}
+        />
+      </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          FAULT CASES
-      ══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1 min-w-0">
-          <SectionHeader icon={AlertTriangle} title="Fault Cases" href="/cases" linkLabel="View all cases" />
+      {/* ── Chart + AI Briefing (2/3 + 1/3) ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2">
+          <WeeklyFaultChart
+            weeklyTrend={stats.weeklyTrend}
+            weekCountDelta={weekCountDelta}
+            weekCostDelta={weekCostDelta}
+          />
         </div>
-        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-shrink-0">
-          {([
-            { key: 'thisWeek',  label: 'This Week'  },
-            { key: 'lastWeek',  label: 'Last Week'  },
-            { key: 'thisMonth', label: 'This Month' },
-          ] as { key: PeriodView; label: string }[]).map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setPeriodView(key)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                periodView === key
-                  ? 'bg-white text-slate-800 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="lg:col-span-1">
+          {isAdmin ? <AiBriefingCard /> : <TodayActivityCard />}
         </div>
       </div>
 
-      {/* Paired stat cards */}
-      {(() => {
-        const card2 = periodView === 'thisWeek'
-          ? { label: 'This Week',  count: stats.faultsThisWeek,  cost: formatCurrency(stats.costLostThisWeek),  countSub: 'faults this week',  costSub: 'cost at risk', icon: Calendar,   color: 'teal'   }
-          : periodView === 'lastWeek'
-          ? { label: 'Last Week',  count: stats.faultsLastWeek,  cost: formatCurrency(stats.costLostLastWeek),  countSub: 'faults last week',  costSub: 'cost at risk', icon: Calendar,   color: 'indigo' }
-          : { label: 'This Month', count: stats.faultsThisMonth, cost: formatCurrency(stats.costLostThisMonth), countSub: 'faults this month', costSub: 'cost at risk', icon: TrendingUp, color: 'purple' };
-
-        const card3 = periodView === 'thisMonth'
-          ? { label: stats.lastMonthLabel, count: stats.faultsLastMonth, cost: formatCurrency(stats.costLostLastMonth), countSub: 'faults last month', costSub: 'cost at risk', icon: Calendar,   color: 'teal'   }
-          : { label: 'This Month',         count: stats.faultsThisMonth, cost: formatCurrency(stats.costLostThisMonth), countSub: 'faults this month', costSub: 'cost at risk', icon: TrendingUp, color: 'purple' };
-
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <PairedStatCard
-              label={stats.fyLabel}
-              count={stats.faultsFY}
-              countSub="faults this financial year"
-              cost={formatCurrency(stats.costFY)}
-              costSub="cost at risk this FY"
-              icon={AlertTriangle}
-              color="slate"
-            />
-            <PairedStatCard
-              label={card2.label}
-              count={card2.count}
-              countSub={card2.countSub}
-              cost={card2.cost}
-              costSub={card2.costSub}
-              icon={card2.icon}
-              color={card2.color}
-              countDelta={periodView === 'thisWeek' ? weekCountDelta : null}
-              costDelta={periodView === 'thisWeek' ? weekCostDelta : null}
-            />
-            <PairedStatCard
-              label={card3.label}
-              count={card3.count}
-              countSub={card3.countSub}
-              cost={card3.cost}
-              costSub={card3.costSub}
-              icon={card3.icon}
-              color={card3.color}
-            />
+      {/* ── Recent Cases + Today's Activity (admin) ───────────────────────────── */}
+      <div className={`grid grid-cols-1 gap-5 ${isAdmin ? 'lg:grid-cols-3' : ''}`}>
+        {/* Recent Cases */}
+        <div className={`card overflow-hidden ${isAdmin ? 'lg:col-span-2' : ''}`}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">Recent Cases</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Last 8 fault cases submitted</p>
+            </div>
+            <Link href="/cases" className="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">
+              View all <ArrowRight size={11} />
+            </Link>
           </div>
-        );
-      })()}
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Product</th>
+                  <th>Fault</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.recentCases.slice(0, 8).map((c) => (
+                  <Link key={c.id} href={`/cases/${c.id}`} legacyBehavior>
+                    <tr className="cursor-pointer">
+                      <td className="font-semibold font-mono text-brand-600">{c.orderNumber}</td>
+                      <td className="max-w-[160px] truncate" title={c.product}>{c.product}</td>
+                      <td><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>{c.faultType}</span></td>
+                      <td className="text-slate-400 text-xs font-mono whitespace-nowrap">{formatDate(c.date)}</td>
+                      <td>
+                        <span className={`badge text-[10px] ${STATUS_STYLES[c.claimStatus]}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[c.claimStatus]}`} />
+                          {c.claimStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  </Link>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-      {/* Trend charts — lazy-loaded */}
-      <TrendCharts monthlyTrend={stats.monthlyTrend} weeklyTrend={stats.weeklyTrend} />
+        {/* Today's Activity — admin only, beside recent cases */}
+        {isAdmin && (
+          <div className="lg:col-span-1">
+            <TodayActivityCard />
+          </div>
+        )}
+      </div>
 
-      {/* Manufacturer + Fault Types side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Faults by Manufacturer */}
-        <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-          <h3 className="text-sm font-semibold text-slate-900 mb-0.5">By Manufacturer</h3>
-          <p className="text-xs text-slate-400 mb-4">Top manufacturers by fault count</p>
-          <div className="space-y-3.5">
+      {/* ── Manufacturer + Fault Type breakdown ──────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* By Manufacturer */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">By Manufacturer</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Top manufacturers by fault count</p>
+            </div>
+            <Link href="/cases" className="text-xs text-brand-600 hover:underline flex items-center gap-1">View all <ArrowRight size={11} /></Link>
+          </div>
+          <div className="space-y-3">
             {stats.faultsByManufacturer.slice(0, 6).map((mfr, i) => {
               const max = stats.faultsByManufacturer[0]?.count || 1;
               const pct = Math.round((mfr.count / max) * 100);
-              // Fade bar color from brand to lighter as rank drops
               const barColors = ['#1591b3', '#1591b3cc', '#1591b3aa', '#1591b388', '#1591b366', '#1591b344'];
               return (
                 <div key={mfr.name}>
-                  <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center justify-between text-xs mb-1">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-[10px] font-bold text-slate-400 w-4 flex-shrink-0">{i + 1}</span>
                       <span className="font-medium text-slate-700 truncate">{mfr.name}</span>
                     </div>
-                    <span className="text-slate-400 ml-3 flex-shrink-0 font-mono text-[11px]">{mfr.count} · {formatCurrency(mfr.cost)}</span>
+                    <span className="text-slate-400 ml-2 flex-shrink-0 font-mono text-[11px]">{mfr.count} · {formatCurrency(mfr.cost)}</span>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColors[i] ?? '#1591b344' }} />
+                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: barColors[i] ?? '#1591b344' }} />
                   </div>
                 </div>
               );
@@ -434,31 +357,24 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Top Fault Types */}
-        <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-          <h3 className="text-sm font-semibold text-slate-900 mb-0.5">By Fault Type</h3>
-          <p className="text-xs text-slate-400 mb-4">Most common fault categories</p>
+        {/* By Fault Type */}
+        <div className="card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">By Fault Type</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Most common fault categories</p>
+            </div>
+          </div>
           <div className="space-y-0.5">
             {stats.topFaultTypes.map((ft, i) => {
-              const rankStyles = [
-                'bg-brand-600 text-white',
-                'bg-brand-500 text-white',
-                'bg-brand-400 text-white',
-                'bg-slate-200 text-slate-600',
-                'bg-slate-100 text-slate-500',
-                'bg-slate-100 text-slate-400',
-              ];
+              const rankStyles = ['bg-brand-600 text-white','bg-brand-500 text-white','bg-brand-400 text-white','bg-slate-200 text-slate-600','bg-slate-100 text-slate-500','bg-slate-100 text-slate-400'];
               return (
-                <div key={ft.name} className={`flex items-center justify-between px-3 py-2.5 rounded-lg ${i < 3 ? 'bg-brand-50/60' : 'hover:bg-slate-50'} transition-colors`}>
-                  <div className="flex items-center gap-3">
-                    <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 ${rankStyles[i] ?? 'bg-slate-100 text-slate-400'}`}>
-                      {i + 1}
-                    </span>
+                <div key={ft.name} className={`flex items-center justify-between px-3 py-2 rounded-lg ${i < 3 ? 'bg-brand-50/60' : 'hover:bg-slate-50'} transition-colors`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0 ${rankStyles[i] ?? 'bg-slate-100 text-slate-400'}`}>{i + 1}</span>
                     <span className="text-sm text-slate-700">{ft.name}</span>
                   </div>
-                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${i < 3 ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-600'}`}>
-                    {ft.count}
-                  </span>
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${i < 3 ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-600'}`}>{ft.count}</span>
                 </div>
               );
             })}
@@ -466,97 +382,37 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Faults by Product — lazy-loaded */}
-      <ProductBarChart productFaultCounts={stats.productFaultCounts} />
-
-      {/* Per-Product Trend — lazy-loaded */}
-      <ProductTrendChart
-        topProductNames={stats.topProductNames ?? []}
-        productWeeklyTrend={stats.productWeeklyTrend}
-        productMonthlyTrend={stats.productMonthlyTrend}
-        productTrendView={productTrendView}
-        setProductTrendView={setProductTrendView}
-      />
-
-      {/* Recent Cases */}
-      <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">Recent Cases</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Last 10 fault cases submitted</p>
+      {/* ── Returns summary row ───────────────────────────────────────────────── */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <RotateCcw size={14} className="text-slate-400" />
+            <h3 className="text-sm font-semibold text-slate-800">Returns</h3>
           </div>
-          <Link href="/cases" className="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">
-            View all <ArrowRight size={12} />
-          </Link>
+          <Link href="/returns" className="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">View all <ArrowRight size={11} /></Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-2 pr-4">Order</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-2 pr-4">Product</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-2 pr-4">Fault</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-2 pr-4">Date</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wide pb-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.recentCases.slice(0, 8).map((c) => (
-                <Link key={c.id} href={`/cases/${c.id}`} legacyBehavior>
-                  <tr className="border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors">
-                    <td className="py-2.5 pr-4 font-semibold font-mono text-brand-600">{c.orderNumber}</td>
-                    <td className="py-2.5 pr-4 text-slate-600 max-w-[160px] truncate" title={c.product}>{c.product}</td>
-                    <td className="py-2.5 pr-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>{c.faultType}</span>
-                    </td>
-                    <td className="py-2.5 pr-4 text-slate-400 text-xs font-mono whitespace-nowrap">{formatDate(c.date)}</td>
-                    <td className="py-2.5">
-                      <span className={`badge text-[10px] ${STATUS_STYLES[c.claimStatus]}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[c.claimStatus]}`} />
-                        {c.claimStatus}
-                      </span>
-                    </td>
-                  </tr>
-                </Link>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-3 divide-x divide-slate-100">
+          <div className="px-5 py-4">
+            <p className="text-2xl font-bold font-mono text-slate-900">{weekReturns.length}</p>
+            <p className="text-xs text-slate-400 mt-1">Returns this week</p>
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-2xl font-bold font-mono text-slate-900">{formatCurrency(weekRefunded)}</p>
+            <p className="text-xs text-slate-400 mt-1">Refunded this week</p>
+          </div>
+          <div className="px-5 py-4">
+            <p className={`text-2xl font-bold font-mono ${pendingFollowUps > 0 ? 'text-amber-600' : 'text-slate-900'}`}>{pendingFollowUps}</p>
+            <p className="text-xs text-slate-400 mt-1">Pending follow-ups</p>
+          </div>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          RETURNS — zone
-      ══════════════════════════════════════════════════════════════════════ */}
-      <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-purple-50/40 p-5 space-y-5">
-        <SectionHeader icon={RotateCcw} title="Returns" href="/returns" linkLabel="View all returns" />
+      {/* ── Replenishment summary row — admin only ────────────────────────────── */}
+      {isAdmin && <ReplenishmentSummaryRow />}
 
-        {/* Returns stat cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <StatCard label="Returns This Week" value={weekReturns.length} sub="logged this week" icon={RotateCcw} color="indigo" />
-          <StatCard label="Refunded This Week" value={`$${weekRefunded.toFixed(2)}`} sub="total refunded" icon={DollarSign} color="green" />
-          <StatCard label="Pending Follow-ups" value={pendingFollowUps} sub="across all returns" icon={Mail} color={pendingFollowUps > 0 ? 'amber' : 'slate'} />
-        </div>
-
-        {/* Returns volume chart — lazy-loaded */}
-        <ReturnsVolumeChart allReturns={allReturns} />
-      </div>
-
-      {/* Replenishment — admin only */}
-      {isAdmin && (
-        <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/50 to-orange-50/30 p-5 space-y-5">
-          <ReplenishmentSection sectionHeader={<SectionHeader icon={Truck} title="Replenishment" href="/replenishment" linkLabel="View all" />} />
-        </div>
-      )}
-
-      {/* Today's Activity */}
-      <TodayActivityCard sectionHeader={<SectionHeader icon={Activity} title="Today's Activity" href="/log" linkLabel="Full log" />} />
-
-      {/* AI Briefing — admin only, tinted zone */}
-      {isAdmin && (
-        <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/60 to-indigo-50/40 p-5">
-          <AiBriefingCard />
-        </div>
-      )}
+      {/* ── Promotions strip ─────────────────────────────────────────────────── */}
+      <MajorSaleBanner />
+      <ActivePromosStrip />
 
     </div>
   );
@@ -701,6 +557,56 @@ function ReplenishmentSection({ sectionHeader }: { sectionHeader: React.ReactNod
   );
 }
 
+// ── Replenishment Summary Row (dashboard) ─────────────────────────────────────
+function ReplenishmentSummaryRow() {
+  const [pending, setPending]       = useState<number | null>(null);
+  const [inTransit, setInTransit]   = useState<number | null>(null);
+  const [alertCount, setAlertCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/replenishment').then(r => r.json()),
+      fetch('/api/replenishment/alerts').then(r => r.json()),
+    ]).then(([reqJson, alertJson]) => {
+      const requests: ReplenishmentRequest[] = reqJson.data ?? [];
+      setPending(requests.filter(r => r.status === 'Pending').length);
+      setInTransit(requests.filter(r => ['Ordered', 'Partially Dispatched'].includes(r.status)).length);
+      setAlertCount(alertJson.count ?? 0);
+    }).catch(err => console.error('[ReplenishmentSummaryRow]', err));
+  }, []);
+
+  // Don't render until data loaded — keeps layout stable
+  if (pending === null) return null;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+        <div className="flex items-center gap-2">
+          <Truck size={14} className="text-slate-400" />
+          <h3 className="text-sm font-semibold text-slate-800">Replenishment</h3>
+        </div>
+        <Link href="/replenishment" className="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">
+          View all <ArrowRight size={11} />
+        </Link>
+      </div>
+      <div className="grid grid-cols-3 divide-x divide-slate-100">
+        <div className="px-5 py-4">
+          <p className="text-2xl font-bold font-mono text-slate-900">{pending}</p>
+          <p className="text-xs text-slate-400 mt-1">Pending orders</p>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-2xl font-bold font-mono text-slate-900">{inTransit}</p>
+          <p className="text-xs text-slate-400 mt-1">In transit</p>
+        </div>
+        <div className="px-5 py-4">
+          <p className={`text-2xl font-bold font-mono ${alertCount && alertCount > 0 ? 'text-orange-600' : 'text-slate-900'}`}>{alertCount ?? 0}</p>
+          <p className="text-xs text-slate-400 mt-1">Tracking alerts</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── AI Briefing Card ───────────────────────────────────────────────────────────
 type SummaryMode = 'briefing' | 'trends' | 'monthly' | 'digest';
 
@@ -738,7 +644,7 @@ const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   'replenishment.status':  'Replenishment updated',
 };
 
-function TodayActivityCard({ sectionHeader }: { sectionHeader: React.ReactNode }) {
+function TodayActivityCard({ sectionHeader }: { sectionHeader?: React.ReactNode }) {
   const [rows, setRows]       = useState<ActivityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);
@@ -755,9 +661,9 @@ function TodayActivityCard({ sectionHeader }: { sectionHeader: React.ReactNode }
   }, []);
 
   return (
-    <div>
-      {sectionHeader}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div className="h-full flex flex-col">
+      {sectionHeader && sectionHeader}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex-1">
         {loading && (
           <div className="divide-y divide-slate-50">
             {Array.from({ length: 4 }).map((_, i) => (
