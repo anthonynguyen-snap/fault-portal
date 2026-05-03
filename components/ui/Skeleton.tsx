@@ -80,6 +80,49 @@ export function DetailSkeleton() {
   );
 }
 
+// ─── Generic list-page skeleton ──────────────────────────────────────────────
+/**
+ * PageSkeleton — consistent full-page loading state for any list/table page.
+ * Shows a page header, optional search bar, optional stat cards, then a table.
+ */
+export function PageSkeleton({
+  cols = 6,
+  rows = 10,
+  showSearch = true,
+  showStats = false,
+  statCount = 3,
+  maxWidth = '7xl',
+}: {
+  cols?: number;
+  rows?: number;
+  showSearch?: boolean;
+  showStats?: boolean;
+  statCount?: number;
+  maxWidth?: '4xl' | '5xl' | '6xl' | '7xl';
+}) {
+  return (
+    <div className={`max-w-${maxWidth} mx-auto space-y-5`}>
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <SkeletonBlock className="h-7 w-32" />
+          <SkeletonBlock className="h-4 w-48" />
+        </div>
+        <div className="flex gap-2">
+          <SkeletonBlock className="h-9 w-28 rounded-lg" />
+          <SkeletonBlock className="h-9 w-32 rounded-lg" />
+        </div>
+      </div>
+      {/* Search / filter bar */}
+      {showSearch && <SkeletonBlock className="h-12 w-full rounded-xl" />}
+      {/* Stat cards */}
+      {showStats && <StatCardsSkeleton count={statCount} />}
+      {/* Table */}
+      <TableSkeleton rows={rows} cols={cols} />
+    </div>
+  );
+}
+
 // ─── Dashboard skeleton ───────────────────────────────────────────────────────
 export function DashboardSkeleton() {
   return (

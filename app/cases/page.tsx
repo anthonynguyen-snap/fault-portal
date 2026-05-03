@@ -353,11 +353,11 @@ export default function CasesPage() {
                     { key: 'manufacturerName' as SortKey, label: 'Manufacturer' },
                     { key: 'faultType' as SortKey,        label: 'Fault Type'   },
                     { key: 'submittedBy' as SortKey,      label: 'Submitted By' },
-                    { key: 'unitCostUSD' as SortKey,      label: 'Cost'         },
+                    { key: 'unitCostUSD' as SortKey,      label: 'Cost', num: true },
                   ].map(col => (
                     <th key={col.key} onClick={() => handleSort(col.key)}
-                      className="cursor-pointer select-none hover:bg-slate-100 transition-colors">
-                      <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} /></div>
+                      className={`cursor-pointer select-none hover:bg-slate-100 transition-colors ${'num' in col && col.num ? 'num' : ''}`}>
+                      <div className={`flex items-center gap-1 ${'num' in col && col.num ? 'justify-end' : ''}`}>{col.label}<SortIcon col={col.key} /></div>
                     </th>
                   ))}
                   <th>Evidence</th>
@@ -413,7 +413,7 @@ export default function CasesPage() {
                       <td className="text-sm text-slate-600">
                         {c.submittedBy || <span className="text-slate-300">—</span>}
                       </td>
-                      <td className="font-semibold font-mono text-slate-900 whitespace-nowrap">{formatCurrency(c.unitCostUSD)}</td>
+                      <td className="num font-semibold text-slate-900 whitespace-nowrap">{formatCurrency(c.unitCostUSD)}</td>
                       <td onClick={e => e.stopPropagation()}>
                         {c.evidenceLink ? (
                           <a href={c.evidenceLink} target="_blank" rel="noopener noreferrer"

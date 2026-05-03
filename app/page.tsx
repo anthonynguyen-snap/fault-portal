@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   TrendingUp,
+  TrendingDown,
   DollarSign,
   Calendar,
   RefreshCw,
@@ -74,9 +75,36 @@ const CARD_SCHEMES: Record<string, { bg: string; border: string; label: string; 
   amber:  { bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: 'border-amber-100',  label: 'text-amber-600',  accent: 'text-slate-900', iconBg: 'bg-amber-50',   iconColor: 'text-amber-500',  divider: 'border-amber-100'  },
 };
 
+// ── Trend delta pill ──────────────────────────────────────────────────────────
+function TrendDelta({ countDelta, costDelta }: { countDelta: number | null; costDelta: number | null }) {
+  if (countDelta === null && costDelta === null) return null;
+  const fmt = (d: number) => `${Math.abs(d) < 1 ? '<1' : Math.round(Math.abs(d))}%`;
+  // For faults, DOWN is good (green), UP is bad (red)
+  const countUp = countDelta !== null && countDelta > 0;
+  const costUp  = costDelta  !== null && costDelta  > 0;
+  return (
+    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-black/5">
+      {countDelta !== null && (
+        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${countUp ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+          {countUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+          {fmt(countDelta)} faults
+        </span>
+      )}
+      {costDelta !== null && (
+        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${costUp ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+          {costUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+          {fmt(costDelta)} cost
+        </span>
+      )}
+      <span className="text-[10px] text-slate-400 ml-auto">vs prev week</span>
+    </div>
+  );
+}
+
 // ── Paired Stat Card ───────────────────────────────────────────────────────────
 function PairedStatCard({
   label, count, countSub, cost, costSub, icon: Icon, color = 'slate',
+  countDelta, costDelta,
 }: {
   label: string;
   count: string | number;
@@ -85,6 +113,8 @@ function PairedStatCard({
   costSub: string;
   icon: LucideIcon;
   color?: string;
+  countDelta?: number | null;
+  costDelta?: number | null;
 }) {
   const s = CARD_SCHEMES[color] ?? CARD_SCHEMES.slate;
   return (
@@ -106,6 +136,9 @@ function PairedStatCard({
             <p className="text-[11px] text-slate-400 mt-1.5">{costSub}</p>
           </div>
         </div>
+        {(countDelta != null || costDelta != null) && (
+          <TrendDelta countDelta={countDelta ?? null} costDelta={costDelta ?? null} />
+        )}
       </div>
     </div>
   );
@@ -241,6 +274,18 @@ export default function DashboardPage() {
   const weekReturns = allReturns.filter(r => r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
   const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
   const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
+
+  // ── Week-over-week trend deltas (from existing weeklyTrend data) ───────────
+  const wt = stats.weeklyTrend ?? [];
+  const wtCurr = wt.length >= 1 ? wt[wt.length - 1] : null;
+  const wtPrev = wt.length >= 2 ? wt[wt.length - 2] : null;
+  const weekCountDelta = wtCurr && wtPrev && wtPrev.count > 0
+    ? ((wtCurr.count - wtPrev.count) / wtPrev.count) * 100
+    : null;
+  const weekCostDelta = wtCurr && wtPrev && wtPrev.cost > 0
+    ? ((wtCurr.cost - wtPrev.cost) / wtPrev.cost) * 100
+    : null;
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
 
@@ -340,6 +385,8 @@ export default function DashboardPage() {
               costSub={card2.costSub}
               icon={card2.icon}
               color={card2.color}
+              countDelta={periodView === 'thisWeek' ? weekCountDelta : null}
+              costDelta={periodView === 'thisWeek' ? weekCostDelta : null}
             />
             <PairedStatCard
               label={card3.label}
@@ -478,30 +525,38 @@ export default function DashboardPage() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          RETURNS
+          RETURNS — zone
       ══════════════════════════════════════════════════════════════════════ */}
-      <SectionHeader icon={RotateCcw} title="Returns" href="/returns" linkLabel="View all returns" />
+      <div className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-purple-50/40 p-5 space-y-5">
+        <SectionHeader icon={RotateCcw} title="Returns" href="/returns" linkLabel="View all returns" />
 
-      {/* Returns stat cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <StatCard label="Returns This Week" value={weekReturns.length} sub="logged this week" icon={RotateCcw} color="indigo" />
-        <StatCard label="Refunded This Week" value={`$${weekRefunded.toFixed(2)}`} sub="total refunded" icon={DollarSign} color="green" />
-        <StatCard label="Pending Follow-ups" value={pendingFollowUps} sub="across all returns" icon={Mail} color={pendingFollowUps > 0 ? 'amber' : 'slate'} />
+        {/* Returns stat cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <StatCard label="Returns This Week" value={weekReturns.length} sub="logged this week" icon={RotateCcw} color="indigo" />
+          <StatCard label="Refunded This Week" value={`$${weekRefunded.toFixed(2)}`} sub="total refunded" icon={DollarSign} color="green" />
+          <StatCard label="Pending Follow-ups" value={pendingFollowUps} sub="across all returns" icon={Mail} color={pendingFollowUps > 0 ? 'amber' : 'slate'} />
+        </div>
+
+        {/* Returns volume chart — lazy-loaded */}
+        <ReturnsVolumeChart allReturns={allReturns} />
       </div>
-
-      {/* Returns volume chart — lazy-loaded */}
-      <ReturnsVolumeChart allReturns={allReturns} />
 
       {/* Replenishment — admin only */}
       {isAdmin && (
-        <ReplenishmentSection sectionHeader={<SectionHeader icon={Truck} title="Replenishment" href="/replenishment" linkLabel="View all" />} />
+        <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/50 to-orange-50/30 p-5 space-y-5">
+          <ReplenishmentSection sectionHeader={<SectionHeader icon={Truck} title="Replenishment" href="/replenishment" linkLabel="View all" />} />
+        </div>
       )}
 
       {/* Today's Activity */}
       <TodayActivityCard sectionHeader={<SectionHeader icon={Activity} title="Today's Activity" href="/log" linkLabel="Full log" />} />
 
-      {/* AI Briefing — admin only */}
-      {isAdmin && <AiBriefingCard />}
+      {/* AI Briefing — admin only, tinted zone */}
+      {isAdmin && (
+        <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/60 to-indigo-50/40 p-5">
+          <AiBriefingCard />
+        </div>
+      )}
 
     </div>
   );

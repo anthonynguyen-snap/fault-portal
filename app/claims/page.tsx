@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Claim, ClaimStatus, FaultCase } from '@/types';
 import { formatCurrency, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
-import { TableSkeleton } from '@/components/ui/Skeleton';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 
@@ -179,23 +179,7 @@ export default function ClaimsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="h-7 w-24 bg-slate-200 rounded animate-pulse" />
-            <div className="h-4 w-64 bg-slate-200 rounded animate-pulse" />
-          </div>
-          <div className="h-9 w-36 bg-slate-200 rounded-lg animate-pulse" />
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1,2,3,4].map(i => <div key={i} className="card p-5 space-y-3"><div className="h-3 w-24 bg-slate-200 rounded animate-pulse" /><div className="h-8 w-12 bg-slate-200 rounded animate-pulse" /></div>)}
-        </div>
-        <TableSkeleton rows={6} cols={5} />
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton cols={5} rows={6} showStats statCount={4} showSearch={false} />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

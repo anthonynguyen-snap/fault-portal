@@ -9,7 +9,6 @@ import {
   FileText,
   BarChart2,
   Settings,
-  ChevronRight,
   RotateCcw,
   Briefcase,
   Package,
@@ -219,15 +218,14 @@ export function Sidebar() {
           <Link
             href="/"
             className={cn(
-              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all group mb-3',
+              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all group mb-3',
               isActive('/')
-                ? 'bg-brand-600 text-white'
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                ? 'nav-active-home text-white font-semibold'
+                : 'font-medium text-slate-400 hover:bg-slate-800 hover:text-white'
             )}
           >
-            <Home size={15} className={cn('flex-shrink-0', isActive('/') ? 'text-white' : 'group-hover:text-white')} />
+            <Home size={15} className={cn('flex-shrink-0', isActive('/') ? 'text-brand-300' : 'group-hover:text-white')} />
             <span className="flex-1">Home</span>
-            {isActive('/') && <ChevronRight size={12} className="text-white/50" />}
           </Link>
 
           {/* Groups */}
@@ -265,21 +263,20 @@ export function Sidebar() {
                           key={item.href}
                           href={item.href}
                           className={cn(
-                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all group',
+                            'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all group',
                             active
-                              ? 'bg-brand-600 text-white'
-                              : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                              ? 'nav-active text-white font-semibold'
+                              : 'font-medium text-slate-400 hover:bg-slate-800 hover:text-white'
                           )}
                         >
                           <Icon
                             size={15}
-                            className={cn('flex-shrink-0', active ? 'text-white' : 'group-hover:text-white')}
+                            className={cn('flex-shrink-0', active ? 'text-brand-300' : 'group-hover:text-white')}
                           />
                           <span className="flex-1 truncate">{item.label}</span>
                           {item.href === '/returns'       && <ReturnAlertBadge />}
                           {item.href === '/refunds'       && <RefundAlertBadge />}
                           {item.href === '/replenishment' && <ReplenishmentAlertBadge />}
-                          {active && <ChevronRight size={12} className="text-white/50" />}
                         </Link>
                       );
                     })}
