@@ -33,10 +33,23 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.0',
+    label: 'Login History & Promotions UI',
+    date: '2026-05-03',
+    isLatest: true,
+    summary: 'Staff login timeline in Admin and promotions strip redesigned to match portal UI.',
+    changes: [
+      { category: 'Admin', text: 'Login History feed in Admin > Logins — groups clock-in events by day (Today / Yesterday / date) with coloured initials, role badge, and relative time' },
+      { category: 'Admin', text: 'Filter by staff member and date range (7 / 14 / 30 days) — fetches from shift_logs via new /api/admin/login-history endpoint' },
+      { category: 'Promotions', text: 'Active Promotions strip rebuilt as a portal-native card — replace letterboard / scramble ticker with clean divide-y rows, store badges, discount chips, and countdown pills' },
+      { category: 'Promotions', text: 'Major Sale Banner redesigned as an amber-bordered card with sale name, discount badge, code chip, store badge, dates, and days-left countdown' },
+    ],
+  },
+  {
     version: 'v1.9',
     label: 'Dashboard Redesign & Navigation',
     date: '2026-05-03',
-    isLatest: true,
+    isLatest: false,
     summary: 'Full dashboard overhaul, returns navigation restructure, and an Admin changelog tab.',
     changes: [
       { category: 'Dashboard', text: 'Complete dashboard rebuild — replaced cluttered stat cards with a compact 4-cell QuickStat strip (Faults This Week, Cost at Risk, Awaiting Parcel, Follow-ups Due)' },
