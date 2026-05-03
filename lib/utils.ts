@@ -86,6 +86,7 @@ export const STATUS_STYLES: Record<ClaimStatus, string> = {
   'Claim Raised':   'bg-blue-100 text-blue-700',
   'Acknowledged':   'bg-amber-100 text-amber-700',
   'Credit Received':'bg-emerald-100 text-emerald-700',
+  'Partial Credit': 'bg-teal-100 text-teal-700',
   'Rejected':       'bg-red-100 text-red-700',
 };
 
@@ -94,6 +95,7 @@ export const STATUS_DOT: Record<ClaimStatus, string> = {
   'Claim Raised':   'bg-blue-500',
   'Acknowledged':   'bg-amber-500',
   'Credit Received':'bg-emerald-500',
+  'Partial Credit': 'bg-teal-500',
   'Rejected':       'bg-red-500',
 };
 
@@ -102,6 +104,7 @@ export const CLAIM_STATUSES: ClaimStatus[] = [
   'Claim Raised',
   'Acknowledged',
   'Credit Received',
+  'Partial Credit',
   'Rejected',
 ];
 

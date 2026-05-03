@@ -433,6 +433,8 @@ function rowToClaim(row: string[]): Claim {
     caseIds:         row[9]
       ? row[9].split(',').map(s => s.trim()).filter(Boolean)
       : [],
+    outcomeDate:     row[10] || undefined,
+    outcomeNotes:    row[11] || undefined,
   };
 }
 
@@ -441,6 +443,7 @@ function claimToRow(c: Claim): string[] {
     c.id, c.manufacturer, c.month, c.year,
     String(c.faultCount), String(c.costAtRisk), String(c.amountRecovered),
     c.status, c.notes, c.caseIds.join(', '),
+    c.outcomeDate || '', c.outcomeNotes || '',
   ];
 }
 
@@ -448,7 +451,7 @@ export async function getClaims(): Promise<Claim[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Claims!A2:J',
+    range: 'Claims!A2:L',
   });
   const rows = res.data.values || [];
   return rows.filter(r => r[0]).map(rowToClaim);
@@ -461,7 +464,7 @@ export async function createClaim(
   const claim: Claim = { ...data, id: `CLM-${Date.now()}` };
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Claims!A:J',
+    range: 'Claims!A:L',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [claimToRow(claim)] },
   });
@@ -481,7 +484,7 @@ export async function updateClaim(
   const sheetRow = idx + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `Claims!A${sheetRow}:J${sheetRow}`,
+    range: `Claims!A${sheetRow}:L${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [claimToRow(updated)] },
   });

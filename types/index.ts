@@ -7,6 +7,7 @@ export type ClaimStatus =
   | 'Claim Raised'
   | 'Acknowledged'
   | 'Credit Received'
+  | 'Partial Credit'
   | 'Rejected';
 
 export interface FaultCase {
@@ -59,6 +60,8 @@ export interface Claim {
   status: ClaimStatus;
   notes: string;
   caseIds: string[];          // Array of FaultCase IDs in this claim batch
+  outcomeDate?: string;       // ISO date when manufacturer responded
+  outcomeNotes?: string;      // Why rejected, negotiation details, partial reason etc.
 }
 
 export interface DashboardStats {

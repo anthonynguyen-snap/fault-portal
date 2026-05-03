@@ -33,10 +33,25 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.1',
+    label: 'Claim Outcomes & Recovery Tracking',
+    date: '2026-05-03',
+    isLatest: true,
+    summary: 'Manufacturer claim outcomes with partial credit support, recovery rate summary, and outcome detail modal.',
+    changes: [
+      { category: 'Cases', text: 'New "Partial Credit" claim status — for when a manufacturer approves only a portion of a claim batch' },
+      { category: 'Cases', text: 'Record Outcome modal — triggered when marking a claim as Credit Received, Partial Credit, or Rejected; captures amount recovered, outcome date, and notes' },
+      { category: 'Cases', text: 'Recovery Summary strip on the Claims page — shows total at risk, total recovered, open exposure, and recovery rate % with progress bar' },
+      { category: 'Cases', text: 'Per-manufacturer recovery totals shown in each section header (at risk vs recovered)' },
+      { category: 'Cases', text: 'Outcome detail row — expand any resolved claim to see outcome date, status badge, and notes inline in the table' },
+      { category: 'Cases', text: 'Amount Recovered column added to claims table — shows recovered amount for settled claims, "pending" for open ones' },
+    ],
+  },
+  {
     version: 'v2.0',
     label: 'Login History & Promotions UI',
     date: '2026-05-03',
-    isLatest: true,
+    isLatest: false,
     summary: 'Staff login timeline in Admin and promotions strip redesigned to match portal UI.',
     changes: [
       { category: 'Admin', text: 'Login History feed in Admin > Logins — groups clock-in events by day (Today / Yesterday / date) with coloured initials, role badge, and relative time' },
