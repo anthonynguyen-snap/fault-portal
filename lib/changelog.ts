@@ -33,10 +33,30 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v1.9',
+    label: 'Dashboard Redesign & Navigation',
+    date: '2026-05-03',
+    isLatest: true,
+    summary: 'Full dashboard overhaul, returns navigation restructure, and an Admin changelog tab.',
+    changes: [
+      { category: 'Dashboard', text: 'Complete dashboard rebuild — replaced cluttered stat cards with a compact 4-cell QuickStat strip (Faults This Week, Cost at Risk, Awaiting Parcel, Follow-ups Due)' },
+      { category: 'Dashboard', text: 'Weekly Fault Chart (2/3 width) sits alongside AI Briefing or Today\'s Activity (1/3 width) in a two-column mid-section' },
+      { category: 'Dashboard', text: 'Recent Cases table (2/3) shown beside Today\'s Activity feed (1/3) for admin users' },
+      { category: 'Dashboard', text: 'By Manufacturer and By Fault Type breakdown panels use inline bar lines — no heavy charts, loads instantly' },
+      { category: 'Dashboard', text: 'Returns summary row shows 3 numbers side by side: returns this week, amount refunded, and pending follow-ups' },
+      { category: 'Dashboard', text: 'Replenishment summary row (admin only) shows pending orders, in-transit count, and tracking alerts' },
+      { category: 'Dashboard', text: 'Promotions strip and Major Sale banner moved to the bottom of the dashboard' },
+      { category: 'Returns', text: '"Log Return Request" moved to the sidebar as a teal action link — consistent with Submit Fault and Request Refund' },
+      { category: 'Returns', text: 'Removed duplicate Log Request / Log Return button from page header; secondary Log Return button kept on Processed tab' },
+      { category: 'Admin', text: 'New Changelog tab in Admin — full version history accordion with category colour badges, dates, and change counts' },
+      { category: 'Admin', text: '"New" badge appears on the Admin sidebar link whenever a version has been released since the user last visited the Changelog tab' },
+    ],
+  },
+  {
     version: 'v1.8',
     label: 'UI Polish',
     date: '2026-05-03',
-    isLatest: true,
+    isLatest: false,
     summary: 'Visual refinements across the portal — sidebar, tables, dashboard, and loading states.',
     changes: [
       { category: 'UI/UX', text: 'Sidebar active nav item now shows a soft blue tint with an inset left-border accent instead of a filled block' },
