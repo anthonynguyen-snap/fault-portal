@@ -1230,6 +1230,9 @@ function ActivePromosStrip() {
         <div className="divide-y divide-slate-100">
           {flatRows.map(({ store, p, isFirstInGroup, delay }) => {
             const meta     = STORE_LABEL[store] ?? { label: store };
+            const today2   = new Date().toISOString().slice(0, 10);
+            const upcoming = p.startDate > today2;
+            const daysToStart = upcoming ? daysUntil(p.startDate) : null;
             const days     = p.endDate ? daysUntil(p.endDate) : null;
             const urgent   = days !== null && days <= 2;
             const expiring = days !== null && days <= 7;
@@ -1266,7 +1269,7 @@ function ActivePromosStrip() {
 
                   {/* Line 1: promo name + date range */}
                   <div className="flex items-center justify-between gap-3">
-                    <div className="font-mono text-[11.5px] tracking-wide font-semibold text-slate-700 truncate">
+                    <div className={`font-mono text-[11.5px] tracking-wide font-semibold truncate ${upcoming ? 'text-slate-400' : 'text-slate-700'}`}>
                       <ScrambleRow text={p.name.toUpperCase()} delay={delay} />
                     </div>
                     <div className="flex-shrink-0 w-36 text-right flex flex-col items-end gap-0.5">
@@ -1281,7 +1284,12 @@ function ActivePromosStrip() {
                           <span className="text-slate-400 italic">ongoing</span>
                         )}
                       </span>
-                      {p.endDate && days !== null && days >= 0 && (
+                      {upcoming && daysToStart !== null && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap bg-sky-100 text-sky-700">
+                          {daysToStart === 1 ? 'tomorrow' : `in ${daysToStart}d`}
+                        </span>
+                      )}
+                      {!upcoming && p.endDate && days !== null && days >= 0 && (
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
                           days === 0      ? 'bg-red-100 text-red-700' :
                           days === 1      ? 'bg-red-100 text-red-700' :
