@@ -45,10 +45,24 @@ export async function GET(req: NextRequest) {
       filtered = filtered.filter(c => c.date <= to);
     }
 
-    // Sort newest first
-    filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // Sort
+    const sortKey  = (searchParams.get('sortKey')  || 'createdAt') as keyof typeof filtered[0];
+    const sortDir  = searchParams.get('sortDir') === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      const av = String(a[sortKey] ?? '');
+      const bv = String(b[sortKey] ?? '');
+      return av < bv ? -sortDir : av > bv ? sortDir : 0;
+    });
 
-    return NextResponse.json({ data: filtered });
+    // Pagination
+    const total  = filtered.length;
+    const limit  = Math.max(1, Math.min(200, parseInt(searchParams.get('limit') || '20', 10)));
+    const page   = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const pages  = Math.ceil(total / limit);
+    const offset = (page - 1) * limit;
+    const paged  = filtered.slice(offset, offset + limit);
+
+    return NextResponse.json({ data: paged, total, page, pages, limit });
   } catch (error) {
     console.error('[GET /api/cases]', error);
     return NextResponse.json({ error: 'Failed to fetch cases' }, { status: 500 });

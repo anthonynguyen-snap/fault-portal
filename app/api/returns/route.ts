@@ -62,18 +62,66 @@ function fromRow(row: Record<string, unknown>): Return {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const stage = searchParams.get('stage');
+    const stage    = searchParams.get('stage');
+    const search   = searchParams.get('search')?.toLowerCase();
+    const from     = searchParams.get('from');
+    const to       = searchParams.get('to');
+    const limit    = Math.max(1, Math.min(200, parseInt(searchParams.get('limit') || '0', 10)));
+    const page     = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const paginate = limit > 0;
 
-    let query = getSupabase()
+    // Build count query (no range)
+    let countQ = getSupabase()
+      .from('returns')
+      .select('id', { count: 'exact', head: true });
+    if (stage)  countQ = countQ.eq('stage', stage);
+    if (from)   countQ = countQ.gte('date', from);
+    if (to)     countQ = countQ.lte('date', to);
+    // Note: search filter is applied post-fetch (Supabase doesn't support full-text on all fields easily)
+
+    // Build data query
+    let dataQ = getSupabase()
       .from('returns')
       .select('*, return_items(*)')
       .order('created_at', { ascending: false });
+    if (stage)  dataQ = dataQ.eq('stage', stage);
+    if (from)   dataQ = dataQ.gte('date', from);
+    if (to)     dataQ = dataQ.lte('date', to);
 
-    if (stage) query = query.eq('stage', stage);
+    if (paginate && !search) {
+      // True server-side pagination (only when no search — search requires full load)
+      const offset = (page - 1) * limit;
+      dataQ = dataQ.range(offset, offset + limit - 1);
+    }
 
-    const { data, error } = await query;
+    const [{ count }, { data, error }] = await Promise.all([
+      countQ,
+      dataQ,
+    ]);
+
     if (error) throw error;
-    return NextResponse.json({ data: (data ?? []).map(fromRow) });
+
+    let rows = (data ?? []).map(fromRow);
+
+    // Client-side search filter (applied after fetch)
+    if (search) {
+      rows = rows.filter(r =>
+        r.orderNumber.toLowerCase().includes(search)   ||
+        r.customerName.toLowerCase().includes(search)  ||
+        r.customerEmail.toLowerCase().includes(search) ||
+        (r.items ?? []).some(i => i.product.toLowerCase().includes(search))
+      );
+    }
+
+    if (paginate) {
+      // If search was applied, we need to paginate the in-memory result
+      const total = search ? rows.length : (count ?? rows.length);
+      const pages = Math.ceil(total / limit);
+      if (search) rows = rows.slice((page - 1) * limit, page * limit);
+      return NextResponse.json({ data: rows, total, page, pages, limit });
+    }
+
+    return NextResponse.json({ data: rows });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: msg }, { status: 500 });

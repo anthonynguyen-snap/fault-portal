@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import Link from 'next/link';
 import {
@@ -115,7 +115,10 @@ function LogRequestSlideOver({
   const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    fetch('/api/staff').then(r => r.json()).then(d => setStaff(d.data ?? [])).catch(() => {});
+    fetch('/api/staff')
+      .then(r => r.json())
+      .then(d => { if (d.data) setStaff(d.data); })
+      .catch(() => setError('Could not load staff list. Please refresh.'));
   }, []);
 
   useEffect(() => {
@@ -415,6 +418,7 @@ export default function ReturnsPage() {
   const [sortDir, setSortDir]       = useState<SortDir>('desc');
   const [copiedId, setCopiedId]     = useState<string | null>(null);
   const [reqSearch, setReqSearch]   = useState('');
+  const [procPage, setProcPage]     = useState(1);
 
   async function load() {
     setLoading(true);
@@ -546,6 +550,7 @@ export default function ReturnsPage() {
   function handleSort(key: ReturnSortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('desc'); }
+    setProcPage(1);
   }
 
   function SortIcon({ col }: { col: ReturnSortKey }) {
@@ -579,6 +584,10 @@ export default function ReturnsPage() {
     Received:   teamFiltered(weekReturns).filter(r => r.status === 'Received').length,
     'follow-up': pendingFollowUp.length,
   };
+
+  const PROC_PAGE_SIZE = 20;
+  const procTotalPages = Math.ceil(displayed.length / PROC_PAGE_SIZE);
+  const paginatedDisplayed = displayed.slice((procPage - 1) * PROC_PAGE_SIZE, procPage * PROC_PAGE_SIZE);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -815,9 +824,9 @@ export default function ReturnsPage() {
           {/* Week navigator + region filter + team search */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1 shadow-sm">
-              <button onClick={() => setWeekStart(d => addDays(d, -7))} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"><ChevronLeft size={16} /></button>
+              <button onClick={() => { setWeekStart(d => addDays(d, -7)); setProcPage(1); }} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"><ChevronLeft size={16} /></button>
               <span className="text-sm font-semibold text-slate-700 px-2 min-w-[120px] text-center">{weekLabel(weekStart)}</span>
-              <button onClick={() => setWeekStart(d => addDays(d, 7))} disabled={isThisWeek} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight size={16} /></button>
+              <button onClick={() => { setWeekStart(d => addDays(d, 7)); setProcPage(1); }} disabled={isThisWeek} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight size={16} /></button>
             </div>
             <RegionPills value={regionFilter} onChange={setRegionFilter} counts={procRegionCounts} />
             <div className="relative flex-1 max-w-xs">
@@ -834,7 +843,7 @@ export default function ReturnsPage() {
               { key: 'Received',  label: 'Received'         },
               { key: 'follow-up', label: 'Needs Follow-up'  },
             ] as { key: FilterTab; label: string }[]).map(({ key, label }) => (
-              <button key={key} onClick={() => setFilter(key)}
+              <button key={key} onClick={() => { setFilter(key); setProcPage(1); }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${filter === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                 {label}
                 <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${filter === key ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
@@ -883,7 +892,7 @@ export default function ReturnsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayed.map((r, idx) => (
+                  {paginatedDisplayed.map((r, idx) => (
                     <tr key={r.id} className={`transition-colors group border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa]`}>
                       <td className="px-4 py-3">
                         <p className="font-medium font-mono text-slate-800">{r.date}</p>
@@ -937,6 +946,29 @@ export default function ReturnsPage() {
                 </tbody>
               </table>
               </div>
+              {procTotalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+                  <p className="text-xs text-slate-500">
+                    Showing {(procPage - 1) * PROC_PAGE_SIZE + 1}–{Math.min(procPage * PROC_PAGE_SIZE, displayed.length)} of {displayed.length}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setProcPage(p => Math.max(1, p - 1))} disabled={procPage === 1}
+                      className="btn-ghost p-1.5 disabled:opacity-30"><ChevronLeft size={16} /></button>
+                    {Array.from({ length: Math.min(procTotalPages, 5) }, (_, i) => {
+                      const p = Math.max(1, procPage - 2) + i;
+                      if (p > procTotalPages) return null;
+                      return (
+                        <button key={p} onClick={() => setProcPage(p)}
+                          className={`w-8 h-8 text-xs rounded-lg font-medium transition-colors ${procPage === p ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                          {p}
+                        </button>
+                      );
+                    })}
+                    <button onClick={() => setProcPage(p => Math.min(procTotalPages, p + 1))} disabled={procPage === procTotalPages}
+                      className="btn-ghost p-1.5 disabled:opacity-30"><ChevronRight size={16} /></button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>
