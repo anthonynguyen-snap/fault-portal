@@ -88,6 +88,57 @@ export function TrendCharts({ monthlyTrend, weeklyTrend }: TrendChartsProps) {
   );
 }
 
+// ── 1b. WeeklyFaultChart — prominent single chart for the new dashboard ──────
+export function WeeklyFaultChartSkeleton() {
+  return <div className="card h-[320px] animate-pulse bg-slate-50" />;
+}
+
+interface WeeklyFaultChartProps {
+  weeklyTrend: DashboardStats['weeklyTrend'];
+  weekCountDelta: number | null;
+  weekCostDelta: number | null;
+}
+export function WeeklyFaultChart({ weeklyTrend, weekCountDelta, weekCostDelta }: WeeklyFaultChartProps) {
+  const fmt = (d: number) => `${Math.abs(d) < 1 ? '<1' : Math.round(Math.abs(d))}%`;
+  return (
+    <div className="card p-5 h-full" style={CARD_STYLE}>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Weekly Fault Trend</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Fault count and cost at risk — last 8 weeks</p>
+        </div>
+        {/* Week-over-week deltas */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {weekCountDelta !== null && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${weekCountDelta > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+              {weekCountDelta > 0 ? '↑' : '↓'} {fmt(weekCountDelta)} faults
+            </span>
+          )}
+          {weekCostDelta !== null && (
+            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${weekCostDelta > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>
+              {weekCostDelta > 0 ? '↑' : '↓'} {fmt(weekCostDelta)} cost
+            </span>
+          )}
+          {(weekCountDelta !== null || weekCostDelta !== null) && (
+            <span className="text-[10px] text-slate-400">vs prev wk</span>
+          )}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={weeklyTrend} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+          <XAxis dataKey="label" tick={TICK} axisLine={false} tickLine={false} />
+          <YAxis yAxisId="left" allowDecimals={false} tick={TICK} axisLine={false} tickLine={false} />
+          <YAxis yAxisId="right" orientation="right" tick={TICK} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => `$${v}`} />
+          <Tooltip contentStyle={TT} formatter={(v: number, name: string) => [name === 'Cost ($)' ? `$${(v as number).toFixed(2)}` : v, name]} />
+          <Bar yAxisId="left" dataKey="count" name="Faults" fill="#1591b3" radius={[4, 4, 0, 0]} maxBarSize={44} />
+          <Bar yAxisId="right" dataKey="cost" name="Cost ($)" fill="#e879a0" radius={[4, 4, 0, 0]} maxBarSize={44} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 // ── 2. ProductBarChart — top 10 products by fault count ──────────────────────
 interface ProductBarChartProps {
   productFaultCounts: DashboardStats['productFaultCounts'];
