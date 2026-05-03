@@ -27,6 +27,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { CHANGELOG_SEEN_KEY, LATEST_VERSION } from '@/lib/changelog';
 
 type AlertLevel = 'red' | 'amber' | null;
 
@@ -89,6 +90,22 @@ function ReplenishmentAlertBadge() {
   return (
     <span className="text-[9px] font-bold bg-orange-500 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
       {count}
+    </span>
+  );
+}
+
+function ChangelogNewBadge() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem(CHANGELOG_SEEN_KEY);
+      setShow(seen !== LATEST_VERSION);
+    } catch { /* no-op */ }
+  }, []);
+  if (!show) return null;
+  return (
+    <span className="text-[9px] font-bold bg-brand-500 text-white px-1.5 py-0.5 rounded-full leading-none">
+      New
     </span>
   );
 }
@@ -277,6 +294,7 @@ export function Sidebar() {
                           {item.href === '/returns'       && <ReturnAlertBadge />}
                           {item.href === '/refunds'       && <RefundAlertBadge />}
                           {item.href === '/replenishment' && <ReplenishmentAlertBadge />}
+                          {item.href === '/admin'         && <ChangelogNewBadge />}
                         </Link>
                       );
                     })}

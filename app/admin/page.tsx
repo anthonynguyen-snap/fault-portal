@@ -17,16 +17,32 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  History,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
+import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
 
 // Generic CRUD panel used for all three entity types
-type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster';
+type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'changelog';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('products');
+  const [hasNewChangelog, setHasNewChangelog] = useState(false);
 
-  const tabs: { key: Tab; label: string; icon: React.ElementType }[] = [
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem(CHANGELOG_SEEN_KEY);
+      setHasNewChangelog(seen !== LATEST_VERSION);
+    } catch { /* no-op */ }
+  }, []);
+
+  function handleChangelogTab() {
+    setActiveTab('changelog');
+    try { localStorage.setItem(CHANGELOG_SEEN_KEY, LATEST_VERSION ?? ''); } catch { /* no-op */ }
+    setHasNewChangelog(false);
+  }
+
+  const tabs: { key: Tab; label: string; icon: React.ElementType; badge?: boolean; onSelect?: () => void }[] = [
     { key: 'products',      label: 'Products',      icon: Package      },
     { key: 'manufacturers', label: 'Manufacturers', icon: Building2    },
     { key: 'faultTypes',    label: 'Fault Types',   icon: Tag          },
@@ -34,6 +50,7 @@ export default function AdminPage() {
     { key: 'logins',        label: 'Logins',        icon: KeyRound     },
     { key: 'kpiTargets',    label: 'KPI Targets',   icon: Target       },
     { key: 'roster',        label: 'Roster',        icon: CalendarDays },
+    { key: 'changelog',     label: 'Changelog',     icon: History,     badge: hasNewChangelog, onSelect: handleChangelogTab },
   ];
 
   return (
@@ -44,12 +61,12 @@ export default function AdminPage() {
       </div>
 
       {/* Tab Bar */}
-      <div className="flex gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+      <div className="flex flex-wrap gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
         {tabs.map(t => (
           <button
             key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            onClick={() => { if (t.onSelect) t.onSelect(); else setActiveTab(t.key); }}
+            className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               activeTab === t.key
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700'
@@ -57,6 +74,9 @@ export default function AdminPage() {
           >
             <t.icon size={15} />
             {t.label}
+            {t.badge && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-100" />
+            )}
           </button>
         ))}
       </div>
@@ -68,6 +88,7 @@ export default function AdminPage() {
       {activeTab === 'logins'        && <LoginsPanel />}
       {activeTab === 'kpiTargets'    && <KpiTargetsPanel />}
       {activeTab === 'roster'        && <RosterSettingsPanel />}
+      {activeTab === 'changelog'     && <ChangelogPanel />}
     </div>
   );
 }
@@ -1230,6 +1251,119 @@ function RosterSettingsPanel() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Changelog Panel ───────────────────────────────────────────────────────────
+
+const CATEGORY_COLOURS: Record<string, string> = {
+  Cases:          'bg-blue-100 text-blue-700',
+  Returns:        'bg-indigo-100 text-indigo-700',
+  Refunds:        'bg-purple-100 text-purple-700',
+  Orders:         'bg-violet-100 text-violet-700',
+  Inventory:      'bg-teal-100 text-teal-700',
+  Promotions:     'bg-pink-100 text-pink-700',
+  Replenishment:  'bg-orange-100 text-orange-700',
+  Roster:         'bg-cyan-100 text-cyan-700',
+  Dashboard:      'bg-brand-100 text-brand-700',
+  Performance:    'bg-emerald-100 text-emerald-700',
+  Security:       'bg-red-100 text-red-700',
+  Admin:          'bg-slate-200 text-slate-700',
+  'UI/UX':        'bg-amber-100 text-amber-700',
+};
+
+function ChangelogPanel() {
+  const [expanded, setExpanded] = useState<string | null>(CHANGELOG[0]?.version ?? null);
+
+  return (
+    <div className="max-w-3xl">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Portal Changelog</h2>
+          <p className="text-sm text-slate-500 mt-0.5">A record of every feature release and improvement made to this portal.</p>
+        </div>
+        <span className="badge bg-brand-100 text-brand-700 text-xs">
+          {CHANGELOG.length} releases
+        </span>
+      </div>
+
+      {/* Timeline */}
+      <div className="relative">
+        {/* Vertical line */}
+        <div className="absolute left-[22px] top-3 bottom-3 w-px bg-slate-200" aria-hidden="true" />
+
+        <div className="space-y-3">
+          {CHANGELOG.map((v: ChangelogVersion) => {
+            const isOpen = expanded === v.version;
+            return (
+              <div key={v.version} className="relative pl-12">
+                {/* Dot */}
+                <div className={`absolute left-[14px] top-3.5 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center
+                  ${v.isLatest ? 'border-brand-600 bg-brand-600' : 'border-slate-300 bg-white'}`}>
+                  {v.isLatest && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+
+                {/* Card */}
+                <div className={`card transition-shadow ${isOpen ? 'shadow-md' : ''}`}>
+                  {/* Card header — always visible */}
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : v.version)}
+                    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-slate-50/70 transition-colors rounded-xl"
+                  >
+                    {/* Version pill */}
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md flex-shrink-0
+                      ${v.isLatest ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                      {v.version}
+                    </span>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-slate-900">{v.label}</span>
+                        {v.isLatest && (
+                          <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">
+                            Latest
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">{v.summary}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <span className="text-xs text-slate-400">
+                        {new Date(v.date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                      <span className="text-xs text-slate-400 tabular-nums">{v.changes.length} changes</span>
+                      <svg
+                        className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </button>
+
+                  {/* Expanded change list */}
+                  {isOpen && (
+                    <div className="border-t border-slate-100 px-5 py-4 space-y-2">
+                      {v.changes.map((c, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <span className={`mt-0.5 flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap
+                            ${CATEGORY_COLOURS[c.category] ?? 'bg-slate-100 text-slate-600'}`}>
+                            {c.category}
+                          </span>
+                          <p className="text-sm text-slate-700 leading-snug">{c.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
