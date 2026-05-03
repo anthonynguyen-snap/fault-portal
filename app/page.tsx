@@ -23,19 +23,30 @@ import {
   CreditCard,
 } from 'lucide-react';
 import Link from 'next/link';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  Legend,
-} from 'recharts';
+import dynamic from 'next/dynamic';
 import { DashboardStats, Return, ReplenishmentRequest, ReplenishmentStatus } from '@/types';
+import {
+  ChartRowSkeleton,
+  ChartSkeleton,
+} from '@/components/dashboard/DashboardCharts';
+
+// Lazily loaded chart components — Recharts (~200KB) excluded from initial bundle
+const TrendCharts = dynamic(
+  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.TrendCharts })),
+  { ssr: false, loading: () => <ChartRowSkeleton /> },
+);
+const ProductBarChart = dynamic(
+  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.ProductBarChart })),
+  { ssr: false, loading: () => <ChartSkeleton height={280} /> },
+);
+const ProductTrendChart = dynamic(
+  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.ProductTrendChart })),
+  { ssr: false, loading: () => <ChartSkeleton height={300} /> },
+);
+const ReturnsVolumeChart = dynamic(
+  () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.ReturnsVolumeChart })),
+  { ssr: false, loading: () => <ChartSkeleton height={230} /> },
+);
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge } from '@/lib/utils';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -53,10 +64,6 @@ function addDays(d: Date, n: number): Date {
   const r = new Date(d); r.setDate(r.getDate() + n); return r;
 }
 function fmtDate(d: Date) { return d.toISOString().slice(0, 10); }
-function shortWeekLabel(mon: Date): string {
-  return mon.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-}
-
 // ── Card colour schemes ────────────────────────────────────────────────────────
 const CARD_SCHEMES: Record<string, { bg: string; border: string; label: string; accent: string; iconBg: string; iconColor: string; divider: string }> = {
   slate:  { bg: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', border: 'border-slate-200',  label: 'text-slate-500',  accent: 'text-slate-900', iconBg: 'bg-slate-100',  iconColor: 'text-slate-500',  divider: 'border-slate-200'  },
@@ -234,16 +241,6 @@ export default function DashboardPage() {
   const weekReturns = allReturns.filter(r => r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
   const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
   const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
-  const sixWeeksData = Array.from({ length: 6 }, (_, i) => {
-    const mon = getMondayOf(addDays(new Date(), -(5 - i) * 7));
-    const sun = addDays(mon, 6);
-    const count = allReturns.filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun)).length;
-    const refunded = allReturns
-      .filter(r => r.date >= fmtDate(mon) && r.date <= fmtDate(sun))
-      .reduce((s, r) => s + (r.totalRefundAmount || 0), 0);
-    return { label: shortWeekLabel(mon), count, refunded };
-  });
-
   return (
     <div className="max-w-7xl mx-auto space-y-6">
 
@@ -357,38 +354,8 @@ export default function DashboardPage() {
         );
       })()}
 
-      {/* Trend charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-          <h3 className="text-sm font-semibold text-slate-900 mb-0.5">Monthly Trend</h3>
-          <p className="text-xs text-slate-400 mb-4">Faults logged over the past 6 months</p>
-          <ResponsiveContainer width="100%" height={190}>
-            <BarChart data={stats.monthlyTrend} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(v: number) => [v, 'Faults']} />
-              <Bar dataKey="count" fill="#1591b3" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-          <h3 className="text-sm font-semibold text-slate-900 mb-0.5">Weekly Trend</h3>
-          <p className="text-xs text-slate-400 mb-4">Fault count and cost at risk over the past 8 weeks</p>
-          <ResponsiveContainer width="100%" height={190}>
-            <BarChart data={stats.weeklyTrend} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => `$${v}`} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(v: number, name: string) => [name === 'Cost ($)' ? `$${v.toFixed(2)}` : v, name]} />
-              <Bar yAxisId="left" dataKey="count" name="Faults" fill="#1591b3" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              <Bar yAxisId="right" dataKey="cost" name="Cost ($)" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={40} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+      {/* Trend charts — lazy-loaded */}
+      <TrendCharts monthlyTrend={stats.monthlyTrend} weeklyTrend={stats.weeklyTrend} />
 
       {/* Manufacturer + Fault Types side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -452,68 +419,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Faults by Product */}
-      <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-        <h3 className="text-sm font-semibold text-slate-900 mb-0.5">By Product</h3>
-        <p className="text-xs text-slate-400 mb-4">Top 10 products by fault count</p>
-        <ResponsiveContainer width="100%" height={210}>
-          <BarChart
-            data={stats.productFaultCounts.slice(0, 10).map(p => ({ ...p, name: p.name.length > 18 ? p.name.slice(0, 18) + '…' : p.name }))}
-            margin={{ top: 4, right: 16, left: -20, bottom: 40 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} angle={-35} textAnchor="end" interval={0} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(v: number) => [v, 'Faults']} />
-            <Bar dataKey="count" fill="#1591b3" radius={[4, 4, 0, 0]} maxBarSize={48} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Faults by Product — lazy-loaded */}
+      <ProductBarChart productFaultCounts={stats.productFaultCounts} />
 
-      {/* Per-Product Trend */}
-      {stats.topProductNames && stats.topProductNames.length > 0 && (
-        <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900">Product Trend</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Top 5 products over time</p>
-            </div>
-            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-              <button
-                onClick={() => setProductTrendView('weekly')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${productTrendView === 'weekly' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Weekly
-              </button>
-              <button
-                onClick={() => setProductTrendView('monthly')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${productTrendView === 'monthly' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                Monthly
-              </button>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={230} className="mt-4">
-            <LineChart
-              data={productTrendView === 'weekly' ? stats.productWeeklyTrend : stats.productMonthlyTrend}
-              margin={{ top: 8, right: 16, left: -20, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} />
-              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-              {(['#4f46e5', '#f43f5e', '#10b981', '#f59e0b', '#06b6d4'] as const).map((colour, i) => {
-                const product = stats.topProductNames[i];
-                if (!product) return null;
-                return (
-                  <Line key={product} type="monotone" dataKey={product} stroke={colour} strokeWidth={2} dot={{ r: 3, fill: colour }} activeDot={{ r: 5 }} />
-                );
-              })}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {/* Per-Product Trend — lazy-loaded */}
+      <ProductTrendChart
+        topProductNames={stats.topProductNames ?? []}
+        productWeeklyTrend={stats.productWeeklyTrend}
+        productMonthlyTrend={stats.productMonthlyTrend}
+        productTrendView={productTrendView}
+        setProductTrendView={setProductTrendView}
+      />
 
       {/* Recent Cases */}
       <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
@@ -573,28 +489,8 @@ export default function DashboardPage() {
         <StatCard label="Pending Follow-ups" value={pendingFollowUps} sub="across all returns" icon={Mail} color={pendingFollowUps > 0 ? 'amber' : 'slate'} />
       </div>
 
-      {/* Returns volume chart */}
-      <div className="card p-5" style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 100%)' }}>
-        <h3 className="text-sm font-semibold text-slate-900 mb-0.5">Returns Volume</h3>
-        <p className="text-xs text-slate-500 mb-4">Return count and amount refunded per week over the last 6 weeks</p>
-        {allReturns.length === 0 ? (
-          <div className="flex items-center justify-center h-[160px]">
-            <p className="text-sm text-slate-400">No returns logged yet</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={sixWeeksData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={24} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => `$${v}`} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }} formatter={(v: number, name: string) => [name === 'Refunded ($)' ? `$${v.toFixed(2)}` : v, name]} />
-              <Bar yAxisId="left" dataKey="count" name="Returns" fill="#1591b3" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              <Bar yAxisId="right" dataKey="refunded" name="Refunded ($)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={40} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+      {/* Returns volume chart — lazy-loaded */}
+      <ReturnsVolumeChart allReturns={allReturns} />
 
       {/* Replenishment — admin only */}
       {isAdmin && (
