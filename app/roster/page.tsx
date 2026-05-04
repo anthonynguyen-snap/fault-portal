@@ -313,7 +313,7 @@ function RosterPageInner() {
     if (dayLeave.some(l => l.agentId === agent.id)) return 'leave';
     const ov = overrideMap[`${agent.id}:${ds}`];
     if (ov) return ov.isWorking ? 'working' : 'off';
-    const shift = getAgentShiftForWeek(agent, date, config);
+    const shift = getAgentShiftForWeek(agent, getMonday(date), config);
     return isWorkingDay(shift, date) ? 'working' : 'off';
   }
 
@@ -488,7 +488,7 @@ function RosterPageInner() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Roster</h1>
-          <p className="page-subtitle">Team schedule · auto-rotating weekly</p>
+          <p className="page-subtitle">Team schedule · auto-rotating monthly</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={loadAll} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
