@@ -67,7 +67,8 @@ export async function GET(req: NextRequest) {
     const search   = searchParams.get('search')?.toLowerCase();
     const from     = searchParams.get('from');
     const to       = searchParams.get('to');
-    const limit    = Math.max(1, Math.min(200, parseInt(searchParams.get('limit') || '0', 10)));
+    const limitParam = searchParams.get('limit');
+    const limit    = limitParam ? Math.max(1, Math.min(200, parseInt(limitParam, 10))) : 0;
     const page     = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const paginate = limit > 0;
 
