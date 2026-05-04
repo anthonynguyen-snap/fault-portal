@@ -855,13 +855,18 @@ function fmtLoginTime(iso: string): { time: string; relative: string } {
   return { time, relative };
 }
 
+function acstDate(d: Date): string {
+  // Returns YYYY-MM-DD in Australia/Adelaide timezone (ACST/ACDT)
+  return d.toLocaleDateString('en-CA', { timeZone: 'Australia/Adelaide' });
+}
+
 function groupByDay(events: LoginEvent[]): { label: string; items: LoginEvent[] }[] {
   const groups: Record<string, LoginEvent[]> = {};
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today     = acstDate(new Date());
+  const yesterday = acstDate(new Date(Date.now() - 86400000));
 
   for (const e of events) {
-    const day = e.date || e.loggedIn.slice(0, 10);
+    const day = e.date || acstDate(new Date(e.loggedIn));
     if (!groups[day]) groups[day] = [];
     groups[day].push(e);
   }

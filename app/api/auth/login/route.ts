@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   }
 
-  // Clock in: create shift log
-  const today = new Date().toISOString().split('T')[0];
+  // Clock in: create shift log (date in ACST/ACDT)
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Adelaide' });
   const { data: shiftLog } = await supabase
     .from('shift_logs')
     .insert([{
