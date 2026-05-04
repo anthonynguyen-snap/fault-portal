@@ -213,12 +213,14 @@ function RefundsInner() {
   }
 
   async function submitRequest() {
+    // For non-admin staff, resolve submittedBy from user session if form state is empty
+    const resolvedSubmittedBy = form.submittedBy || (!isAdmin && user?.name ? user.name : '');
     if (!form.orderNumber.trim()) return setFormError('Order number is required');
     if (!form.customerName.trim()) return setFormError('Customer name is required');
     if (!form.reason) return setFormError('Please select a reason');
     if (!form.shopifyLink.trim()) return setFormError('Shopify order link is required');
     if (!form.commsLink.trim()) return setFormError('Conversation link is required');
-    if (!form.submittedBy) return setFormError('Please select your name');
+    if (!resolvedSubmittedBy) return setFormError('Please select your name');
     setSaving(true);
     setFormError('');
     const payload = {
@@ -230,7 +232,7 @@ function RefundsInner() {
       notes:        form.notes.trim(),
       shopifyLink:  form.shopifyLink.trim(),
       commsLink:    form.commsLink.trim(),
-      submittedBy:  form.submittedBy,
+      submittedBy:  resolvedSubmittedBy,
     };
     try {
       if (editingId) {
