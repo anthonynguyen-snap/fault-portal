@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.3',
+    label: 'Bug Fixes & Roster',
+    date: '2026-05-05',
+    isLatest: true,
+    summary: 'Roster monthly rotation, timezone fix for login history, and refund form bug fixes.',
+    changes: [
+      { category: 'Roster', text: 'Monthly rotation — Gail and Niko swap days off each month; rotation anchors to Monday if the 1st falls mid-week' },
+      { category: 'Roster', text: 'Fixed straddle-week bug — weeks spanning two months now consistently use the Monday\'s month for phase lookup, preventing 6-day overwork alerts' },
+      { category: 'Admin', text: 'Login history now groups by ACST/ACDT (Australia/Adelaide) date — logins no longer appear under "Yesterday" when made in the morning' },
+      { category: 'Refunds', text: 'Fixed "Please select your name" error for staff submitting refund requests — name now resolved from session at submit time' },
+      { category: 'Refunds', text: 'Processed By field now auto-fills from the logged-in user\'s session — dropdown removed' },
+    ],
+  },
+  {
     version: 'v2.2',
     label: 'Internal Notes',
     date: '2026-05-03',
-    isLatest: true,
+    isLatest: false,
     summary: 'Append-only internal notes on fault cases, returns, and refund requests.',
     changes: [
       { category: 'Cases', text: 'Internal notes panel on case detail pages — timestamped, author-attributed, append-only thread with ⌘↵ shortcut' },
