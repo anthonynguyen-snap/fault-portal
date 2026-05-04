@@ -101,9 +101,11 @@ function hexToRgba(hex: string, a: number): string {
 }
 function getAgentShiftForWeek(agent: RosterAgent, weekMonday: Date, config: RosterConfig): ShiftType {
   if (agent.shiftType === 'mon-fri') return 'mon-fri';
-  const startMonday   = getMonday(new Date(config.rotationStartDate));
-  const weeksElapsed  = Math.round((getMonday(weekMonday).getTime() - startMonday.getTime()) / (7 * 86400000));
-  const isSwapped     = ((weeksElapsed % 2) + 2) % 2 === 1;
+  // Monthly rotation: count whole months elapsed since rotation start date
+  const start = new Date(config.rotationStartDate);
+  const monthsElapsed = (weekMonday.getFullYear() - start.getFullYear()) * 12
+                      + (weekMonday.getMonth() - start.getMonth());
+  const isSwapped = ((monthsElapsed % 2) + 2) % 2 === 1;
   if (!isSwapped) return agent.shiftType as ShiftType;
   return agent.shiftType === 'tue-sat' ? 'sun-thu' : 'tue-sat';
 }
