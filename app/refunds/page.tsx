@@ -287,7 +287,7 @@ function RefundsInner() {
           processedNotes:  finalNotes,
           processedAmount: status === 'Processed' && !isNaN(parsedAmount) ? parsedAmount : null,
           resolution,
-          processedBy:     processedBy.trim() || undefined,
+          processedBy:     user?.name || processedBy.trim() || undefined,
         }),
       });
       const json = await res.json();
@@ -922,16 +922,9 @@ function RefundsInner() {
             {/* Processed by */}
             <div>
               <label className="form-label">Processed By <span className="text-red-400">*</span></label>
-              {isAdmin ? (
-                <select value={processedBy} onChange={e => setProcessedBy(e.target.value)} className="form-input">
-                  <option value="">Select name…</option>
-                  {staff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </select>
-              ) : (
-                <div className="form-input bg-slate-50 text-slate-700 cursor-default select-none">
-                  {user?.name || processedBy || '—'}
-                </div>
-              )}
+              <div className="form-input bg-slate-50 text-slate-700 cursor-default select-none">
+                {user?.name || '—'}
+              </div>
             </div>
 
             {/* Actions */}
