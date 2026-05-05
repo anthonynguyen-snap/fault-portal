@@ -48,6 +48,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Admin', text: 'Login history now groups by ACST/ACDT (Australia/Adelaide) date — logins no longer appear under "Yesterday" when made in the morning' },
       { category: 'Refunds', text: 'Fixed "Please select your name" error for staff submitting refund requests — name now resolved from session at submit time' },
       { category: 'Refunds', text: 'Processed By field now auto-fills from the logged-in user\'s session — dropdown removed' },
+      { category: 'UI/UX', text: 'What\'s New modal — pops up on the dashboard when a new version is released, showing a summary of changes with category tags; dismisses to localStorage so it only appears once per release' },
     ],
   },
   {
