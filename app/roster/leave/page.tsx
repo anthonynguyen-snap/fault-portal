@@ -1076,7 +1076,7 @@ export default function LeavePage() {
             <div className="px-6 py-5 space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800">
                 <p className="font-semibold mb-1">💰 Annual Leave Payout</p>
-                <p>Instead of taking time off, you can request unused annual leave days to be paid out. Your manager will review this request before processing.</p>
+                <p>Instead of taking time off, you can request unused annual leave days to be paid out. Once approved and processed through payroll, these days cannot be converted back to leave. Your manager will review this request before any payment is made.</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">
