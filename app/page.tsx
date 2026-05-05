@@ -36,6 +36,60 @@ import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge }
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/auth/AuthProvider';
 
+// ── Today's Team Strip ────────────────────────────────────────────────────────
+const SHIFT_LABELS: Record<string, string> = {
+  'mon-fri': 'Mon–Fri',
+  'tue-sat': 'Tue–Sat',
+  'sun-thu': 'Sun–Thu',
+};
+type TeamMember = { id: string; name: string; colour: string; shift: string; scheduled: boolean; loggedIn: boolean };
+
+function TodaysTeam() {
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  useEffect(() => {
+    fetch('/api/team/status').then(r => r.json()).then(d => setTeam(d.data || [])).catch(() => {});
+  }, []);
+  if (!team.length) return null;
+  const onShift = team.filter(m => m.scheduled);
+  const offShift = team.filter(m => !m.scheduled);
+  return (
+    <div className="card px-4 py-3 flex items-center gap-4 flex-wrap">
+      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">Today&apos;s Team</span>
+      <div className="flex items-center gap-3 flex-wrap flex-1">
+        {onShift.map(m => (
+          <div key={m.id} className="flex items-center gap-2">
+            <span className="relative flex-shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full block" style={{ backgroundColor: m.colour }} />
+              {m.loggedIn && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full border border-white" />
+              )}
+            </span>
+            <span className="text-sm font-medium text-slate-700">{m.name}</span>
+            <span className="text-xs text-slate-400">{SHIFT_LABELS[m.shift]}</span>
+            {!m.loggedIn && (
+              <span className="text-[10px] text-slate-300 font-medium">not signed in</span>
+            )}
+          </div>
+        ))}
+        {offShift.length > 0 && (
+          <>
+            <span className="text-slate-200 text-xs">|</span>
+            {offShift.map(m => (
+              <div key={m.id} className="flex items-center gap-1.5 opacity-40">
+                <span className="w-2 h-2 rounded-full block bg-slate-300" />
+                <span className="text-xs text-slate-400 line-through">{m.name}</span>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+      <span className="text-[10px] text-slate-300 hidden sm:block flex-shrink-0">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1" />signed in today
+      </span>
+    </div>
+  );
+}
+
 // ── Week helpers ───────────────────────────────────────────────────────────────
 function getMondayOf(d: Date): Date {
   const day = d.getDay();
@@ -254,6 +308,9 @@ export default function DashboardPage() {
           alert={pendingFollowUps > 0}
         />
       </div>
+
+      {/* ── Today's Team ─────────────────────────────────────────────────────── */}
+      <TodaysTeam />
 
       {/* ── Chart + AI Briefing (2/3 + 1/3) ─────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
