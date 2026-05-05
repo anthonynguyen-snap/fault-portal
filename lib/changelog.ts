@@ -37,8 +37,10 @@ export const CHANGELOG: ChangelogVersion[] = [
     label: 'Bug Fixes & Roster',
     date: '2026-05-05',
     isLatest: true,
-    summary: 'Roster monthly rotation, timezone fix for login history, and refund form bug fixes.',
+    summary: 'Today\'s Team dashboard strip, roster monthly rotation, timezone fix, and refund form fixes.',
     changes: [
+      { category: 'Dashboard', text: 'Today\'s Team strip — shows who\'s scheduled today with a green dot indicator for anyone already signed into the portal' },
+      { category: 'Returns', text: 'Fixed missing returns — API was silently capping results to 1 record when no limit param was passed' },
       { category: 'Roster', text: 'Monthly rotation — Gail and Niko swap days off each month; rotation anchors to Monday if the 1st falls mid-week' },
       { category: 'Roster', text: 'Fixed straddle-week bug — weeks spanning two months now consistently use the Monday\'s month for phase lookup, preventing 6-day overwork alerts' },
       { category: 'Admin', text: 'Login history now groups by ACST/ACDT (Australia/Adelaide) date — logins no longer appear under "Yesterday" when made in the morning' },
