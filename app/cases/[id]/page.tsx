@@ -22,14 +22,16 @@ import { FaultCase, ClaimStatus, Product, InternalNote } from '@/types';
 import { formatCurrency, formatDate, formatDateTime, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
 import { InternalNotes } from '@/components/ui/InternalNotes';
 
-function InfoRow({ icon: Icon, label, value, href }: {
+// Grid-friendly field — no bottom border, just label + value
+function InfoField({ icon: Icon, label, value, href, className = '' }: {
   icon: React.ElementType;
   label: string;
   value: React.ReactNode;
   href?: string;
+  className?: string;
 }) {
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-slate-100 last:border-0">
+    <div className={`flex items-start gap-3 ${className}`}>
       <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
         <Icon size={15} className="text-slate-500" />
       </div>
@@ -41,7 +43,7 @@ function InfoRow({ icon: Icon, label, value, href }: {
             {value} <ExternalLink size={12} />
           </a>
         ) : (
-          <p className="text-sm font-medium text-slate-900">{value || '—'}</p>
+          <p className="text-sm font-medium text-slate-900 break-words">{value || '—'}</p>
         )}
       </div>
     </div>
@@ -194,13 +196,13 @@ export default function CaseDetailPage() {
                 </div>
               </div>
             ) : (
-              <>
-                <InfoRow icon={Calendar}   label="Date"         value={formatDate(c.date)} />
-                <InfoRow icon={Hash}       label="Order Number" value={c.orderNumber} />
-                <InfoRow icon={User}       label="Customer"     value={c.customerName} />
-                <InfoRow icon={Clock}      label="Submitted"    value={formatDateTime(c.createdAt)} />
-                {c.submittedBy && <InfoRow icon={User} label="Submitted By" value={c.submittedBy} />}
-              </>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <InfoField icon={Calendar}   label="Date"          value={formatDate(c.date)} />
+                <InfoField icon={Hash}       label="Order Number"  value={c.orderNumber} />
+                <InfoField icon={User}       label="Customer"      value={c.customerName} />
+                <InfoField icon={Clock}      label="Submitted"     value={formatDateTime(c.createdAt)} />
+                {c.submittedBy && <InfoField icon={User} label="Submitted By" value={c.submittedBy} />}
+              </div>
             )}
           </div>
 
@@ -263,12 +265,12 @@ export default function CaseDetailPage() {
                 </div>
               </div>
             ) : (
-              <>
-                <InfoRow icon={Package}    label="Product"             value={c.product} />
-                <InfoRow icon={Building2}  label="Manufacturer"        value={c.manufacturerName} />
-                <InfoRow icon={Hash}       label="Manufacturer Number" value={c.manufacturerNumber || '—'} />
-                <InfoRow icon={DollarSign} label="Unit Cost"           value={formatCurrency(c.unitCostUSD)} />
-              </>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <InfoField icon={Package}    label="Product"             value={c.product} />
+                <InfoField icon={Building2}  label="Manufacturer"        value={c.manufacturerName} />
+                <InfoField icon={Hash}       label="Manufacturer Number" value={c.manufacturerNumber || '—'} />
+                <InfoField icon={DollarSign} label="Unit Cost"           value={formatCurrency(c.unitCostUSD)} />
+              </div>
             )}
           </div>
 
@@ -287,15 +289,15 @@ export default function CaseDetailPage() {
                 </div>
               </div>
             ) : (
-              <>
-                <InfoRow icon={AlertTriangle} label="Fault Type" value={c.faultType} />
+              <div className="space-y-4">
+                <InfoField icon={AlertTriangle} label="Fault Type" value={c.faultType} />
                 {c.faultNotes && (
-                  <div className="pt-3">
+                  <div className="pt-1">
                     <p className="text-xs text-slate-400 mb-1.5">Notes</p>
                     <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{c.faultNotes}</p>
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
 

@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.6',
+    label: 'Layout Polish',
+    date: '2026-05-05',
+    isLatest: true,
+    summary: 'Case detail two-column layout and admin tab bar scrolling on small screens.',
+    changes: [
+      { category: 'Cases', text: 'Case detail view — Case Info and Product Info fields now display in a two-column grid, reducing vertical scrolling and making better use of horizontal screen space.' },
+      { category: 'Admin', text: 'Admin tab bar — now scrolls horizontally on small screens instead of overflowing. All 8 tabs remain accessible regardless of window size.' },
+    ],
+  },
+  {
     version: 'v2.5',
     label: 'My Submissions & Filters',
     date: '2026-05-05',
-    isLatest: true,
+    isLatest: false,
     summary: 'Mine filter on Cases, Returns, and Refunds — plus date presets and search on Refunds.',
     changes: [
       { category: 'Cases',   text: '"Mine" toggle button — filter All Cases to show only cases you submitted, with a single click. Active state is highlighted in brand blue.' },

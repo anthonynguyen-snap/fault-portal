@@ -60,8 +60,9 @@ export default function AdminPage() {
         <p className="page-subtitle">Manage products, manufacturers, and fault types</p>
       </div>
 
-      {/* Tab Bar */}
-      <div className="flex flex-wrap gap-1 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+      {/* Tab Bar — scrollable on small screens, wraps naturally on large */}
+      <div className="overflow-x-auto mb-6 pb-0.5 -mx-1 px-1">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-max max-w-full">
         {tabs.map(t => (
           <button
             key={t.key}
@@ -79,6 +80,7 @@ export default function AdminPage() {
             )}
           </button>
         ))}
+        </div>
       </div>
 
       {activeTab === 'products'      && <ProductsPanel />}
