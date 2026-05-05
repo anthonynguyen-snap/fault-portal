@@ -365,6 +365,19 @@ export interface RosterLeave {
   createdAt:      string;
 }
 
+export interface LeavePayoutRequest {
+  id:               string;
+  agentId:          string;
+  agentName?:       string;
+  daysRequested:    number;
+  status:           'pending' | 'approved' | 'denied';
+  leaveWindowStart: string;  // YYYY-MM-DD
+  notes:            string;
+  reviewedBy:       string | null;
+  reviewedAt:       string | null;
+  createdAt:        string;
+}
+
 export interface RosterOverride {
   id:        string;
   agentId:   string;

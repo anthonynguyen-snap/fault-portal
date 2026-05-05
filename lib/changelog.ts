@@ -33,10 +33,23 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.7',
+    label: 'Annual Leave Payout',
+    date: '2026-05-05',
+    isLatest: true,
+    summary: 'Staff can now request payout of unused annual leave days after their anniversary, with admin approve/deny workflow.',
+    changes: [
+      { category: 'Roster', text: 'Annual leave payout requests — staff can request unused annual leave days to be paid out once their anniversary date is reached, entering how many days (partial days allowed).' },
+      { category: 'Roster', text: 'Admin review workflow — pending payout requests are flagged directly on each agent\'s annual leave balance card with Approve and Deny buttons. No extra page needed.' },
+      { category: 'Roster', text: 'Admin alert banner — when any payout request is pending review, an amber banner appears at the top of the Leave Log page so nothing goes unnoticed.' },
+      { category: 'Roster', text: 'Balance accuracy — approved payout days are automatically deducted from the displayed annual leave balance, so totals always reflect reality.' },
+    ],
+  },
+  {
     version: 'v2.6',
     label: 'Layout Polish',
     date: '2026-05-05',
-    isLatest: true,
+    isLatest: false,
     summary: 'Case detail two-column layout and admin tab bar scrolling on small screens.',
     changes: [
       { category: 'Cases', text: 'Case detail view — Case Info and Product Info fields now display in a two-column grid, reducing vertical scrolling and making better use of horizontal screen space.' },

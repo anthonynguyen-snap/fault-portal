@@ -1,10 +1,11 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw, Calendar, ChevronUp, ChevronDown } from 'lucide-react';
-import { RosterAgent, RosterLeave, RosterConfig, LeaveType, ShiftType } from '@/types';
+import { ChevronLeft, Trash2, Edit2, Check, X, Plus, RefreshCw, Calendar, ChevronUp, ChevronDown, DollarSign, AlertCircle } from 'lucide-react';
+import { RosterAgent, RosterLeave, RosterConfig, LeaveType, ShiftType, LeavePayoutRequest } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 import { PH_HOLIDAYS } from '@/lib/ph-holidays';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const LEAVE_LABELS: Record<LeaveType, string>  = { sick: 'Sick', makeup: 'Make-up', other: 'Other', 'ph-holiday': '🇵🇭 PH Holiday', annual: '🏖️ Annual' };
 
@@ -124,10 +125,13 @@ function fmt(dateStr: string): string {
 
 export default function LeavePage() {
   const { success: toastSuccess, error: toastError } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const [agents, setAgents]   = useState<RosterAgent[]>([]);
   const [config, setConfig]   = useState<RosterConfig | null>(null);
   const [records, setRecords] = useState<RosterLeave[]>([]);
+  const [payouts, setPayouts] = useState<LeavePayoutRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   // PH holiday coverage confirmations  { "date-agentId": { working: bool } | undefined }
@@ -162,6 +166,19 @@ export default function LeavePage() {
   // Delete confirm
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Payout request modal
+  const [showPayoutModal,  setShowPayoutModal]  = useState(false);
+  const [payoutAgentId,    setPayoutAgentId]    = useState('');
+  const [payoutWindowStart,setPayoutWindowStart]= useState('');
+  const [payoutDays,       setPayoutDays]       = useState('');
+  const [payoutMax,        setPayoutMax]        = useState(0);
+  const [payoutNotes,      setPayoutNotes]      = useState('');
+  const [payoutSaving,     setPayoutSaving]     = useState(false);
+  const [payoutError,      setPayoutError]      = useState('');
+  // Admin payout review
+  const [reviewingId,      setReviewingId]      = useState<string | null>(null);
+  const [reviewSaving,     setReviewSaving]     = useState(false);
+
   // Sort
   const [sortBy,  setSortBy]  = useState<'date' | 'agent' | 'type'>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -184,19 +201,22 @@ export default function LeavePage() {
         fetch('/api/roster/agents'),
         fetch('/api/roster/config'),
         fetch('/api/roster/leave'),
+        fetch('/api/roster/leave-payout'),
       ];
       if (upcomingDates.length) fetches.push(fetch(`/api/roster/ph-coverage?dates=${upcomingDates.join(',')}`));
 
-      const results   = await Promise.all(fetches);
+      const results    = await Promise.all(fetches);
       const agentData  = await results[0].json();
       const configData = await results[1].json();
       const leaveData  = await results[2].json();
+      const payoutData = await results[3].json();
       setAgents(agentData.data ?? []);
       setConfig(configData.data ?? null);
       setRecords(leaveData.data ?? []);
+      setPayouts(payoutData.data ?? []);
 
-      if (results[3]) {
-        const covData = await results[3].json();
+      if (results[4]) {
+        const covData = await results[4].json();
         const map: Record<string, boolean> = {};
         for (const r of (covData.data ?? [])) map[`${r.holidayDate}__${r.agentId}`] = r.working;
         setCoverage(map);
@@ -265,10 +285,22 @@ export default function LeavePage() {
         const windowLabel = `${fmtD(new Date(start + 'T00:00:00'))} – ${fmtD(new Date(end + 'T00:00:00'))}`;
         const annualUsed = records.filter(r => r.agentId === agent.id && r.leaveType === 'annual' && r.date >= start && r.date <= end).length;
         const sickUsed   = records.filter(r => r.agentId === agent.id && r.leaveType === 'sick'   && r.date >= start && r.date <= end).length;
+
+        // Payout requests for this agent + window
+        const windowPayouts = payouts.filter(p => p.agentId === agent.id && p.leaveWindowStart === start);
+        const approvedPayoutDays = windowPayouts.filter(p => p.status === 'approved').reduce((s, p) => s + p.daysRequested, 0);
+        const pendingPayout  = windowPayouts.find(p => p.status === 'pending') ?? null;
+        const approvedPayout = windowPayouts.find(p => p.status === 'approved') ?? null;
+
+        const effectiveAnnualUsed = annualUsed + approvedPayoutDays;
         return {
-          agent, windowLabel,
-          annualUsed,   annualRemaining: Math.max(0, ANNUAL_LEAVE_DAYS - annualUsed),
-          sickUsed,     sickRemaining:   Math.max(0, SICK_LEAVE_DAYS   - sickUsed),
+          agent, windowLabel, start,
+          annualUsed: effectiveAnnualUsed,
+          annualRemaining: Math.max(0, ANNUAL_LEAVE_DAYS - effectiveAnnualUsed),
+          sickUsed,     sickRemaining:   Math.max(0, SICK_LEAVE_DAYS - sickUsed),
+          pendingPayout, approvedPayout,
+          rawAnnualUsed: annualUsed,
+          approvedPayoutDays,
         };
       });
     return rows.length ? rows : null;
@@ -290,6 +322,9 @@ export default function LeavePage() {
       })
       .sort((a, b) => a.days - b.days);
   }, []);
+
+  // Pending payout count — for admin alert banner
+  const pendingPayoutCount = payouts.filter(p => p.status === 'pending').length;
 
   // Notice warning: annual leave date < 14 days from today
   const annualNoticeWarning = useMemo(() => {
@@ -396,6 +431,65 @@ export default function LeavePage() {
     }
   }
 
+  function openPayoutModal(agentId: string, windowStart: string, maxDays: number) {
+    setPayoutAgentId(agentId);
+    setPayoutWindowStart(windowStart);
+    setPayoutMax(maxDays);
+    setPayoutDays(String(maxDays));
+    setPayoutNotes('');
+    setPayoutError('');
+    setShowPayoutModal(true);
+  }
+
+  async function handlePayoutRequest() {
+    const days = parseFloat(payoutDays);
+    if (!days || days <= 0 || days > payoutMax) {
+      setPayoutError(`Enter a number between 0.5 and ${payoutMax}`);
+      return;
+    }
+    setPayoutSaving(true); setPayoutError('');
+    try {
+      const res = await fetch('/api/roster/leave-payout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: payoutAgentId,
+          daysRequested: days,
+          leaveWindowStart: payoutWindowStart,
+          notes: payoutNotes,
+        }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setPayouts(prev => [json.data, ...prev]);
+      setShowPayoutModal(false);
+      toastSuccess('Payout request submitted — awaiting admin review');
+    } catch (err: unknown) {
+      setPayoutError(err instanceof Error ? err.message : 'Failed to submit request');
+    } finally {
+      setPayoutSaving(false);
+    }
+  }
+
+  async function handlePayoutReview(id: string, status: 'approved' | 'denied') {
+    setReviewingId(id); setReviewSaving(true);
+    try {
+      const res = await fetch(`/api/roster/leave-payout/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, reviewedBy: user?.name ?? '' }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setPayouts(prev => prev.map(p => p.id === id ? { ...p, status, reviewedBy: user?.name ?? '' } : p));
+      toastSuccess(status === 'approved' ? 'Payout approved' : 'Payout request denied');
+    } catch {
+      toastError('Failed to update payout request');
+    } finally {
+      setReviewingId(null); setReviewSaving(false);
+    }
+  }
+
   async function handleCoverage(holidayDate: string, agentId: string, working: boolean) {
     const key = `${holidayDate}__${agentId}`;
     setCoverageSaving(key);
@@ -471,6 +565,21 @@ export default function LeavePage() {
           config={config}
           todayLeave={records.filter(r => r.date === localDateStr(new Date()))}
         />
+
+        {/* Admin alert: pending payout requests */}
+        {isAdmin && pendingPayoutCount > 0 && (
+          <div className="rounded-xl px-5 py-4 border bg-amber-50 border-amber-200 flex items-start gap-3">
+            <DollarSign size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">
+                {pendingPayoutCount} Annual Leave Payout Request{pendingPayoutCount !== 1 ? 's' : ''} Pending Review
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Review and approve or deny each request in the Annual Leave section below.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Upcoming PH holiday coverage reminders */}
         {upcomingPHHolidays.map(h => {
@@ -597,6 +706,7 @@ export default function LeavePage() {
               <p className="text-xs text-slate-600 leading-relaxed">
                 <span className="font-semibold text-slate-700">Annual leave</span> must be requested at least 2 weeks in advance and is subject to Company approval.
                 Unused annual leave does not roll over beyond the 12-month period unless agreed in writing.
+                Once your anniversary date is reached, unused days may be requested for payout — subject to admin approval.
               </p>
             </div>
             <div className="flex gap-2.5">
@@ -619,27 +729,79 @@ export default function LeavePage() {
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {leaveBalances.map(({ agent, windowLabel, annualUsed, annualRemaining }) => (
-                <div key={agent.id} className="bg-white rounded-lg border border-emerald-100 px-3 py-2.5">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
-                    <span className="text-xs font-semibold text-slate-700 truncate">{agent.name}</span>
+              {leaveBalances.map(({ agent, windowLabel, start, annualUsed, annualRemaining, pendingPayout, approvedPayout, approvedPayoutDays }) => {
+                const canRequestPayout = annualRemaining > 0 && !pendingPayout && !approvedPayout;
+                const isThisReviewing  = reviewingId === pendingPayout?.id;
+                return (
+                  <div key={agent.id} className={`bg-white rounded-lg border px-3 py-2.5 ${
+                    pendingPayout ? 'border-amber-300 ring-1 ring-amber-200' : 'border-emerald-100'
+                  }`}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agent.colour }} />
+                      <span className="text-xs font-semibold text-slate-700 truncate">{agent.name}</span>
+                    </div>
+                    {windowLabel && <p className="text-[9px] text-slate-400 mb-1.5 truncate">{windowLabel}</p>}
+                    <div className="flex items-end justify-between mb-1.5">
+                      <span className={`text-lg font-bold ${annualRemaining === 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                        {annualRemaining}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">{annualUsed} / {ANNUAL_LEAVE_DAYS} used</span>
+                    </div>
+                    <div className="h-1.5 bg-emerald-100 rounded-full overflow-hidden mb-2">
+                      <div
+                        className={`h-full rounded-full transition-all ${annualRemaining === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(100, (annualUsed / ANNUAL_LEAVE_DAYS) * 100)}%` }}
+                      />
+                    </div>
+
+                    {/* Payout status / actions */}
+                    {approvedPayout && (
+                      <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-semibold">
+                        <span>✓</span>
+                        <span>{approvedPayoutDays}d paid out</span>
+                      </div>
+                    )}
+                    {pendingPayout && isAdmin && !approvedPayout && (
+                      <div className="mt-1.5 space-y-1.5">
+                        <p className="text-[10px] text-amber-700 font-semibold">
+                          💰 {pendingPayout.daysRequested}d payout requested
+                        </p>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => handlePayoutReview(pendingPayout.id, 'approved')}
+                            disabled={isThisReviewing && reviewSaving}
+                            className="flex-1 py-1 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors disabled:opacity-50"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => handlePayoutReview(pendingPayout.id, 'denied')}
+                            disabled={isThisReviewing && reviewSaving}
+                            className="flex-1 py-1 rounded text-[10px] font-bold bg-red-100 text-red-600 hover:bg-red-200 transition-colors disabled:opacity-50"
+                          >
+                            ✕ Deny
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {pendingPayout && !isAdmin && (
+                      <div className="flex items-center gap-1 text-[10px] text-amber-700 font-semibold mt-1.5">
+                        <span>⏳</span>
+                        <span>{pendingPayout.daysRequested}d payout pending</span>
+                      </div>
+                    )}
+                    {canRequestPayout && (
+                      <button
+                        onClick={() => openPayoutModal(agent.id, start, annualRemaining)}
+                        className="mt-2 w-full flex items-center justify-center gap-1 py-1 rounded-md text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                      >
+                        <DollarSign size={10} />
+                        Request Payout
+                      </button>
+                    )}
                   </div>
-                  {windowLabel && <p className="text-[9px] text-slate-400 mb-1.5 truncate">{windowLabel}</p>}
-                  <div className="flex items-end justify-between mb-1.5">
-                    <span className={`text-lg font-bold ${annualRemaining === 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                      {annualRemaining}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-medium">{annualUsed} / {ANNUAL_LEAVE_DAYS} used</span>
-                  </div>
-                  <div className="h-1.5 bg-emerald-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${annualRemaining === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
-                      style={{ width: `${Math.min(100, (annualUsed / ANNUAL_LEAVE_DAYS) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -895,6 +1057,78 @@ export default function LeavePage() {
           <p className="text-xs text-slate-400 text-right">{sorted.length} record{sorted.length !== 1 ? 's' : ''}</p>
         )}
       </div>
+
+      {/* Payout Request Modal */}
+      {showPayoutModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-slate-900">Request Leave Payout</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {agentMap[payoutAgentId]?.name} · up to {payoutMax} day{payoutMax !== 1 ? 's' : ''} available
+                </p>
+              </div>
+              <button onClick={() => setShowPayoutModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800">
+                <p className="font-semibold mb-1">💰 Annual Leave Payout</p>
+                <p>Instead of taking time off, you can request unused annual leave days to be paid out. Your manager will review this request before processing.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Days to pay out <span className="text-slate-400 font-normal">(max {payoutMax})</span>
+                </label>
+                <input
+                  type="number"
+                  min={0.5}
+                  max={payoutMax}
+                  step={0.5}
+                  value={payoutDays}
+                  onChange={e => { setPayoutDays(e.target.value); setPayoutError(''); }}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Partial days (e.g. 2.5) are allowed.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
+                <textarea
+                  rows={2}
+                  value={payoutNotes}
+                  onChange={e => setPayoutNotes(e.target.value)}
+                  placeholder="Any context for your manager…"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-400"
+                />
+              </div>
+              {payoutError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={13} className="text-red-500" />
+                  <p className="text-xs text-red-700">{payoutError}</p>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
+              <button
+                onClick={() => setShowPayoutModal(false)}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePayoutRequest}
+                disabled={payoutSaving || !payoutDays}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <DollarSign size={14} />
+                {payoutSaving ? 'Submitting…' : 'Submit Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Leave Modal */}
       {showAdd && (
