@@ -4,13 +4,24 @@ import { useSearchParams } from 'next/navigation';
 import {
   CreditCard, Plus, X, RefreshCw, CheckCircle, XCircle,
   ExternalLink, Clock, ChevronDown, ChevronUp, AlertTriangle, Pencil,
-  Copy, Check, ArrowUpDown,
+  Copy, Check, ArrowUpDown, Search, User,
 } from 'lucide-react';
 import { RefundRequest, RefundResolution, REFUND_REASONS, InternalNote } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { InternalNotes } from '@/components/ui/InternalNotes';
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function isoToday() { return new Date().toISOString().slice(0, 10); }
+function isoNDaysAgo(n: number) {
+  const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10);
+}
+function isoMonday() {
+  const d = new Date();
+  d.setDate(d.getDate() - (d.getDay() === 0 ? 6 : d.getDay() - 1));
+  return d.toISOString().slice(0, 10);
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StaffMember { id: string; name: string; }
@@ -136,6 +147,20 @@ function RefundsInner() {
 
   // Filter
   const [filter, setFilter]       = useState<'Pending' | 'All'>('Pending');
+
+  // Search / date / mine filters
+  const [search, setSearch]       = useState('');
+  const [fromDate, setFromDate]   = useState('');
+  const [toDate, setToDate]       = useState('');
+  const [mineOnly, setMineOnly]   = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+
+  function applyDatePreset(preset: 'today' | 'week' | '30days') {
+    const today = isoToday();
+    if (preset === 'today') { setFromDate(today);       setToDate(today); }
+    if (preset === 'week')  { setFromDate(isoMonday()); setToDate(today); }
+    if (preset === '30days'){ setFromDate(isoNDaysAgo(30)); setToDate(today); }
+  }
 
   // Sort
   type RefundSortKey = 'createdAt' | 'amount' | 'customerName' | 'status';
@@ -343,21 +368,32 @@ function RefundsInner() {
   const cashRefundTotal     = useMemo(() => cashRefundThisWeek.reduce((s, r)  => s + r.amount, 0), [cashRefundThisWeek]);
 
   const displayed = useMemo(() => {
-    const base = filter === 'Pending' ? pending : requests;
+    let base = filter === 'Pending' ? pending : requests;
+    // Search filter
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      base = base.filter(r =>
+        r.orderNumber.toLowerCase().includes(q) ||
+        r.customerName.toLowerCase().includes(q)
+      );
+    }
+    // Date range filter
+    if (fromDate) base = base.filter(r => r.createdAt.slice(0, 10) >= fromDate);
+    if (toDate)   base = base.filter(r => r.createdAt.slice(0, 10) <= toDate);
+    // Mine filter
+    if (mineOnly) base = base.filter(r => r.submittedBy.toLowerCase() === (user?.name ?? '').toLowerCase());
     return [...base].sort((a, b) => {
       let av: string | number = '';
       let bv: string | number = '';
-      if (sortKey === 'createdAt')      { av = a.createdAt; bv = b.createdAt; }
-      else if (sortKey === 'amount')    { av = a.amount; bv = b.amount; }
+      if (sortKey === 'createdAt')         { av = a.createdAt; bv = b.createdAt; }
+      else if (sortKey === 'amount')       { av = a.amount; bv = b.amount; }
       else if (sortKey === 'customerName') { av = a.customerName.toLowerCase(); bv = b.customerName.toLowerCase(); }
-      else if (sortKey === 'status')    { av = a.status; bv = b.status; }
+      else if (sortKey === 'status')       { av = a.status; bv = b.status; }
       if (av < bv) return sortDir === 'asc' ? -1 : 1;
       if (av > bv) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-  },
-    [filter, pending, requests, sortKey, sortDir]
-  );
+  }, [filter, pending, requests, search, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -462,19 +498,95 @@ function RefundsInner() {
               ))}
             </div>
           </div>
-          {/* Filter toggle */}
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
-            {(['Pending', 'All'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {f === 'Pending' ? `Pending (${pending.length})` : 'All'}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {/* Mine toggle */}
+            <button
+              onClick={() => setMineOnly(v => !v)}
+              title={mineOnly ? 'Showing your refunds — click to show all' : 'Filter to refunds you submitted'}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <User size={12} /> Mine
+              {mineOnly && <span className="w-1.5 h-1.5 bg-brand-600 rounded-full" />}
+            </button>
+            {/* Search / filter toggle */}
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                showFilters || search || fromDate || toDate
+                  ? 'bg-slate-100 border-slate-300 text-slate-700'
+                  : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+              }`}
+            >
+              <Search size={12} /> Search
+              {(search || fromDate || toDate) && <span className="w-1.5 h-1.5 bg-brand-600 rounded-full" />}
+            </button>
+            {/* Pending / All toggle */}
+            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+              {(['Pending', 'All'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {f === 'Pending' ? `Pending (${pending.length})` : 'All'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+
+        {/* Search + date filter panel */}
+        {showFilters && (
+          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 space-y-3">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by order number or customer name…"
+                className="form-input pl-9 text-sm"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Quick:</span>
+              {([
+                { label: 'Today',    key: 'today'  as const },
+                { label: 'This Week',key: 'week'   as const },
+                { label: 'Last 30d', key: '30days' as const },
+              ]).map(p => {
+                const today = isoToday();
+                const isActive =
+                  p.key === 'today'  ? fromDate === today && toDate === today :
+                  p.key === 'week'   ? fromDate === isoMonday() && toDate === today :
+                  p.key === '30days' ? fromDate === isoNDaysAgo(30) && toDate === today : false;
+                return (
+                  <button key={p.key} onClick={() => applyDatePreset(p.key)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      isActive ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}>
+                    {p.label}
+                  </button>
+                );
+              })}
+              <div className="flex items-center gap-2 ml-2">
+                <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="form-input text-xs py-1" />
+                <span className="text-slate-400 text-xs">→</span>
+                <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="form-input text-xs py-1" />
+                {(fromDate || toDate) && (
+                  <button onClick={() => { setFromDate(''); setToDate(''); }} className="text-xs text-slate-400 hover:text-red-500 transition-colors px-1">Clear</button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <TableSkeleton rows={5} cols={5} />

@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
-  Package, Truck, AlertCircle, CheckCircle2, Trash2, Pencil,
+  Package, Truck, AlertCircle, CheckCircle2, Trash2, Pencil, User,
 } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -429,6 +429,7 @@ export default function ReturnsPage() {
   const [copiedId, setCopiedId]     = useState<string | null>(null);
   const [reqSearch, setReqSearch]   = useState('');
   const [procPage, setProcPage]     = useState(1);
+  const [mineOnly, setMineOnly]     = useState(false);
 
   async function load() {
     setLoading(true);
@@ -502,6 +503,7 @@ export default function ReturnsPage() {
     const q = reqSearch.trim().toLowerCase();
     return requests.filter(r => {
       if (!regionMatchesFilter(r.orderNumber, regionFilter)) return false;
+      if (mineOnly && r.processedBy.toLowerCase() !== (user?.name ?? '').toLowerCase()) return false;
       if (!q) return true;
       return (
         r.orderNumber.toLowerCase().includes(q) ||
@@ -509,7 +511,7 @@ export default function ReturnsPage() {
         r.trackingNumber.toLowerCase().includes(q)
       );
     });
-  }, [requests, reqSearch, regionFilter]);
+  }, [requests, reqSearch, regionFilter, mineOnly, user?.name]);
 
   const pendingRequests   = filteredRequests.filter(r => !r.parcelReceived);
   const receivedRequests  = filteredRequests.filter(r => r.parcelReceived);
@@ -552,8 +554,12 @@ export default function ReturnsPage() {
     };
   }, [processed, weekStart, weekEnd]);
 
-  const teamFiltered = (list: Return[]) =>
-    teamSearch.trim() ? list.filter(r => r.assignedTo.toLowerCase().includes(teamSearch.toLowerCase())) : list;
+  const teamFiltered = (list: Return[]) => {
+    let out = list;
+    if (mineOnly) out = out.filter(r => r.processedBy.toLowerCase() === (user?.name ?? '').toLowerCase());
+    if (teamSearch.trim()) out = out.filter(r => r.assignedTo.toLowerCase().includes(teamSearch.toLowerCase()));
+    return out;
+  };
 
   const pendingFollowUp = teamFiltered(processed).filter(r => r.followUpStatus === 'Pending');
 
@@ -631,7 +637,7 @@ export default function ReturnsPage() {
       {/* ── REQUESTED TAB ─────────────────────────────────────────────────────── */}
       {mainTab === 'requested' && (
         <>
-          {/* Search + Region filter */}
+          {/* Search + Region filter + Mine */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="relative max-w-sm flex-1 min-w-0">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -643,6 +649,14 @@ export default function ReturnsPage() {
               />
             </div>
             <RegionPills value={regionFilter} onChange={setRegionFilter} counts={reqRegionCounts} />
+            <button
+              onClick={() => setMineOnly(v => !v)}
+              title={mineOnly ? 'Showing your requests — click to show all' : 'Filter to requests you logged'}
+              className={`btn-secondary gap-2 ${mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : ''}`}
+            >
+              <User size={14} /> Mine
+              {mineOnly && <span className="w-2 h-2 bg-brand-600 rounded-full" />}
+            </button>
           </div>
 
           {loading ? <TableSkeleton rows={5} cols={5} /> : (
@@ -820,18 +834,55 @@ export default function ReturnsPage() {
       {/* ── PROCESSED TAB ─────────────────────────────────────────────────────── */}
       {mainTab === 'processed' && (
         <>
-          {/* Week navigator + region filter + team search + Log Return */}
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+          {/* Week navigator + region filter + team search + Mine + Log Return */}
+          <div className="flex flex-wrap items-center gap-3 mb-2">
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1 shadow-sm">
               <button onClick={() => { setWeekStart(d => addDays(d, -7)); setProcPage(1); }} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"><ChevronLeft size={16} /></button>
               <span className="text-sm font-semibold text-slate-700 px-2 min-w-[120px] text-center">{weekLabel(weekStart)}</span>
               <button onClick={() => { setWeekStart(d => addDays(d, 7)); setProcPage(1); }} disabled={isThisWeek} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"><ChevronRight size={16} /></button>
             </div>
+            {/* Date quick-jump */}
+            {!isThisWeek && (
+              <button
+                onClick={() => { setWeekStart(getMondayOf(new Date())); setProcPage(1); }}
+                className="text-xs px-2.5 py-1.5 rounded-lg border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors font-medium"
+              >
+                ↩ This Week
+              </button>
+            )}
+            <div className="flex items-center gap-1">
+              {([
+                { label: 'Last Week',   weeks: -1 },
+                { label: '2 Weeks Ago', weeks: -2 },
+                { label: '3 Weeks Ago', weeks: -3 },
+              ]).map(p => {
+                const target = addDays(getMondayOf(new Date()), p.weeks * 7);
+                const active = fmtDate(weekStart) === fmtDate(target);
+                return (
+                  <button key={p.label} onClick={() => { setWeekStart(target); setProcPage(1); }}
+                    className={`text-xs px-2 py-1 rounded-md border transition-colors ${
+                      active ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}>
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
             <RegionPills value={regionFilter} onChange={setRegionFilter} counts={procRegionCounts} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Filter by team member…" className="form-input pl-8 py-1.5 text-sm" />
             </div>
+            <button
+              onClick={() => setMineOnly(v => !v)}
+              title={mineOnly ? 'Showing your returns — click to show all' : 'Filter to returns you logged'}
+              className={`btn-secondary gap-2 ${mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : ''}`}
+            >
+              <User size={14} /> Mine
+              {mineOnly && <span className="w-2 h-2 bg-brand-600 rounded-full" />}
+            </button>
             <Link href="/returns/new" className="btn-secondary flex items-center gap-1.5 text-sm ml-auto">
               <PlusCircle size={14} /> Log Return
             </Link>

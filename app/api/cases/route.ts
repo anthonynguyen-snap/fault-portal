@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const status      = searchParams.get('status');
     const from        = searchParams.get('from');
     const to          = searchParams.get('to');
+    const submittedBy = searchParams.get('submittedBy')?.toLowerCase();
 
     let filtered = cases;
 
@@ -43,6 +44,10 @@ export async function GET(req: NextRequest) {
 
     if (to) {
       filtered = filtered.filter(c => c.date <= to);
+    }
+
+    if (submittedBy) {
+      filtered = filtered.filter(c => c.submittedBy.toLowerCase() === submittedBy);
     }
 
     // Sort

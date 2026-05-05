@@ -33,10 +33,25 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.5',
+    label: 'My Submissions & Filters',
+    date: '2026-05-05',
+    isLatest: true,
+    summary: 'Mine filter on Cases, Returns, and Refunds — plus date presets and search on Refunds.',
+    changes: [
+      { category: 'Cases',   text: '"Mine" toggle button — filter All Cases to show only cases you submitted, with a single click. Active state is highlighted in brand blue.' },
+      { category: 'Cases',   text: 'Date presets on Cases filter panel — Today, This Week, This Month, and Last 30 Days quick-select buttons above the date range inputs.' },
+      { category: 'Returns', text: '"Mine" toggle on both Requested and Processed tabs — filters to returns you logged (by submitter name).' },
+      { category: 'Returns', text: 'Week quick-jump buttons on Processed tab — Last Week, 2 Weeks Ago, 3 Weeks Ago and a "↩ This Week" shortcut when viewing a past week.' },
+      { category: 'Refunds', text: '"Mine" toggle on Refunds — filter the queue to refunds you submitted.' },
+      { category: 'Refunds', text: 'Search on Refunds — search by order number or customer name; expandable panel with Today/This Week/Last 30d date presets and a manual date range picker.' },
+    ],
+  },
+  {
     version: 'v2.4',
     label: 'CC&E SOP',
     date: '2026-05-05',
-    isLatest: true,
+    isLatest: false,
     summary: 'CC&E Standard Operating Procedure built into the portal — all 13 sections, searchable and always accessible from the sidebar.',
     changes: [
       { category: 'UI/UX', text: 'CC&E SOP page — full Standard Operating Procedure (v1.4) now lives in the portal under Resources → CC&E SOP, with sticky table of contents, section callouts, tables, and checklists' },

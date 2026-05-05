@@ -5,19 +5,36 @@ import {
   Search, Filter, Plus, ExternalLink, AlertTriangle,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   Download, CheckSquare, Square, X, RefreshCw, Pencil,
-  Copy, Check,
+  Copy, Check, User,
 } from 'lucide-react';
 import { FaultCase, ClaimStatus } from '@/types';
 import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge } from '@/lib/utils';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const PAGE_SIZE = 20;
 type SortKey = keyof FaultCase;
 type SortDir = 'asc' | 'desc';
 
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function isoToday() { return new Date().toISOString().slice(0, 10); }
+function isoNDaysAgo(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+function isoMonday() {
+  const d = new Date();
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d.toISOString().slice(0, 10);
+}
+
 export default function CasesPage() {
+  const { user } = useAuth();
+
   // Data state
   const [cases, setCases]         = useState<FaultCase[]>([]);
   const [total, setTotal]         = useState(0);
@@ -33,6 +50,7 @@ export default function CasesPage() {
   const [manufacturerFilter, setManufacturerFilter] = useState('');
   const [fromDate, setFromDate]   = useState('');
   const [toDate, setToDate]       = useState('');
+  const [mineOnly, setMineOnly]   = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   // Sort
@@ -78,6 +96,7 @@ export default function CasesPage() {
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
+    if (mineOnly && user?.name) params.set('submittedBy', user.name);
     params.set('sortKey', sortKey as string);
     params.set('sortDir', sortDir);
     params.set('page', String(page));
@@ -93,7 +112,7 @@ export default function CasesPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, manufacturerFilter, fromDate, toDate, sortKey, sortDir, page]);
+  }, [search, statusFilter, manufacturerFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -180,10 +199,21 @@ export default function CasesPage() {
     setManufacturerFilter('');
     setFromDate('');
     setToDate('');
+    setMineOnly(false);
     setPage(1);
   }
 
-  const isFiltered = !!(search || statusFilter || manufacturerFilter || fromDate || toDate);
+  function applyDatePreset(preset: 'today' | 'week' | 'month' | '30days') {
+    const today = isoToday();
+    if (preset === 'today')  { setFromDate(today);        setToDate(today);  }
+    if (preset === 'week')   { setFromDate(isoMonday());  setToDate(today);  }
+    if (preset === 'month')  { setFromDate(today.slice(0, 8) + '01'); setToDate(today); }
+    if (preset === '30days') { setFromDate(isoNDaysAgo(30)); setToDate(today); }
+    setPage(1);
+    if (!showFilters) setShowFilters(true);
+  }
+
+  const isFiltered = !!(search || statusFilter || manufacturerFilter || fromDate || toDate || mineOnly);
 
   async function exportCsv() {
     // Fetch all matching records without pagination
@@ -193,6 +223,7 @@ export default function CasesPage() {
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
+    if (mineOnly && user?.name) params.set('submittedBy', user.name);
     params.set('sortKey', sortKey as string);
     params.set('sortDir', sortDir);
     params.set('limit', '9999');
@@ -286,8 +317,16 @@ export default function CasesPage() {
             />
           </div>
           <button
+            onClick={() => { setMineOnly(v => !v); setPage(1); }}
+            title={mineOnly ? 'Showing your cases — click to show all' : 'Filter to cases you submitted'}
+            className={`btn-secondary gap-2 flex-shrink-0 ${mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : ''}`}
+          >
+            <User size={14} /> Mine
+            {mineOnly && <span className="w-2 h-2 bg-brand-600 rounded-full" />}
+          </button>
+          <button
             onClick={() => setShowFilters(v => !v)}
-            className={`btn-secondary gap-2 ${showFilters ? 'bg-slate-100 border-slate-300' : ''}`}
+            className={`btn-secondary gap-2 flex-shrink-0 ${showFilters ? 'bg-slate-100 border-slate-300' : ''}`}
           >
             <Filter size={14} /> Filters
             {(statusFilter || manufacturerFilter || fromDate || toDate) && (
@@ -296,28 +335,62 @@ export default function CasesPage() {
           </button>
         </div>
         {showFilters && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-100">
-            <div>
-              <label className="form-label text-xs">Status</label>
-              <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="form-input text-xs">
-                <option value="">All Statuses</option>
-                {CLAIM_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            {/* Date presets */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Quick:</span>
+              {([
+                { label: 'Today',     key: 'today'  as const },
+                { label: 'This Week', key: 'week'   as const },
+                { label: 'This Month',key: 'month'  as const },
+                { label: 'Last 30d',  key: '30days' as const },
+              ]).map(p => {
+                const isActive =
+                  p.key === 'today'  ? fromDate === isoToday() && toDate === isoToday() :
+                  p.key === 'week'   ? fromDate === isoMonday() && toDate === isoToday() :
+                  p.key === 'month'  ? fromDate === isoToday().slice(0, 8) + '01' && toDate === isoToday() :
+                  p.key === '30days' ? fromDate === isoNDaysAgo(30) && toDate === isoToday() : false;
+                return (
+                  <button key={p.key} onClick={() => applyDatePreset(p.key)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      isActive
+                        ? 'bg-brand-50 border-brand-300 text-brand-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'
+                    }`}>
+                    {p.label}
+                  </button>
+                );
+              })}
+              {(fromDate || toDate) && (
+                <button onClick={() => { setFromDate(''); setToDate(''); setPage(1); }}
+                  className="px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-red-500 transition-colors">
+                  Clear dates
+                </button>
+              )}
             </div>
-            <div>
-              <label className="form-label text-xs">Manufacturer</label>
-              <select value={manufacturerFilter} onChange={e => { setManufacturerFilter(e.target.value); setPage(1); }} className="form-input text-xs">
-                <option value="">All Manufacturers</option>
-                {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="form-label text-xs">From Date</label>
-              <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1); }} className="form-input text-xs" />
-            </div>
-            <div>
-              <label className="form-label text-xs">To Date</label>
-              <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1); }} className="form-input text-xs" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="form-label text-xs">Status</label>
+                <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="form-input text-xs">
+                  <option value="">All Statuses</option>
+                  {CLAIM_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label text-xs">Manufacturer</label>
+                <select value={manufacturerFilter} onChange={e => { setManufacturerFilter(e.target.value); setPage(1); }} className="form-input text-xs">
+                  <option value="">All Manufacturers</option>
+                  {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label text-xs">From Date</label>
+                <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1); }} className="form-input text-xs" />
+              </div>
+              <div>
+                <label className="form-label text-xs">To Date</label>
+                <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1); }} className="form-input text-xs" />
+              </div>
             </div>
           </div>
         )}
