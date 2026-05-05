@@ -33,10 +33,26 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.8',
+    label: 'UI Speed & Clarity',
+    date: '2026-05-05',
+    isLatest: true,
+    summary: 'Faster triage with inline status changes, a leaner cases table, keyboard search shortcut, and a cleaner sidebar.',
+    changes: [
+      { category: 'Cases', text: 'Inline status change — click any status badge directly in the Cases list to change it (e.g. Pending → Approved) without opening the detail page. Saves time during bulk admin triage.' },
+      { category: 'Cases', text: 'Claim status column — a new Status column now appears in the Cases table between Fault Type and Cost, so status is visible at a glance without opening each case.' },
+      { category: 'Cases', text: 'Table column cleanup — removed Manufacturer, Submitted By, Evidence and the edit pencil from the Cases table. The table is now 8 focused columns instead of 11.' },
+      { category: 'UI/UX', text: '⌘K search shortcut — press ⌘K (or Ctrl+K on Windows) anywhere in the portal to instantly focus the header search bar.' },
+      { category: 'UI/UX', text: 'Header breadcrumb — the header now shows your current location in the portal (e.g. Operations › All Cases) so it\'s always clear where you are.' },
+      { category: 'UI/UX', text: 'Sidebar Quick Actions block — Submit Fault, Log Return, and Request Refund are now pinned as a highlighted Quick Actions block at the top of the sidebar for one-click access.' },
+      { category: 'UI/UX', text: 'Sidebar consolidation — sidebar navigation reduced from 7 groups to 4 (Operations, Inventory, Team, System), making it easier to scan and reducing visual noise.' },
+    ],
+  },
+  {
     version: 'v2.7',
     label: 'Annual Leave Payout',
     date: '2026-05-05',
-    isLatest: true,
+    isLatest: false,
     summary: 'Staff can now request payout of unused annual leave days after their anniversary, with admin approve/deny workflow.',
     changes: [
       { category: 'Roster', text: 'Annual leave payout requests — staff can request unused annual leave days to be paid out once their anniversary date is reached. Whole days only (e.g. 1, 2, 3) — partial days are not permitted.' },
