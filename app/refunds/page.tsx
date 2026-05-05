@@ -381,7 +381,13 @@ function RefundsInner() {
     if (fromDate) base = base.filter(r => r.createdAt.slice(0, 10) >= fromDate);
     if (toDate)   base = base.filter(r => r.createdAt.slice(0, 10) <= toDate);
     // Mine filter
-    if (mineOnly) base = base.filter(r => r.submittedBy.toLowerCase() === (user?.name ?? '').toLowerCase());
+    if (mineOnly) {
+      const query = (user?.name ?? '').toLowerCase().trim();
+      base = base.filter(r => {
+        const stored = r.submittedBy.toLowerCase().trim();
+        return stored && query && (stored === query || stored.includes(query) || query.includes(stored));
+      });
+    }
     return [...base].sort((a, b) => {
       let av: string | number = '';
       let bv: string | number = '';

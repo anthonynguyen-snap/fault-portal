@@ -47,7 +47,11 @@ export async function GET(req: NextRequest) {
     }
 
     if (submittedBy) {
-      filtered = filtered.filter(c => c.submittedBy.toLowerCase() === submittedBy);
+      const sq = submittedBy.trim();
+      filtered = filtered.filter(c => {
+        const stored = c.submittedBy.toLowerCase().trim();
+        return stored === sq || stored.includes(sq) || sq.includes(stored);
+      });
     }
 
     // Sort

@@ -503,7 +503,12 @@ export default function ReturnsPage() {
     const q = reqSearch.trim().toLowerCase();
     return requests.filter(r => {
       if (!regionMatchesFilter(r.orderNumber, regionFilter)) return false;
-      if (mineOnly && r.processedBy.toLowerCase() !== (user?.name ?? '').toLowerCase()) return false;
+      if (mineOnly) {
+        const stored = r.processedBy.toLowerCase().trim();
+        const query  = (user?.name ?? '').toLowerCase().trim();
+        if (!stored || !query) return false;
+        if (stored !== query && !stored.includes(query) && !query.includes(stored)) return false;
+      }
       if (!q) return true;
       return (
         r.orderNumber.toLowerCase().includes(q) ||
@@ -556,7 +561,13 @@ export default function ReturnsPage() {
 
   const teamFiltered = (list: Return[]) => {
     let out = list;
-    if (mineOnly) out = out.filter(r => r.processedBy.toLowerCase() === (user?.name ?? '').toLowerCase());
+    if (mineOnly) {
+      const query = (user?.name ?? '').toLowerCase().trim();
+      out = out.filter(r => {
+        const stored = r.processedBy.toLowerCase().trim();
+        return stored && query && (stored === query || stored.includes(query) || query.includes(stored));
+      });
+    }
     if (teamSearch.trim()) out = out.filter(r => r.assignedTo.toLowerCase().includes(teamSearch.toLowerCase()));
     return out;
   };
