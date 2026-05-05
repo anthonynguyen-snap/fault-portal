@@ -22,6 +22,7 @@ import {
   CalendarDays,
   ClipboardList,
   Activity,
+  BookOpen,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -171,6 +172,12 @@ const navGroups: NavGroup[] = [
     items: [
       { label: 'Roster',    href: '/roster',       icon: CalendarDays },
       { label: 'Leave Log', href: '/roster/leave', icon: ClipboardList },
+    ],
+  },
+  {
+    label: 'Resources',
+    items: [
+      { label: 'CC&E SOP', href: '/sop', icon: BookOpen },
     ],
   },
   {

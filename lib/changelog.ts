@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.4',
+    label: 'CC&E SOP',
+    date: '2026-05-05',
+    isLatest: true,
+    summary: 'CC&E Standard Operating Procedure built into the portal — all 13 sections, searchable and always accessible from the sidebar.',
+    changes: [
+      { category: 'UI/UX', text: 'CC&E SOP page — full Standard Operating Procedure (v1.4) now lives in the portal under Resources → CC&E SOP, with sticky table of contents, section callouts, tables, and checklists' },
+      { category: 'UI/UX', text: 'Admin-only edit controls coming in a future release — content can be updated via the source file in the meantime' },
+    ],
+  },
+  {
     version: 'v2.3',
     label: 'Bug Fixes & Roster',
     date: '2026-05-05',
-    isLatest: true,
+    isLatest: false,
     summary: 'Today\'s Team dashboard strip, roster monthly rotation, timezone fix, and refund form fixes.',
     changes: [
       { category: 'Dashboard', text: 'Today\'s Team strip — shows who\'s scheduled today with a green dot indicator for anyone already signed into the portal' },
