@@ -114,6 +114,8 @@ function RefundsInner() {
     reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: '',
   });
   const [formError, setFormError] = useState('');
+  const [deductLabelFee, setDeductLabelFee] = useState(true);
+  const LABEL_FEE = 9.50;
 
   // Process panel state
   const [processing, setProcessing] = useState<RefundRequest | null>(null);
@@ -191,6 +193,7 @@ function RefundsInner() {
     const autoName = !isAdmin && user?.name ? user.name : '';
     setForm({ orderNumber: '', customerName: '', amount: '', currency: 'AUD', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: autoName });
     setFormError('');
+    setDeductLabelFee(true);
   }
 
   function closeForm() { setShowForm(false); setEditingId(null); resetForm(); }
@@ -223,10 +226,13 @@ function RefundsInner() {
     if (!resolvedSubmittedBy) return setFormError('Please select your name');
     setSaving(true);
     setFormError('');
+    const enteredAmount = parseFloat(form.amount) || 0;
+    const isUSD = form.currency === 'USD';
+    const finalAmount = isUSD && deductLabelFee ? Math.max(0, enteredAmount - LABEL_FEE) : enteredAmount;
     const payload = {
       orderNumber:  form.orderNumber.trim(),
       customerName: form.customerName.trim(),
-      amount:       parseFloat(form.amount) || 0,
+      amount:       finalAmount,
       currency:     form.currency,
       reason:       form.reason,
       notes:        form.notes.trim(),
@@ -685,6 +691,33 @@ function RefundsInner() {
                 />
               </div>
             </div>
+            {/* US return label fee deduction */}
+            {form.currency === 'USD' && parseFloat(form.amount) > 0 && (
+              <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span>Entered amount</span>
+                  <span className="font-mono">${parseFloat(form.amount).toFixed(2)}</span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={deductLabelFee}
+                    onChange={e => setDeductLabelFee(e.target.checked)}
+                    className="rounded border-slate-300 text-brand-600 focus:ring-brand-400"
+                  />
+                  <span className="text-xs text-slate-600">Deduct $9.50 return label fee</span>
+                  {!deductLabelFee && (
+                    <span className="text-[10px] text-amber-600 font-medium bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Waived</span>
+                  )}
+                </label>
+                <div className="flex items-center justify-between border-t border-slate-200 pt-1.5">
+                  <span className="text-xs font-semibold text-slate-700">Refund total</span>
+                  <span className="text-sm font-bold font-mono text-slate-900">
+                    ${Math.max(0, (parseFloat(form.amount) || 0) - (deductLabelFee ? LABEL_FEE : 0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Reason */}
