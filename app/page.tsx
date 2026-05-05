@@ -35,6 +35,7 @@ const WeeklyFaultChart = dynamic(
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge } from '@/lib/utils';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { WhatsNewModal } from '@/components/ui/WhatsNewModal';
 
 // ── Today's Team Strip ────────────────────────────────────────────────────────
 const SHIFT_LABELS: Record<string, string> = {
@@ -244,6 +245,9 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
+
+      {/* ── What's New modal ──────────────────────────────────────────────── */}
+      <WhatsNewModal />
 
       {/* ── Page Header ───────────────────────────────────────────────────── */}
       <div className="page-header">

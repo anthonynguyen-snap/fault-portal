@@ -96,12 +96,20 @@ function ReplenishmentAlertBadge() {
 
 function ChangelogNewBadge() {
   const [show, setShow] = useState(false);
-  useEffect(() => {
+
+  function check() {
     try {
       const seen = localStorage.getItem(CHANGELOG_SEEN_KEY);
       setShow(seen !== LATEST_VERSION);
     } catch { /* no-op */ }
+  }
+
+  useEffect(() => {
+    check();
+    window.addEventListener('changelog-seen', check);
+    return () => window.removeEventListener('changelog-seen', check);
   }, []);
+
   if (!show) return null;
   return (
     <span className="text-[9px] font-bold bg-brand-500 text-white px-1.5 py-0.5 rounded-full leading-none">
