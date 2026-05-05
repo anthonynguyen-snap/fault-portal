@@ -53,8 +53,8 @@ export async function POST(req: NextRequest) {
     if (!body.leaveWindowStart) return NextResponse.json({ error: 'leaveWindowStart is required' }, { status: 400 });
 
     const days = Number(body.daysRequested);
-    if (isNaN(days) || days <= 0 || days > 5) {
-      return NextResponse.json({ error: 'daysRequested must be between 0.5 and 5' }, { status: 400 });
+    if (isNaN(days) || days <= 0 || days > 5 || !Number.isInteger(days)) {
+      return NextResponse.json({ error: 'daysRequested must be a whole number between 1 and 5' }, { status: 400 });
     }
 
     // Prevent duplicate pending requests for the same agent + window

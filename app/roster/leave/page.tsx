@@ -442,9 +442,9 @@ export default function LeavePage() {
   }
 
   async function handlePayoutRequest() {
-    const days = parseFloat(payoutDays);
-    if (!days || days <= 0 || days > payoutMax) {
-      setPayoutError(`Enter a number between 0.5 and ${payoutMax}`);
+    const days = parseInt(payoutDays, 10);
+    if (!days || days <= 0 || days > payoutMax || !Number.isInteger(parseFloat(payoutDays))) {
+      setPayoutError(`Enter a whole number between 1 and ${payoutMax}`);
       return;
     }
     setPayoutSaving(true); setPayoutError('');
@@ -1084,14 +1084,14 @@ export default function LeavePage() {
                 </label>
                 <input
                   type="number"
-                  min={0.5}
+                  min={1}
                   max={payoutMax}
-                  step={0.5}
+                  step={1}
                   value={payoutDays}
                   onChange={e => { setPayoutDays(e.target.value); setPayoutError(''); }}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">Partial days (e.g. 2.5) are allowed.</p>
+                <p className="text-[10px] text-slate-400 mt-1">Whole days only (e.g. 1, 2, 3).</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Notes <span className="text-slate-400 font-normal">(optional)</span></label>
