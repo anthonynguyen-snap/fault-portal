@@ -41,6 +41,8 @@ export const CHANGELOG: ChangelogVersion[] = [
     changes: [
       { category: 'Dashboard', text: 'Today\'s Team strip — shows who\'s scheduled today with a green dot indicator for anyone already signed into the portal' },
       { category: 'Returns', text: 'Fixed missing returns — API was silently capping results to 1 record when no limit param was passed' },
+      { category: 'Refunds', text: 'US orders: $9.50 return label fee auto-deducted from refund amount by default — checkbox to waive if offering free returns' },
+      { category: 'Refunds', text: 'AU orders: optional $9.50 prepaid return label fee checkbox — tick to deduct when a label was provided, leave unticked if customer covered their own postage' },
       { category: 'Roster', text: 'Monthly rotation — Gail and Niko swap days off each month; rotation anchors to Monday if the 1st falls mid-week' },
       { category: 'Roster', text: 'Fixed straddle-week bug — weeks spanning two months now consistently use the Monday\'s month for phase lookup, preventing 6-day overwork alerts' },
       { category: 'Admin', text: 'Login history now groups by ACST/ACDT (Australia/Adelaide) date — logins no longer appear under "Yesterday" when made in the morning' },

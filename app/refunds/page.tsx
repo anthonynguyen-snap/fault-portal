@@ -227,8 +227,8 @@ function RefundsInner() {
     setSaving(true);
     setFormError('');
     const enteredAmount = parseFloat(form.amount) || 0;
-    const isUSD = form.currency === 'USD';
-    const finalAmount = isUSD && deductLabelFee ? Math.max(0, enteredAmount - LABEL_FEE) : enteredAmount;
+    const hasFee = (form.currency === 'USD' || form.currency === 'AUD') && deductLabelFee;
+    const finalAmount = hasFee ? Math.max(0, enteredAmount - LABEL_FEE) : enteredAmount;
     const payload = {
       orderNumber:  form.orderNumber.trim(),
       customerName: form.customerName.trim(),
@@ -668,7 +668,12 @@ function RefundsInner() {
             <div className="flex gap-2">
               <select
                 value={form.currency}
-                onChange={e => setForm(f => ({ ...f, currency: e.target.value as CurrencyCode }))}
+                onChange={e => {
+                  const cur = e.target.value as CurrencyCode;
+                  setForm(f => ({ ...f, currency: cur }));
+                  // USD: fee on by default (always issued). AUD: off by default (opt-in).
+                  setDeductLabelFee(cur === 'USD');
+                }}
                 className="form-input w-28 flex-shrink-0 text-sm"
                 title="Currency"
               >
@@ -691,12 +696,14 @@ function RefundsInner() {
                 />
               </div>
             </div>
-            {/* US return label fee deduction */}
-            {form.currency === 'USD' && parseFloat(form.amount) > 0 && (
+            {/* Return label fee deduction — USD (opt-out) and AUD (opt-in) */}
+            {(form.currency === 'USD' || form.currency === 'AUD') && parseFloat(form.amount) > 0 && (
               <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-slate-500">
                   <span>Entered amount</span>
-                  <span className="font-mono">${parseFloat(form.amount).toFixed(2)}</span>
+                  <span className="font-mono">
+                    {CURRENCIES.find(c => c.code === form.currency)?.symbol}{parseFloat(form.amount).toFixed(2)}
+                  </span>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -705,17 +712,23 @@ function RefundsInner() {
                     onChange={e => setDeductLabelFee(e.target.checked)}
                     className="rounded border-slate-300 text-brand-600 focus:ring-brand-400"
                   />
-                  <span className="text-xs text-slate-600">Deduct $9.50 return label fee</span>
-                  {!deductLabelFee && (
+                  <span className="text-xs text-slate-600">
+                    {form.currency === 'AUD'
+                      ? 'Deduct $9.50 prepaid return label fee'
+                      : 'Deduct $9.50 return label fee'}
+                  </span>
+                  {form.currency === 'USD' && !deductLabelFee && (
                     <span className="text-[10px] text-amber-600 font-medium bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Waived</span>
                   )}
                 </label>
-                <div className="flex items-center justify-between border-t border-slate-200 pt-1.5">
-                  <span className="text-xs font-semibold text-slate-700">Refund total</span>
-                  <span className="text-sm font-bold font-mono text-slate-900">
-                    ${Math.max(0, (parseFloat(form.amount) || 0) - (deductLabelFee ? LABEL_FEE : 0)).toFixed(2)}
-                  </span>
-                </div>
+                {deductLabelFee && (
+                  <div className="flex items-center justify-between border-t border-slate-200 pt-1.5">
+                    <span className="text-xs font-semibold text-slate-700">Refund total</span>
+                    <span className="text-sm font-bold font-mono text-slate-900">
+                      {CURRENCIES.find(c => c.code === form.currency)?.symbol}{Math.max(0, (parseFloat(form.amount) || 0) - LABEL_FEE).toFixed(2)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
