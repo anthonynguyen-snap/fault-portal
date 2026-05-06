@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.9',
+    label: 'Cross-linking & Session Fixes',
+    date: '2026-05-06',
+    isLatest: true,
+    summary: 'Refund requests now auto-link to their matching return record, the Submit Fault page correctly auto-fills your name, and the Returns page opens directly to a filtered order when linked from Refunds.',
+    changes: [
+      { category: 'Refunds', text: 'Return cross-link — the Refund Requests page now fetches return records on load and displays a "Return" badge on any refund whose order number matches an existing return entry. Clicking it takes you directly to that return\'s detail page.' },
+      { category: 'Returns', text: 'Deep-link by order number — navigating to /returns?order=XXXXX now pre-fills the search and switches to the Requested tab automatically, so the linked return is immediately visible.' },
+      { category: 'Cases', text: 'Submit Fault name auto-fill — the "Submitted By" field on the Submit Fault page now reads directly from your login session instead of form state, fixing the bug where names showed as "—" and prevented submission.' },
+    ],
+  },
+  {
     version: 'v2.8',
     label: 'UI Speed & Clarity',
     date: '2026-05-05',
-    isLatest: true,
+    isLatest: false,
     summary: 'Faster triage with inline status changes, a leaner cases table, keyboard search shortcut, and a cleaner sidebar.',
     changes: [
       { category: 'Cases', text: 'Inline status change — click any status badge directly in the Cases list to change it (e.g. Pending → Approved) without opening the detail page. Saves time during bulk admin triage.' },
