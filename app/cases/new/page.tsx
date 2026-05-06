@@ -236,7 +236,8 @@ export default function NewCasePage() {
 
   function validate(): boolean {
     const newErrors: typeof errors = {};
-    if (!form.submittedBy)  newErrors.submittedBy = 'Please select your name';
+    const effectiveName = isAdmin ? form.submittedBy : (user?.name ?? '');
+    if (!effectiveName) newErrors.submittedBy = 'Please select your name';
     if (!form.date)         newErrors.date = 'Date is required';
     if (!form.orderNumber)  newErrors.orderNumber = 'Order number is required';
     if (!form.product)      newErrors.product = 'Product is required';
@@ -264,10 +265,14 @@ export default function NewCasePage() {
     if (!validate()) return;
     setSubmitting(true);
     try {
+      const payload = {
+        ...form,
+        submittedBy: isAdmin ? form.submittedBy : (user?.name ?? form.submittedBy),
+      };
       const res = await fetch('/api/cases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -409,7 +414,7 @@ export default function NewCasePage() {
               </select>
             ) : (
               <div className="form-input bg-white text-slate-700 cursor-default select-none">
-                {form.submittedBy || '—'}
+                {user?.name ?? <span className="text-slate-400 italic">Loading…</span>}
               </div>
             )}
             {errors.submittedBy && <p className="form-error">{errors.submittedBy}</p>}
