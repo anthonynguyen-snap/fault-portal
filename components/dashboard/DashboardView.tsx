@@ -104,6 +104,7 @@ export function DashboardView() {
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [queue, setQueue] = useState<QueueData | null>(null);
   const [queueError, setQueueError] = useState<string>('');
+  const [queueLoading, setQueueLoading] = useState(true);
 
   async function load(showRefresh = false) {
     if (showRefresh) setRefreshing(true);
@@ -126,13 +127,15 @@ export function DashboardView() {
       setRefreshing(false);
     }
     // Queue fetched separately — failure is non-fatal
+    setQueueLoading(true);
     fetch('/api/commslayer/queue')
       .then(r => r.json())
       .then(json => {
         if (json?.error) setQueueError(json.error);
         else setQueue(json);
       })
-      .catch((e) => setQueueError(e.message ?? 'Failed to load queue'));
+      .catch((e) => setQueueError(e.message ?? 'Failed to load queue'))
+      .finally(() => setQueueLoading(false));
   }
 
   useEffect(() => { load(); }, []);
@@ -236,13 +239,14 @@ export function DashboardView() {
       </div>
 
       {/* Today's Activity (Commslayer) */}
-      {(queue || queueError) && (
-        <div className="card p-5">
+      <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Inbox size={16} className="text-brand-600" />
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-white animate-pulse" />
+                {!queueLoading && !queueError && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-white animate-pulse" />
+                )}
               </div>
               <h2 className="text-sm font-semibold text-slate-800">Today's Activity</h2>
               <span className="text-xs text-slate-400">· Commslayer</span>
@@ -253,10 +257,17 @@ export function DashboardView() {
               </span>
             )}
           </div>
-          {queueError && !queue && (
+          {queueLoading && (
+            <div className="grid grid-cols-4 gap-4">
+              {[0,1,2,3].map(i => (
+                <div key={i} className="h-[76px] rounded-xl bg-slate-100 animate-pulse" />
+              ))}
+            </div>
+          )}
+          {!queueLoading && queueError && (
             <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
           )}
-          {queue && (
+          {!queueLoading && queue && (
             <div className="grid grid-cols-4 gap-4">
               {/* Tickets Created */}
               <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
@@ -316,8 +327,7 @@ export function DashboardView() {
               </div>
             </div>
           )}
-        </div>
-      )}
+      </div>
 
       {/* Monthly Trend Chart */}
       <div className="card p-5">
