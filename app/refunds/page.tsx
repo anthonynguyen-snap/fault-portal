@@ -113,6 +113,8 @@ function RefundsInner() {
 
   const [requests, setRequests]   = useState<RefundRequest[]>([]);
   const [staff, setStaff]         = useState<StaffMember[]>([]);
+  // returnsByOrder: normalised order number → return id (for cross-linking)
+  const [returnsByOrder, setReturnsByOrder] = useState<Map<string, string>>(new Map());
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
@@ -184,19 +186,35 @@ function RefundsInner() {
   async function load() {
     setLoading(true);
     try {
-      const [refRes, staffRes] = await Promise.all([
+      const [refRes, staffRes, retRes] = await Promise.all([
         fetch('/api/refunds'),
         fetch('/api/staff'),
+        fetch('/api/returns'),
       ]);
       const refJson   = await refRes.json();
       const staffJson = await staffRes.json();
+      const retJson   = await retRes.json();
+
       const loaded: RefundRequest[] = refJson.data ?? [];
       setRequests(loaded);
+
       // Seed notesMap from loaded data
       const map: Record<string, InternalNote[]> = {};
       for (const r of loaded) map[r.id] = r.internalNotes || [];
       setNotesMap(map);
+
       setStaff(staffJson.data ?? []);
+
+      // Build order-number → return-id lookup for cross-linking
+      // Both requested and processed returns are included so a refund row
+      // gets a link as soon as any matching return record exists.
+      const retMap = new Map<string, string>();
+      for (const ret of (retJson.data ?? [])) {
+        if (ret.orderNumber) {
+          retMap.set(ret.orderNumber.trim().toLowerCase(), ret.id);
+        }
+      }
+      setReturnsByOrder(retMap);
     } catch {
       setError('Failed to load refund requests');
     } finally {
@@ -635,15 +653,19 @@ function RefundsInner() {
                             {copiedId === req.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                           </button>
                         </span>
-                        {req.reason === 'Customer Return' && (
-                          <Link
-                            href={`/returns?order=${encodeURIComponent(req.orderNumber)}`}
-                            title="View return entry"
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
-                          >
-                            <RotateCcw size={9} /> Return
-                          </Link>
-                        )}
+                        {(() => {
+                          const returnId = returnsByOrder.get(req.orderNumber.trim().toLowerCase());
+                          if (!returnId) return null;
+                          return (
+                            <Link
+                              href={`/returns/${returnId}`}
+                              title="View linked return entry"
+                              className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
+                            >
+                              <RotateCcw size={9} /> Return
+                            </Link>
+                          );
+                        })()}
                         <StatusBadge status={req.status} />
                         {req.status === 'Processed' && req.resolution !== 'Pending' && (
                           <ResolutionBadge resolution={req.resolution} />
