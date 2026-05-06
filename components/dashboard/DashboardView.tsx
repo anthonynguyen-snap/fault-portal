@@ -79,20 +79,21 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 interface QueueData {
-  open: number;
-  unassigned: number;
-  pending: number;
-  oldestAgeMinutes: number | null;
+  date: string;
+  created: number;
+  closed: number;
+  frtSeconds: number;
+  messagesSent: number;
   fetchedAt: string;
 }
 
-function fmtAge(minutes: number | null): string {
-  if (minutes === null || minutes < 0) return '—';
-  if (minutes < 60) return `${minutes}m`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+function fmtFRT(seconds: number): string {
+  if (!seconds || seconds <= 0) return '—';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h >= 24) return `${Math.floor(h / 24)}d`;
+  if (h >= 1)  return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 export function DashboardView() {
@@ -234,7 +235,7 @@ export function DashboardView() {
         />
       </div>
 
-      {/* Live Queue Health (Commslayer) */}
+      {/* Today's Activity (Commslayer) */}
       {(queue || queueError) && (
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
@@ -243,89 +244,78 @@ export function DashboardView() {
                 <Inbox size={16} className="text-brand-600" />
                 <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-white animate-pulse" />
               </div>
-              <h2 className="text-sm font-semibold text-slate-800">Live Queue</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Today's Activity</h2>
               <span className="text-xs text-slate-400">· Commslayer</span>
             </div>
             {queue && (
               <span className="text-[10px] text-slate-400 font-mono">
-                Updated {new Date(queue.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+                {queue.date} · Updated {new Date(queue.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
           </div>
           {queueError && !queue && (
             <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
           )}
-          {queue && <div className="grid grid-cols-3 gap-4">
-            {/* Open */}
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
-                <MessageSquare size={16} className="text-brand-600" />
+          {queue && (
+            <div className="grid grid-cols-4 gap-4">
+              {/* Tickets Created */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
+                  <MessageSquare size={16} className="text-brand-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 font-medium">Created</p>
+                  <p className="text-2xl font-bold text-slate-900 leading-tight">{queue.created}</p>
+                  <p className="text-[10px] text-slate-400">tickets today</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Open</p>
-                <p className="text-2xl font-bold text-slate-900 leading-tight">{queue.open}</p>
-                <p className="text-[10px] text-slate-400">conversations</p>
+              {/* Tickets Closed */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <UserX size={16} className="text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 font-medium">Closed</p>
+                  <p className="text-2xl font-bold text-emerald-700 leading-tight">{queue.closed}</p>
+                  <p className="text-[10px] text-slate-400">resolved today</p>
+                </div>
               </div>
-            </div>
-            {/* Unassigned */}
-            <div className={`flex items-center gap-3 p-3 rounded-xl border ${
-              queue.unassigned > 5
-                ? 'bg-red-50 border-red-100'
-                : queue.unassigned > 0
-                ? 'bg-amber-50 border-amber-100'
-                : 'bg-slate-50 border-slate-100'
-            }`}>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                queue.unassigned > 5 ? 'bg-red-100' : queue.unassigned > 0 ? 'bg-amber-100' : 'bg-slate-100'
+              {/* First Response Time */}
+              <div className={`flex items-center gap-3 p-3 rounded-xl border ${
+                queue.frtSeconds > 7200
+                  ? 'bg-red-50 border-red-100'
+                  : queue.frtSeconds > 3600
+                  ? 'bg-amber-50 border-amber-100'
+                  : 'bg-slate-50 border-slate-100'
               }`}>
-                <UserX size={16} className={
-                  queue.unassigned > 5 ? 'text-red-500' : queue.unassigned > 0 ? 'text-amber-500' : 'text-slate-400'
-                } />
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  queue.frtSeconds > 7200 ? 'bg-red-100' : queue.frtSeconds > 3600 ? 'bg-amber-100' : 'bg-slate-100'
+                }`}>
+                  <Clock size={16} className={
+                    queue.frtSeconds > 7200 ? 'text-red-500' : queue.frtSeconds > 3600 ? 'text-amber-500' : 'text-slate-400'
+                  } />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 font-medium">Avg FRT</p>
+                  <p className={`text-2xl font-bold leading-tight ${
+                    queue.frtSeconds > 7200 ? 'text-red-600' : queue.frtSeconds > 3600 ? 'text-amber-600' : 'text-slate-900'
+                  }`}>{fmtFRT(queue.frtSeconds)}</p>
+                  <p className="text-[10px] text-slate-400">first response</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Unassigned</p>
-                <p className={`text-2xl font-bold leading-tight ${
-                  queue.unassigned > 5 ? 'text-red-600' : queue.unassigned > 0 ? 'text-amber-600' : 'text-slate-900'
-                }`}>{queue.unassigned}</p>
-                <p className="text-[10px] text-slate-400">need an agent</p>
-              </div>
-            </div>
-            {/* Oldest waiting */}
-            <div className={`flex items-center gap-3 p-3 rounded-xl border ${
-              queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 240
-                ? 'bg-red-50 border-red-100'
-                : queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 60
-                ? 'bg-amber-50 border-amber-100'
-                : 'bg-slate-50 border-slate-100'
-            }`}>
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 240
-                  ? 'bg-red-100'
-                  : queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 60
-                  ? 'bg-amber-100'
-                  : 'bg-slate-100'
-              }`}>
-                <Clock size={16} className={
-                  queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 240
-                    ? 'text-red-500'
-                    : queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 60
-                    ? 'text-amber-500'
-                    : 'text-slate-400'
-                } />
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Oldest Waiting</p>
-                <p className={`text-2xl font-bold leading-tight ${
-                  queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 240
-                    ? 'text-red-600'
-                    : queue.oldestAgeMinutes !== null && queue.oldestAgeMinutes > 60
-                    ? 'text-amber-600'
-                    : 'text-slate-900'
-                }`}>{fmtAge(queue.oldestAgeMinutes)}</p>
-                <p className="text-[10px] text-slate-400">since first message</p>
+              {/* Messages Sent */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                  <Mail size={16} className="text-indigo-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 font-medium">Messages</p>
+                  <p className="text-2xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p>
+                  <p className="text-[10px] text-slate-400">sent today</p>
+                </div>
               </div>
             </div>
-          </div>}
+          )}
         </div>
       )}
 
