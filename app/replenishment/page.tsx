@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useState, useMemo, Suspense } from 'react';
+import { useEffect, useState, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   Truck, Plus, RefreshCw, ChevronRight, Package,
-  AlertTriangle, CheckCircle, Clock, Send, Bell,
+  AlertTriangle, CheckCircle, Clock, Send, Bell, ChevronDown,
 } from 'lucide-react';
 import { ReplenishmentRequest, ReplenishmentStatus, StockItem } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -35,6 +35,86 @@ function StatusBadge({ status }: { status: ReplenishmentStatus }) {
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[status]}`}>
       {STATUS_ICONS[status]} {status}
     </span>
+  );
+}
+
+const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'];
+
+function StatusChanger({ id, status, onChange }: { id: string; status: ReplenishmentStatus; onChange: (next: ReplenishmentStatus) => void }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  async function pick(next: ReplenishmentStatus, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (next === status) { setOpen(false); return; }
+    setSaving(true);
+    try {
+      await fetch(`/api/replenishment/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) });
+      onChange(next);
+    } finally { setSaving(false); setOpen(false); }
+  }
+
+  return (
+    <div ref={ref} className="relative inline-block" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(o => !o); }}
+        disabled={saving}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:opacity-80 ${STATUS_STYLES[status]} ${saving ? 'opacity-50' : ''}`}
+      >
+        {STATUS_ICONS[status]} {status} <ChevronDown size={9} className="ml-0.5 opacity-60" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+          {STATUS_ORDER.map(s => (
+            <button key={s} onClick={e => pick(s, e)}
+              className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-slate-50 transition-colors ${s === status ? 'font-semibold' : ''}`}>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[s]}`}>
+                {STATUS_ICONS[s]} {s}
+              </span>
+              {s === status && <span className="ml-auto text-slate-400 text-[10px]">current</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemsTooltip({ items }: { items: { stockItemName: string; quantityRequested: number }[] }) {
+  const [show, setShow] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  return (
+    <div ref={ref} className="relative inline-block"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}>
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-full cursor-default transition-colors">
+        {items.length} <span className="text-slate-400">items</span>
+      </span>
+      {show && (
+        <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-3 min-w-[200px] max-w-[280px]">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Items in this order</p>
+          <div className="space-y-1.5">
+            {items.map((item, i) => (
+              <div key={i} className="flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-700 leading-tight">{item.stockItemName}</span>
+                <span className="text-xs font-semibold text-slate-900 flex-shrink-0">×{item.quantityRequested}</span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-slate-100 mt-2 pt-2 flex items-center justify-between">
+            <span className="text-[10px] text-slate-400">Total units</span>
+            <span className="text-xs font-bold text-slate-800">{items.reduce((s, i) => s + i.quantityRequested, 0)}</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -351,13 +431,17 @@ function ReplenishmentPageInner() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.orderNumber || <span className="text-slate-300">—</span>}</td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
-                      {r.items.length} <span className="text-slate-400">items</span>
-                    </span>
+                    <ItemsTooltip items={r.items} />
                   </td>
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-800">{totalUnits(r)}</td>
                   <td className="px-4 py-3 text-slate-600 text-xs">{r.requestedBy || <span className="text-slate-300">—</span>}</td>
-                  <td className="px-4 py-3"><StatusBadge status={r.status as ReplenishmentStatus} /></td>
+                  <td className="px-4 py-3">
+                    <StatusChanger
+                      id={r.id}
+                      status={r.status as ReplenishmentStatus}
+                      onChange={(next) => setRequests(prev => prev.map(x => x.id === r.id ? { ...x, status: next } : x))}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-slate-400"><ChevronRight size={16} /></td>
                 </tr>
               ))}
