@@ -87,36 +87,6 @@ function StatusChanger({ id, status, onChange }: { id: string; status: Replenish
   );
 }
 
-function ItemsTooltip({ items }: { items: { stockItemName: string; quantityRequested: number }[] }) {
-  const [show, setShow] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  return (
-    <div ref={ref} className="relative inline-block"
-      onMouseEnter={() => setShow(true)}
-      onMouseLeave={() => setShow(false)}>
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-full cursor-default transition-colors">
-        {items.length} <span className="text-slate-400">items</span>
-      </span>
-      {show && (
-        <div className="absolute left-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-3 min-w-[200px] max-w-[280px]">
-          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Items in this order</p>
-          <div className="space-y-1.5">
-            {items.map((item, i) => (
-              <div key={i} className="flex items-center justify-between gap-3">
-                <span className="text-xs text-slate-700 leading-tight">{item.stockItemName}</span>
-                <span className="text-xs font-semibold text-slate-900 flex-shrink-0">×{item.quantityRequested}</span>
-              </div>
-            ))}
-          </div>
-          <div className="border-t border-slate-100 mt-2 pt-2 flex items-center justify-between">
-            <span className="text-[10px] text-slate-400">Total units</span>
-            <span className="text-xs font-bold text-slate-800">{items.reduce((s, i) => s + i.quantityRequested, 0)}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 interface NewItemRow {
   stockItemId: string;
@@ -139,6 +109,7 @@ function ReplenishmentPageInner() {
   const [includeEOL, setIncludeEOL]     = useState(false);
   const [filterFrom, setFilterFrom]     = useState('');
   const [filterTo,   setFilterTo]       = useState('');
+  const [expandedRow, setExpandedRow]   = useState<string | null>(null);
   const { success, error: toastError } = useToast();
 
   // 3PL tracking alerts
@@ -419,32 +390,66 @@ function ReplenishmentPageInner() {
               </tr>
             </thead>
             <tbody>
-              {displayed.map((r, idx) => (
-                <tr key={r.id}
-                  className={`border-b border-slate-100 last:border-0 hover:bg-brand-50/30 cursor-pointer transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                  onClick={() => window.location.href = `/replenishment/${r.id}`}>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.date}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      r.store === 'Adelaide Popup' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'
-                    }`}>{r.store}</span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.orderNumber || <span className="text-slate-300">—</span>}</td>
-                  <td className="px-4 py-3">
-                    <ItemsTooltip items={r.items} />
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-800">{totalUnits(r)}</td>
-                  <td className="px-4 py-3 text-slate-600 text-xs">{r.requestedBy || <span className="text-slate-300">—</span>}</td>
-                  <td className="px-4 py-3">
-                    <StatusChanger
-                      id={r.id}
-                      status={r.status as ReplenishmentStatus}
-                      onChange={(next) => setRequests(prev => prev.map(x => x.id === r.id ? { ...x, status: next } : x))}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-slate-400"><ChevronRight size={16} /></td>
-                </tr>
-              ))}
+              {displayed.map((r, idx) => {
+                const isExpanded = expandedRow === r.id;
+                const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50';
+                return (
+                  <>
+                    <tr key={r.id}
+                      className={`border-b border-slate-100 hover:bg-brand-50/30 cursor-pointer transition-colors ${isExpanded ? 'bg-brand-50/20 border-l-2 border-l-brand-400' : rowBg}`}
+                      onClick={() => window.location.href = `/replenishment/${r.id}`}>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{r.date}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          r.store === 'Adelaide Popup' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'
+                        }`}>{r.store}</span>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{r.orderNumber || <span className="text-slate-300">—</span>}</td>
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setExpandedRow(isExpanded ? null : r.id)}
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full transition-all ${
+                            isExpanded
+                              ? 'bg-brand-600 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}>
+                          {r.items.length} <span className={isExpanded ? 'opacity-80' : 'text-slate-400'}>items</span>
+                          <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} style={{ fontSize: 9 }}>▾</span>
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-800">{totalUnits(r)}</td>
+                      <td className="px-4 py-3 text-slate-600 text-xs">{r.requestedBy || <span className="text-slate-300">—</span>}</td>
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <StatusChanger
+                          id={r.id}
+                          status={r.status as ReplenishmentStatus}
+                          onChange={(next) => setRequests(prev => prev.map(x => x.id === r.id ? { ...x, status: next } : x))}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-slate-400"><ChevronRight size={16} /></td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${r.id}-items`} className="border-b border-brand-100 border-l-2 border-l-brand-400">
+                        <td colSpan={8} className="px-6 pb-4 pt-2 bg-brand-50/20">
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Items in this order</p>
+                          <div className="flex flex-wrap gap-2">
+                            {r.items.map((item, i) => (
+                              <div key={i} className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                                <span className="text-xs text-slate-700">{item.stockItemName}</span>
+                                <span className="text-xs font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded-md">×{item.quantityRequested}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-1.5 ml-auto text-xs text-slate-500 self-center">
+                              <span className="text-slate-400">Total:</span>
+                              <span className="font-bold text-slate-800">{totalUnits(r)} units</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
             </tbody>
           </table>
           </div>
