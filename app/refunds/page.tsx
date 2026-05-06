@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   CreditCard, Plus, X, RefreshCw, CheckCircle, XCircle,
   ExternalLink, Clock, ChevronDown, ChevronUp, AlertTriangle, Pencil,
-  Copy, Check, ArrowUpDown, Search, User,
+  Copy, Check, ArrowUpDown, Search, User, RotateCcw,
 } from 'lucide-react';
 import { RefundRequest, RefundResolution, REFUND_REASONS, InternalNote } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -634,6 +635,15 @@ function RefundsInner() {
                             {copiedId === req.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                           </button>
                         </span>
+                        {req.reason === 'Customer Return' && (
+                          <Link
+                            href={`/returns?order=${encodeURIComponent(req.orderNumber)}`}
+                            title="View return entry"
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 transition-colors"
+                          >
+                            <RotateCcw size={9} /> Return
+                          </Link>
+                        )}
                         <StatusBadge status={req.status} />
                         {req.status === 'Processed' && req.resolution !== 'Pending' && (
                           <ResolutionBadge resolution={req.resolution} />

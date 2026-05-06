@@ -410,12 +410,20 @@ export default function ReturnsPage() {
   const [regionFilter, setRegionFilter] = useState<RegionFilter>('all');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [editingRequest, setEditingRequest] = useState<Return | null>(null);
+  const [reqSearch, setReqSearch]   = useState('');
 
   // Auto-open the Log Request slide-over when ?new=1 is in the URL (sidebar action link)
+  // Pre-fill search + switch to Requested tab when ?order=ORDERNUM is in the URL
+  // (linked from Refund Requests page for Customer Return refunds)
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       setMainTab('requested');
       setShowRequestForm(true);
+    }
+    const order = searchParams.get('order');
+    if (order) {
+      setMainTab('requested');
+      setReqSearch(order);
     }
   }, [searchParams]);
 
@@ -427,7 +435,6 @@ export default function ReturnsPage() {
   const [sortKey, setSortKey]       = useState<ReturnSortKey>('date');
   const [sortDir, setSortDir]       = useState<SortDir>('desc');
   const [copiedId, setCopiedId]     = useState<string | null>(null);
-  const [reqSearch, setReqSearch]   = useState('');
   const [procPage, setProcPage]     = useState(1);
   const [mineOnly, setMineOnly]     = useState(false);
 
