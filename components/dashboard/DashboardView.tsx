@@ -102,6 +102,7 @@ export function DashboardView() {
   const [refreshing, setRefreshing] = useState(false);
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [queue, setQueue] = useState<QueueData | null>(null);
+  const [queueError, setQueueError] = useState<string>('');
 
   async function load(showRefresh = false) {
     if (showRefresh) setRefreshing(true);
@@ -125,9 +126,12 @@ export function DashboardView() {
     }
     // Queue fetched separately — failure is non-fatal
     fetch('/api/commslayer/queue')
-      .then(r => r.ok ? r.json() : null)
-      .then(json => { if (json && !json.error) setQueue(json); })
-      .catch(() => {});
+      .then(r => r.json())
+      .then(json => {
+        if (json?.error) setQueueError(json.error);
+        else setQueue(json);
+      })
+      .catch((e) => setQueueError(e.message ?? 'Failed to load queue'));
   }
 
   useEffect(() => { load(); }, []);
@@ -231,7 +235,7 @@ export function DashboardView() {
       </div>
 
       {/* Live Queue Health (Commslayer) */}
-      {queue && (
+      {(queue || queueError) && (
         <div className="card p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -242,11 +246,16 @@ export function DashboardView() {
               <h2 className="text-sm font-semibold text-slate-800">Live Queue</h2>
               <span className="text-xs text-slate-400">· Commslayer</span>
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">
-              Updated {new Date(queue.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
-            </span>
+            {queue && (
+              <span className="text-[10px] text-slate-400 font-mono">
+                Updated {new Date(queue.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          {queueError && !queue && (
+            <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
+          )}
+          {queue && <div className="grid grid-cols-3 gap-4">
             {/* Open */}
             <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
               <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0">
@@ -316,7 +325,7 @@ export function DashboardView() {
                 <p className="text-[10px] text-slate-400">since first message</p>
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       )}
 
