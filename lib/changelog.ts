@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.10',
+    label: 'Daily Performance View',
+    date: '2026-05-06',
+    isLatest: true,
+    summary: 'Team Performance now supports a daily view, letting you check individual agent output for any specific day.',
+    changes: [
+      { category: 'Performance', text: 'Daily view — a new Day toggle sits alongside Month and Week on the Team Performance page. Step through individual days using the arrows, or jump straight back to Today with the shortcut button.' },
+      { category: 'Performance', text: 'Day-accurate scorecard — in Day mode, the agent scorecard shows replies sent that specific day against the daily KPI target, so you can see at a glance whether each agent is on track.' },
+      { category: 'Performance', text: 'Smart defaults — the page now defaults to Week view (more practical for day-to-day monitoring), and charts are hidden in Day mode since a single-day bar chart adds no value.' },
+    ],
+  },
+  {
     version: 'v2.9',
     label: 'Cross-linking & Session Fixes',
     date: '2026-05-06',
-    isLatest: true,
+    isLatest: false,
     summary: 'Refund requests now auto-link to their matching return record, the Submit Fault page correctly auto-fills your name, and the Returns page opens directly to a filtered order when linked from Refunds.',
     changes: [
       { category: 'Refunds', text: 'Return cross-link — the Refund Requests page now fetches return records on load and displays a "Return" badge on any refund whose order number matches an existing return entry. Clicking it takes you directly to that return\'s detail page.' },
