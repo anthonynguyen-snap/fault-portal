@@ -34,14 +34,14 @@ export type ChangelogVersion = {
 export const CHANGELOG: ChangelogVersion[] = [
   {
     version: 'v2.11',
-    label: 'Live Queue on Dashboard',
+    label: 'Today\'s Activity on Dashboard',
     date: '2026-05-06',
     isLatest: true,
-    summary: 'The dashboard now shows a live Commslayer queue card with open conversation count, unassigned tickets, and the age of the oldest waiting customer.',
+    summary: 'The dashboard now shows a Today\'s Activity card from Commslayer, surfacing tickets created, tickets closed, average first response time, and messages sent for the current day.',
     changes: [
-      { category: 'Dashboard', text: 'Live Queue card — a new card appears on the dashboard showing real-time Commslayer queue health: total open conversations, unassigned count, and how long the oldest conversation has been waiting.' },
-      { category: 'Dashboard', text: 'Colour-coded thresholds — unassigned and oldest-waiting metrics turn amber or red automatically (unassigned > 0 → amber, > 5 → red; oldest > 1h → amber, > 4h → red) so urgent queue states are impossible to miss.' },
-      { category: 'Dashboard', text: 'Non-fatal integration — if Commslayer is unreachable the card simply doesn\'t appear, so the rest of the dashboard is never affected.' },
+      { category: 'Dashboard', text: 'Today\'s Activity card — a new card on the dashboard pulls today\'s Commslayer report data: tickets created, tickets closed, average first response time, and total messages sent by the team.' },
+      { category: 'Dashboard', text: 'FRT colour coding — the first response time tile turns amber (> 1 hour) or red (> 2 hours) automatically, so a slow response day is immediately visible.' },
+      { category: 'Dashboard', text: 'Non-fatal integration — if Commslayer is unreachable or not configured the card simply doesn\'t appear, so the rest of the dashboard is never affected.' },
     ],
   },
   {
