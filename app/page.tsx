@@ -19,6 +19,10 @@ import {
   Send,
   Activity,
   CreditCard,
+  Inbox,
+  MessageSquare,
+  Mail,
+  UserX,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -168,6 +172,13 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
 
+  // Commslayer queue
+  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; fetchedAt: string; }
+  function fmtFRT(s: number) { if (!s || s <= 0) return '—'; const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); if (h>=24) return `${Math.floor(h/24)}d`; if (h>=1) return `${h}h ${m}m`; return `${m}m`; }
+  const [queue, setQueue] = useState<QueueData | null>(null);
+  const [queueError, setQueueError] = useState('');
+  const [queueLoading, setQueueLoading] = useState(true);
+
   async function loadStats() {
     try {
       const [dashRes, returnsRes] = await Promise.all([
@@ -186,6 +197,13 @@ export default function DashboardPage() {
       setLoading(false);
       setRefreshing(false);
     }
+    // Queue — non-fatal
+    setQueueLoading(true);
+    fetch('/api/commslayer/queue')
+      .then(r => r.json())
+      .then(j => { if (j?.error) setQueueError(j.error); else setQueue(j); })
+      .catch(e => setQueueError(e.message ?? 'Failed'))
+      .finally(() => setQueueLoading(false));
   }
 
   useEffect(() => { loadStats(); }, []);
@@ -315,6 +333,49 @@ export default function DashboardPage() {
 
       {/* ── Today's Team ─────────────────────────────────────────────────────── */}
       <TodaysTeam />
+
+      {/* ── Today's Activity (Commslayer) ────────────────────────────────────── */}
+      <div className="card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex">
+              <Inbox size={15} className="text-brand-600" />
+              {!queueLoading && !queueError && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-white animate-pulse" />}
+            </div>
+            <span className="text-sm font-semibold text-slate-800">Today's Activity</span>
+            <span className="text-xs text-slate-400">· Commslayer</span>
+          </div>
+          {queue && <span className="text-[10px] text-slate-400 font-mono">{queue.date} · {new Date(queue.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</span>}
+        </div>
+        {queueLoading && (
+          <div className="grid grid-cols-4 gap-3">
+            {[0,1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-slate-100 animate-pulse" />)}
+          </div>
+        )}
+        {!queueLoading && queueError && (
+          <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
+        )}
+        {!queueLoading && queue && (
+          <div className="grid grid-cols-4 gap-3">
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><MessageSquare size={14} className="text-brand-600" /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Created</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.created}</p><p className="text-[10px] text-slate-400">tickets today</p></div>
+            </div>
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><UserX size={14} className="text-emerald-600" /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Closed</p><p className="text-xl font-bold text-emerald-700 leading-tight">{queue.closed}</p><p className="text-[10px] text-slate-400">resolved today</p></div>
+            </div>
+            <div className={`flex items-center gap-2.5 p-3 rounded-xl border ${queue.frtSeconds > 7200 ? 'bg-red-50 border-red-100' : queue.frtSeconds > 3600 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${queue.frtSeconds > 7200 ? 'bg-red-100' : queue.frtSeconds > 3600 ? 'bg-amber-100' : 'bg-slate-100'}`}><Clock size={14} className={queue.frtSeconds > 7200 ? 'text-red-500' : queue.frtSeconds > 3600 ? 'text-amber-500' : 'text-slate-400'} /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Avg FRT</p><p className={`text-xl font-bold leading-tight ${queue.frtSeconds > 7200 ? 'text-red-600' : queue.frtSeconds > 3600 ? 'text-amber-600' : 'text-slate-900'}`}>{fmtFRT(queue.frtSeconds)}</p><p className="text-[10px] text-slate-400">first response</p></div>
+            </div>
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0"><Mail size={14} className="text-indigo-500" /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Chart + AI Briefing (2/3 + 1/3) ─────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
