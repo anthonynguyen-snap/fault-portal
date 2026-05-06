@@ -200,28 +200,48 @@ function SummaryCard({ icon: Icon, label, value, sub, color = 'slate' }: {
 export default function PerformancePage() {
   const now = new Date();
 
-  // ── View mode: month vs week ────────────────────────────────────────────────
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
+  // ── View mode: month / week / day ───────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('week');
   const [year,  setYear]  = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(now));
+  const [dayDate,   setDayDate]   = useState<Date>(() => {
+    const d = new Date(now); d.setHours(0, 0, 0, 0); return d;
+  });
 
-  const { from, to } = viewMode === 'month' ? monthRange(year, month) : weekRange(weekStart);
+  const { from, to } = viewMode === 'month'
+    ? monthRange(year, month)
+    : viewMode === 'week'
+    ? weekRange(weekStart)
+    : { from: toISO(dayDate), to: toISO(dayDate) };
+
   const days = daysBetween(from, to);
+
+  const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   // period label
   const periodLabel = viewMode === 'month'
     ? `${MONTH_NAMES[month - 1]} ${year}`
-    : (() => {
+    : viewMode === 'week'
+    ? (() => {
         const end = new Date(weekStart); end.setDate(weekStart.getDate() + 6);
         return `${weekStart.getDate()} ${MONTH_NAMES[weekStart.getMonth()]} – ${end.getDate()} ${MONTH_NAMES[end.getMonth()]}`;
+      })()
+    : (() => {
+        const isToday = toISO(dayDate) === toISO(now);
+        const isYesterday = toISO(dayDate) === toISO(new Date(now.getTime() - 86_400_000));
+        if (isToday) return 'Today';
+        if (isYesterday) return 'Yesterday';
+        return `${DAY_NAMES[dayDate.getDay()]} ${dayDate.getDate()} ${MONTH_NAMES[dayDate.getMonth()]}`;
       })();
 
   function prevPeriod() {
     if (viewMode === 'month') {
       if (month === 1) { setYear(y => y - 1); setMonth(12); } else setMonth(m => m - 1);
-    } else {
+    } else if (viewMode === 'week') {
       setWeekStart(w => { const d = new Date(w); d.setDate(d.getDate() - 7); return d; });
+    } else {
+      setDayDate(d => { const n = new Date(d); n.setDate(d.getDate() - 1); return n; });
     }
   }
   function nextPeriod() {
@@ -229,15 +249,20 @@ export default function PerformancePage() {
       const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
       if (isCurrent) return;
       if (month === 12) { setYear(y => y + 1); setMonth(1); } else setMonth(m => m + 1);
-    } else {
+    } else if (viewMode === 'week') {
       const nextMonday = new Date(weekStart); nextMonday.setDate(weekStart.getDate() + 7);
       if (nextMonday > now) return;
       setWeekStart(nextMonday);
+    } else {
+      if (toISO(dayDate) >= toISO(now)) return;
+      setDayDate(d => { const n = new Date(d); n.setDate(d.getDate() + 1); return n; });
     }
   }
   const isCurrentPeriod = viewMode === 'month'
     ? (year === now.getFullYear() && month === now.getMonth() + 1)
-    : (new Date(weekStart).setDate(weekStart.getDate() + 7) > now.getTime());
+    : viewMode === 'week'
+    ? (new Date(weekStart).setDate(weekStart.getDate() + 7) > now.getTime())
+    : (toISO(dayDate) >= toISO(now));
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const [data,    setData]    = useState<PerformanceData | null>(null);
@@ -352,22 +377,21 @@ export default function PerformancePage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Month / Week toggle */}
+          {/* Month / Week / Day toggle */}
           <div className="flex items-center bg-slate-100 rounded-lg p-0.5 text-xs font-semibold">
-            <button
-              onClick={() => setViewMode('month')}
-              className={`px-3 py-1.5 rounded-md transition-all ${viewMode === 'month' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >Month</button>
-            <button
-              onClick={() => setViewMode('week')}
-              className={`px-3 py-1.5 rounded-md transition-all ${viewMode === 'week' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >Week</button>
+            {(['month', 'week', 'day'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3 py-1.5 rounded-md transition-all capitalize ${viewMode === mode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >{mode.charAt(0).toUpperCase() + mode.slice(1)}</button>
+            ))}
           </div>
 
           {/* Period navigator */}
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1 shadow-sm">
             <button onClick={prevPeriod} className="p-1.5 rounded hover:bg-slate-100 text-slate-500 transition-colors"><ChevronLeft size={15} /></button>
-            <span className="text-sm font-semibold text-slate-800 px-3 min-w-[140px] text-center">{periodLabel}</span>
+            <span className="text-sm font-semibold text-slate-800 px-3 min-w-[110px] text-center">{periodLabel}</span>
             <button onClick={nextPeriod} disabled={isCurrentPeriod}
               className="p-1.5 rounded hover:bg-slate-100 text-slate-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
               <ChevronRight size={15} />
@@ -375,6 +399,19 @@ export default function PerformancePage() {
           </div>
         </div>
       </div>
+
+      {/* Day mode: Today shortcut */}
+      {viewMode === 'day' && toISO(dayDate) !== toISO(now) && (
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => { const d = new Date(now); d.setHours(0, 0, 0, 0); setDayDate(d); }}
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 transition-colors font-medium"
+          >
+            ↩ Today
+          </button>
+          <span className="text-xs text-slate-400">Viewing {periodLabel}</span>
+        </div>
+      )}
 
       {/* KPI pills */}
       <div className="flex items-center gap-2 mb-5 flex-wrap">
@@ -466,8 +503,8 @@ export default function PerformancePage() {
             )}
           </div>
 
-          {/* Charts */}
-          {(volumeChartData.length > 0 || csatChartData.length > 0) && (
+          {/* Charts — hidden for day view (single-point charts aren't useful) */}
+          {viewMode !== 'day' && (volumeChartData.length > 0 || csatChartData.length > 0) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
               {/* Daily volume */}
               {volumeChartData.length > 0 && (
