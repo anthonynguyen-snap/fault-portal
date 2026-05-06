@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.11',
+    label: 'Live Queue on Dashboard',
+    date: '2026-05-06',
+    isLatest: true,
+    summary: 'The dashboard now shows a live Commslayer queue card with open conversation count, unassigned tickets, and the age of the oldest waiting customer.',
+    changes: [
+      { category: 'Dashboard', text: 'Live Queue card — a new card appears on the dashboard showing real-time Commslayer queue health: total open conversations, unassigned count, and how long the oldest conversation has been waiting.' },
+      { category: 'Dashboard', text: 'Colour-coded thresholds — unassigned and oldest-waiting metrics turn amber or red automatically (unassigned > 0 → amber, > 5 → red; oldest > 1h → amber, > 4h → red) so urgent queue states are impossible to miss.' },
+      { category: 'Dashboard', text: 'Non-fatal integration — if Commslayer is unreachable the card simply doesn\'t appear, so the rest of the dashboard is never affected.' },
+    ],
+  },
+  {
     version: 'v2.10',
     label: 'Daily Performance View',
     date: '2026-05-06',
-    isLatest: true,
+    isLatest: false,
     summary: 'Team Performance now supports a daily view, letting you check individual agent output for any specific day.',
     changes: [
       { category: 'Performance', text: 'Daily view — a new Day toggle sits alongside Month and Week on the Team Performance page. Step through individual days using the arrows, or jump straight back to Today with the shortcut button.' },
