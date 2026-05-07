@@ -33,10 +33,23 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.12',
+    label: 'Returns Form QOL',
+    date: '2026-05-07',
+    isLatest: true,
+    summary: 'Logging returns is now faster — auto-fill from return requests includes product items, fee deductions calculate live, and a success screen lets you log the next return without navigating away.',
+    changes: [
+      { category: 'Returns', text: 'Item auto-population — when a return request is matched by order number, the form now pre-fills the full list of items (product/SKU, condition, decision) logged by the team, not just customer details.' },
+      { category: 'Returns', text: 'Delete pre-filled items — if a customer didn\'t send back one of the expected items, you can remove it with the trash icon. The delete button is always visible when items were pulled from a linked request.' },
+      { category: 'Returns', text: 'Automatic fee deductions — selecting "Refund - Return Label Fee" deducts $9.50 from the gross amount automatically; "Refund + Restocking Fee" deducts an entered percentage. A live breakdown shows gross, deduction, and net refund before saving.' },
+      { category: 'Returns', text: 'Post-submit success screen — after logging a return, instead of redirecting to the list you\'re shown a confirmation with two options: View Returns or Log Another. Your "Processed By" name is remembered so you don\'t have to re-enter it.' },
+    ],
+  },
+  {
     version: 'v2.11',
     label: 'Today\'s Activity on Dashboard',
     date: '2026-05-06',
-    isLatest: true,
+    isLatest: false,
     summary: 'The dashboard now shows a Today\'s Activity card from Commslayer, surfacing tickets created, tickets closed, average first response time, and messages sent for the current day.',
     changes: [
       { category: 'Dashboard', text: 'Today\'s Activity card — a new card on the dashboard pulls today\'s Commslayer report data: tickets created, tickets closed, average first response time, and total messages sent by the team.' },
