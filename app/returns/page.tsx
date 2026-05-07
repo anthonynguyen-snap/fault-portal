@@ -541,7 +541,12 @@ export default function ReturnsPage() {
 
   const pendingRequests   = filteredRequests.filter(r => !r.parcelReceived);
   const receivedRequests  = filteredRequests.filter(r => r.parcelReceived);
-  const visiblePendingRequests = requestQueue === 'ready' ? [] : pendingRequests;
+  const overdueFilteredRequests = pendingRequests.filter(r => daysSince(r.date) >= 7);
+  const visiblePendingRequests = requestQueue === 'ready'
+    ? []
+    : requestQueue === 'all'
+      ? overdueFilteredRequests
+      : pendingRequests;
   const visibleReceivedRequests = requestQueue === 'awaiting' ? [] : receivedRequests;
 
   // ── Processed tab data ────────────────────────────────────────────────────
@@ -618,9 +623,11 @@ export default function ReturnsPage() {
       setMainTab(readyRequests.length > 0 || overdueRequests.length > 0 ? 'requested' : 'processed');
       setRequestQueue('all');
       if (readyRequests.length === 0 && overdueRequests.length === 0) setFilter('follow-up');
+      else setFilter('all');
       return;
     }
     setMainTab('requested');
+    setFilter('all');
     setRequestQueue(target === 'awaiting' ? 'awaiting' : 'ready');
   }
 
@@ -693,7 +700,7 @@ export default function ReturnsPage() {
               {needsActionCount > 0 ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
             </span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">{overdueRequests.length} overdue · {readyRequests.length} ready · {pendingFollowUp.length} follow-ups</p>
+          <p className="mt-2 text-xs text-slate-500">{overdueRequests.length} overdue awaiting parcel · {readyRequests.length} ready to process · {pendingFollowUp.length} follow-up{pendingFollowUp.length === 1 ? '' : 's'}</p>
         </button>
         <button
           type="button"
@@ -793,15 +800,33 @@ export default function ReturnsPage() {
 
           {loading ? <TableSkeleton rows={5} cols={5} /> : (
             <div className="space-y-6">
+              {requestQueue === 'all' && pendingFollowUp.length > 0 && (
+                <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-amber-200 bg-amber-50">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900">
+                      {pendingFollowUp.length} processed return{pendingFollowUp.length === 1 ? '' : 's'} need follow-up
+                    </p>
+                    <p className="text-xs text-amber-700 mt-0.5">These live in the processed returns follow-up queue.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setMainTab('processed'); setFilter('follow-up'); setProcPage(1); }}
+                    className="text-xs font-semibold bg-white text-amber-800 border border-amber-200 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    View Follow-ups
+                  </button>
+                </div>
+              )}
+
               {/* Awaiting parcel */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Truck size={14} className="text-orange-500" />
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Awaiting Parcel</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{requestQueue === 'all' ? 'Overdue Awaiting Parcel' : 'Awaiting Parcel'}</span>
                   <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{visiblePendingRequests.length}</span>
                 </div>
                 {visiblePendingRequests.length === 0 ? (
-                  requestQueue !== 'ready' && <div className="card p-6 text-center text-sm text-slate-400">No pending requests</div>
+                  requestQueue !== 'ready' && <div className="card p-6 text-center text-sm text-slate-400">{requestQueue === 'all' ? 'No overdue awaiting-parcel requests' : 'No pending requests'}</div>
                 ) : (
                   <div className="card overflow-hidden">
                     <div className="overflow-x-auto">
