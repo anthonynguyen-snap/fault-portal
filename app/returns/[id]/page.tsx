@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Mail, Save, CheckCircle, ExternalLink } from 'lucide-react';
+import { ChevronLeft, Mail, Save, CheckCircle, ExternalLink, FileText } from 'lucide-react';
 import { Return, ReturnStatus, FollowUpStatus, ReturnCondition, ReturnDecision, ReturnItem, InternalNote } from '@/types';
 import { InternalNotes } from '@/components/ui/InternalNotes';
 
@@ -209,12 +209,20 @@ export default function ReturnDetailPage() {
               </a>
             )}
             <p className="text-sm text-slate-500 mt-2">Order: <span className="font-mono font-medium text-slate-700">{data.orderNumber}</span></p>
-            {data.conversationLink && (
-              <a href={data.conversationLink} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 mt-3 text-sm text-brand-600 hover:underline font-medium">
-                <ExternalLink size={13} /> View Conversation
-              </a>
-            )}
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <Link
+                href={`/orders?order=${encodeURIComponent(data.orderNumber)}`}
+                className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline font-medium"
+              >
+                <FileText size={13} /> View Order Timeline
+              </Link>
+              {data.conversationLink && (
+                <a href={data.conversationLink} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline font-medium">
+                  <ExternalLink size={13} /> View Conversation
+                </a>
+              )}
+            </div>
           </div>
 
           {/* Return Items */}

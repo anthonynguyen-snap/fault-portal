@@ -197,8 +197,15 @@ interface SearchResult {
   href: string;
 }
 
+interface RecentOrder {
+  orderNumber: string;
+  customerName: string;
+  total: number;
+  viewedAt: string;
+}
+
 interface CommandItem {
-  kind: 'action' | 'page' | 'result';
+  kind: 'action' | 'page' | 'result' | 'recent';
   id: string;
   title: string;
   subtitle: string;
@@ -283,6 +290,16 @@ function resultToCommand(result: SearchResult): CommandItem {
   };
 }
 
+function recentOrderToCommand(order: RecentOrder): CommandItem {
+  return {
+    kind: 'recent',
+    id: `recent-${order.orderNumber}`,
+    title: order.orderNumber,
+    subtitle: `${order.customerName || 'Recent order'} · ${order.total} portal record${order.total === 1 ? '' : 's'}`,
+    href: `/orders?order=${encodeURIComponent(order.orderNumber)}`,
+  };
+}
+
 export default function Header() {
   const router = useRouter();
   const { toggle } = useSidebar();
@@ -292,6 +309,7 @@ export default function Header() {
   const [isLoading, setIsLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout>();
@@ -308,6 +326,25 @@ export default function Header() {
     }
     document.addEventListener('keydown', handleGlobalKey);
     return () => document.removeEventListener('keydown', handleGlobalKey);
+  }, []);
+
+  useEffect(() => {
+    function loadRecentOrders() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem('portal_recent_orders') || '[]');
+        setRecentOrders(Array.isArray(parsed) ? parsed.slice(0, 5) : []);
+      } catch {
+        setRecentOrders([]);
+      }
+    }
+
+    loadRecentOrders();
+    window.addEventListener('storage', loadRecentOrders);
+    window.addEventListener('portal:recent-orders-updated', loadRecentOrders);
+    return () => {
+      window.removeEventListener('storage', loadRecentOrders);
+      window.removeEventListener('portal:recent-orders-updated', loadRecentOrders);
+    };
   }, []);
 
   // Debounced search
@@ -372,14 +409,15 @@ export default function Header() {
     .filter(item => matchesCommand(item, q))
     .sort((a, b) => Number(b.shortcut?.toLowerCase() === q) - Number(a.shortcut?.toLowerCase() === q))
     .slice(0, query ? 5 : 4);
+  const recentCommands = recentOrders.map(recentOrderToCommand).filter(item => matchesCommand(item, q)).slice(0, query ? 5 : 3);
   const pageCommands = PAGE_COMMANDS.filter(item => matchesCommand(item, q)).slice(0, query ? 6 : 5);
   const resultCommands = results.map(resultToCommand);
-  const hasResults = actionCommands.length > 0 || pageCommands.length > 0 || resultCommands.length > 0;
+  const hasResults = actionCommands.length > 0 || recentCommands.length > 0 || pageCommands.length > 0 || resultCommands.length > 0;
 
-  // Flat ordered list for keyboard navigation: actions → pages → record results
+  // Flat ordered list for keyboard navigation: actions → recents → pages → record results
   const flatResults = useMemo(
-    () => [...actionCommands, ...pageCommands, ...resultCommands],
-    [actionCommands, pageCommands, resultCommands]
+    () => [...actionCommands, ...recentCommands, ...pageCommands, ...resultCommands],
+    [actionCommands, recentCommands, pageCommands, resultCommands]
   );
 
   // Reset focused index whenever results change
@@ -464,8 +502,9 @@ export default function Header() {
                   <div className="max-h-[420px] overflow-y-auto">
                     {[
                       { label: 'Quick Actions', items: actionCommands, offset: 0 },
-                      { label: 'Pages', items: pageCommands, offset: actionCommands.length },
-                      { label: 'Records', items: resultCommands, offset: actionCommands.length + pageCommands.length },
+                      { label: 'Recent Orders', items: recentCommands, offset: actionCommands.length },
+                      { label: 'Pages', items: pageCommands, offset: actionCommands.length + recentCommands.length },
+                      { label: 'Records', items: resultCommands, offset: actionCommands.length + recentCommands.length + pageCommands.length },
                     ].filter(group => group.items.length > 0).map(group => (
                       <div key={group.label} className="border-b border-slate-100 last:border-b-0">
                         <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-600">{group.label}</div>
@@ -482,11 +521,11 @@ export default function Header() {
                               <span className={`mt-0.5 px-2 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${
                                 item.kind === 'action'
                                   ? 'bg-brand-100 text-brand-700'
-                                  : item.kind === 'page'
+                                  : item.kind === 'page' || item.kind === 'recent'
                                     ? 'bg-slate-100 text-slate-600'
                                     : getBadgeColor(item.resultType ?? 'case')
                               }`}>
-                                {item.kind === 'action' ? 'Action' : item.kind === 'page' ? 'Page' : getTypeLabel(item.resultType ?? 'case')}
+                                {item.kind === 'action' ? 'Action' : item.kind === 'page' ? 'Page' : item.kind === 'recent' ? 'Recent' : getTypeLabel(item.resultType ?? 'case')}
                               </span>
                               <div className="min-w-0">
                                 <div className="font-medium text-sm text-slate-900 truncate">{item.title}</div>

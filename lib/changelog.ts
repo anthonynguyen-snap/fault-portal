@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.17',
+    label: 'Portal QOL Links',
+    date: '2026-05-07',
+    isLatest: true,
+    summary: 'Order numbers are now more connected across the portal, with recent order recall, timeline links, and smoother pre-filled actions from customer-care history.',
+    changes: [
+      { category: 'Orders', text: 'Recent orders — the command menu now remembers recently viewed order timelines so you can reopen customer context quickly.' },
+      { category: 'Orders', text: 'Timeline deep links — return details, refund rows, and timeline quick actions now link back into the unified Order Timeline.' },
+      { category: 'Refunds', text: 'Prefilled refund requests — starting a refund from an order timeline now carries the order number into the refund form.' },
+      { category: 'Cases', text: 'Prefilled fault cases — starting a fault case from an order timeline now carries the order number into the case form.' },
+      { category: 'Returns', text: 'Sticky office return save bar — the Process Office Return form keeps Cancel and Save visible while you work through longer returns.' },
+    ],
+  },
+  {
     version: 'v2.16',
     label: 'Order Timeline',
     date: '2026-05-07',
-    isLatest: true,
+    isLatest: false,
     summary: 'Order Lookup is now a unified timeline that combines fault cases, returns, refunds, summary status, and quick actions in one customer-care view.',
     changes: [
       { category: 'Orders', text: 'Unified timeline — searching an order now shows cases, return records, and refund requests in one chronological history.' },

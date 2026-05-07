@@ -57,6 +57,13 @@ interface OrderResults {
   total: number;
 }
 
+interface RecentOrder {
+  orderNumber: string;
+  customerName: string;
+  total: number;
+  viewedAt: string;
+}
+
 type TimelineEvent = {
   id: string;
   type: 'case' | 'refund' | 'return';
@@ -166,6 +173,27 @@ function buildTimeline(results: OrderResults): TimelineEvent[] {
     .sort((a, b) => normalizeDate(b.date) - normalizeDate(a.date));
 }
 
+function rememberRecentOrder(results: OrderResults, customerName: string) {
+  if (typeof window === 'undefined' || !results.orderNumber) return;
+  try {
+    const key = 'portal_recent_orders';
+    const existing = JSON.parse(localStorage.getItem(key) || '[]') as RecentOrder[];
+    const next = [
+      {
+        orderNumber: results.orderNumber,
+        customerName: customerName === '—' ? '' : customerName,
+        total: results.total,
+        viewedAt: new Date().toISOString(),
+      },
+      ...existing.filter(item => item.orderNumber.toLowerCase() !== results.orderNumber.toLowerCase()),
+    ].slice(0, 5);
+    localStorage.setItem(key, JSON.stringify(next));
+    window.dispatchEvent(new Event('portal:recent-orders-updated'));
+  } catch {
+    // Recent orders are a convenience only.
+  }
+}
+
 function SummaryChip({ label, active, tone = 'slate' }: { label: string; active: boolean; tone?: 'slate' | 'blue' | 'amber' | 'red' | 'emerald' }) {
   if (!active) return null;
   const map = {
@@ -267,6 +295,10 @@ export default function OrderLookupPage() {
   const hasPendingRefund = !!results?.refunds.some(r => r.status === 'Pending');
   const hasAwaitingReturn = !!results?.returns.some(r => !['Closed', 'Processed'].includes(r.status));
 
+  useEffect(() => {
+    if (results) rememberRecentOrder(results, customerName);
+  }, [results, customerName]);
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-6">
@@ -342,7 +374,7 @@ export default function OrderLookupPage() {
 
           <div className="flex flex-wrap gap-2">
             <Link href={`/returns?order=${searchHref}`} className="btn-secondary text-sm"><RotateCcw size={14} /> Log Return Request</Link>
-            <Link href="/returns/new" className="btn-secondary text-sm"><PlusCircle size={14} /> Process Office Return</Link>
+            <Link href={`/returns/new?order=${searchHref}`} className="btn-secondary text-sm"><PlusCircle size={14} /> Process Office Return</Link>
             <Link href={`/refunds?new=1&order=${searchHref}`} className="btn-secondary text-sm"><CreditCard size={14} /> Request Refund</Link>
             <Link href={`/cases/new?order=${searchHref}`} className="btn-secondary text-sm"><AlertTriangle size={14} /> Submit Fault Case</Link>
           </div>

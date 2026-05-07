@@ -90,6 +90,10 @@ export default function NewReturnPage() {
     const saved = localStorage.getItem(PROCESSED_BY_KEY) || '';
     setForm(blankForm(saved));
     const requestId = searchParams.get('requestId');
+    const orderParam = searchParams.get('order');
+    if (orderParam && !requestId) {
+      setForm(prev => ({ ...prev, orderNumber: orderParam }));
+    }
     fetch('/api/returns?stage=requested')
       .then(r => r.json())
       .then(d => {
@@ -497,7 +501,18 @@ export default function NewReturnPage() {
 
         {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{error}</p>}
 
-        <div className="flex gap-3 pb-8">
+        {form.orderNumber.trim() && (
+          <div className="flex justify-end">
+            <Link
+              href={`/orders?order=${encodeURIComponent(form.orderNumber.trim())}`}
+              className="text-xs font-medium text-brand-600 hover:text-brand-700 hover:underline"
+            >
+              View Order Timeline
+            </Link>
+          </div>
+        )}
+
+        <div className="sticky bottom-0 z-20 -mx-3 flex gap-3 border-t border-slate-200 bg-slate-50/95 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
           <Link href="/returns" className="btn-secondary flex-1 text-center">Cancel</Link>
           <button type="submit" disabled={submitting} className="btn-primary flex-1">
             {submitting ? 'Saving…' : 'Save Processed Return'}

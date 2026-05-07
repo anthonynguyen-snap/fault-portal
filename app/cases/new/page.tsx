@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Upload, X, CheckCircle, AlertCircle, ChevronLeft, PlusCircle,
   File, Image, Video, Zap, LayoutList, ChevronDown, ChevronUp,
@@ -36,6 +36,7 @@ function getFileIcon(type: string) {
 
 export default function NewCasePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [products, setProducts] = useState<Product[]>([]);
@@ -89,6 +90,12 @@ export default function NewCasePage() {
       setForm(f => ({ ...f, submittedBy: user.name }));
     }
   }, [user, isAdmin]);
+
+  useEffect(() => {
+    const order = searchParams.get('order');
+    if (!order) return;
+    setForm(f => f.orderNumber ? f : { ...f, orderNumber: order });
+  }, [searchParams]);
 
   // When switching modes, auto-expand More Details if it has values
   function handleModeSwitch(newMode: Mode) {

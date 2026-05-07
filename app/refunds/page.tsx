@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   CreditCard, Plus, X, RefreshCw, CheckCircle, XCircle,
   ExternalLink, Clock, ChevronDown, ChevronUp, AlertTriangle, Pencil,
-  Copy, Check, ArrowUpDown, Search, User, RotateCcw,
+  Copy, Check, ArrowUpDown, Search, User, RotateCcw, FileText,
 } from 'lucide-react';
 import { RefundRequest, RefundResolution, REFUND_REASONS, InternalNote } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -226,11 +226,18 @@ function RefundsInner() {
 
   // Auto-open a specific refund if ?open=id is in the URL
   const openId = searchParams.get('open');
+  const orderParam = searchParams.get('order') || '';
   useEffect(() => {
     if (!openId || loading || requests.length === 0) return;
     const target = requests.find(r => r.id === openId);
     if (target) openEdit(target);
   }, [openId, loading, requests]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (searchParams.get('new') !== '1' || editingId || !orderParam) return;
+    setShowForm(true);
+    setForm(f => f.orderNumber ? f : { ...f, orderNumber: orderParam });
+  }, [searchParams, orderParam, editingId]);
 
   function resetForm() {
     // Auto-fill submittedBy for staff; leave blank for admin to pick
@@ -653,6 +660,13 @@ function RefundsInner() {
                             {copiedId === req.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                           </button>
                         </span>
+                        <Link
+                          href={`/orders?order=${encodeURIComponent(req.orderNumber)}`}
+                          title="View order timeline"
+                          className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 transition-colors"
+                        >
+                          <FileText size={9} /> Timeline
+                        </Link>
                         {(() => {
                           const returnId = returnsByOrder.get(req.orderNumber.trim().toLowerCase());
                           if (!returnId) return null;
