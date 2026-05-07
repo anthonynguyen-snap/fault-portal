@@ -401,7 +401,7 @@ type MainTab = 'requested' | 'processed';
 type FilterTab = 'all' | ReturnStatus | 'follow-up';
 type ReturnSortKey = 'date' | 'customerName' | 'totalRefundAmount' | 'status';
 type SortDir = 'asc' | 'desc';
-type RequestQueue = 'all' | 'awaiting' | 'ready';
+type RequestQueue = 'awaiting' | 'ready';
 
 export default function ReturnsPage() {
   const { user } = useAuth();
@@ -409,7 +409,7 @@ export default function ReturnsPage() {
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [loading, setLoading]       = useState(true);
   const [mainTab, setMainTab]       = useState<MainTab>('requested');
-  const [requestQueue, setRequestQueue] = useState<RequestQueue>('all');
+  const [requestQueue, setRequestQueue] = useState<RequestQueue>('awaiting');
   const [regionFilter, setRegionFilter] = useState<RegionFilter>('all');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [editingRequest, setEditingRequest] = useState<Return | null>(null);
@@ -541,12 +541,7 @@ export default function ReturnsPage() {
 
   const pendingRequests   = filteredRequests.filter(r => !r.parcelReceived);
   const receivedRequests  = filteredRequests.filter(r => r.parcelReceived);
-  const overdueFilteredRequests = pendingRequests.filter(r => daysSince(r.date) >= 7);
-  const visiblePendingRequests = requestQueue === 'ready'
-    ? []
-    : requestQueue === 'all'
-      ? overdueFilteredRequests
-      : pendingRequests;
+  const visiblePendingRequests = requestQueue === 'ready' ? [] : pendingRequests;
   const visibleReceivedRequests = requestQueue === 'awaiting' ? [] : receivedRequests;
 
   // ── Processed tab data ────────────────────────────────────────────────────
@@ -601,9 +596,7 @@ export default function ReturnsPage() {
   };
 
   const pendingFollowUp = teamFiltered(processed).filter(r => r.followUpStatus === 'Pending');
-  const overdueRequests = requests.filter(r => !r.parcelReceived && daysSince(r.date) >= 7);
   const readyRequests = requests.filter(r => r.parcelReceived);
-  const needsActionCount = overdueRequests.length + readyRequests.length + pendingFollowUp.length;
   const currentMonthRefundTotal = processed
     .filter(r => {
       const d = new Date(r.date.includes('T') ? r.date : `${r.date}T00:00:00`);
@@ -612,18 +605,18 @@ export default function ReturnsPage() {
     })
     .reduce((sum, r) => sum + r.totalRefundAmount, 0);
 
-  function openWorkflow(target: 'needs-action' | 'awaiting' | 'ready' | 'processed') {
+  function openWorkflow(target: 'awaiting' | 'ready' | 'follow-up' | 'processed') {
     if (target === 'processed') {
       setMainTab('processed');
       setFilter('all');
-      setRequestQueue('all');
+      setRequestQueue('awaiting');
       return;
     }
-    if (target === 'needs-action') {
-      setMainTab(readyRequests.length > 0 || overdueRequests.length > 0 ? 'requested' : 'processed');
-      setRequestQueue('all');
-      if (readyRequests.length === 0 && overdueRequests.length === 0) setFilter('follow-up');
-      else setFilter('all');
+    if (target === 'follow-up') {
+      setMainTab('processed');
+      setFilter('follow-up');
+      setRequestQueue('awaiting');
+      setProcPage(1);
       return;
     }
     setMainTab('requested');
@@ -688,33 +681,17 @@ export default function ReturnsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
         <button
           type="button"
-          onClick={() => openWorkflow('needs-action')}
-          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Needs Action</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{needsActionCount}</p>
-            </div>
-            <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${needsActionCount > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-              {needsActionCount > 0 ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">{overdueRequests.length} overdue awaiting parcel · {readyRequests.length} ready to process · {pendingFollowUp.length} follow-up{pendingFollowUp.length === 1 ? '' : 's'}</p>
-        </button>
-        <button
-          type="button"
           onClick={() => openWorkflow('awaiting')}
           className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Awaiting Parcel</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Awaiting Customer</p>
               <p className="mt-1 text-2xl font-bold text-slate-900">{requests.length - readyRequests.length}</p>
             </div>
             <span className="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center"><Truck size={18} /></span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">{overdueRequests.length > 0 ? `${overdueRequests.length} older than 7 days` : 'No overdue requests'}</p>
+          <p className="mt-2 text-xs text-slate-500">Return requested, parcel not in office yet</p>
         </button>
         <button
           type="button"
@@ -729,6 +706,22 @@ export default function ReturnsPage() {
             <span className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><Package size={18} /></span>
           </div>
           <p className="mt-2 text-xs text-slate-500">Parcels marked received</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => openWorkflow('follow-up')}
+          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Follow-up Required</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{pendingFollowUp.length}</p>
+            </div>
+            <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${pendingFollowUp.length > 0 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              {pendingFollowUp.length > 0 ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Only returns explicitly marked for follow-up</p>
         </button>
         <button
           type="button"
@@ -749,16 +742,16 @@ export default function ReturnsPage() {
       {/* Workflow tabs */}
       <div className="flex flex-wrap gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
         {([
-          { key: 'needs-action', label: 'Needs Action', count: needsActionCount },
-          { key: 'awaiting', label: 'Awaiting Parcel', count: requests.length - readyRequests.length },
+          { key: 'awaiting', label: 'Awaiting Customer', count: requests.length - readyRequests.length },
           { key: 'ready', label: 'Ready to Process', count: readyRequests.length },
+          { key: 'follow-up', label: 'Follow-up Required', count: pendingFollowUp.length },
           { key: 'processed', label: 'Processed', count: processed.length },
         ] as const).map(({ key, label, count }) => {
           const active =
             (key === 'processed' && mainTab === 'processed' && filter !== 'follow-up') ||
             (key === 'awaiting' && mainTab === 'requested' && requestQueue === 'awaiting') ||
             (key === 'ready' && mainTab === 'requested' && requestQueue === 'ready') ||
-            (key === 'needs-action' && ((mainTab === 'requested' && requestQueue === 'all') || filter === 'follow-up'));
+            (key === 'follow-up' && mainTab === 'processed' && filter === 'follow-up');
           return (
             <button key={key} onClick={() => openWorkflow(key)}
               className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
@@ -800,33 +793,15 @@ export default function ReturnsPage() {
 
           {loading ? <TableSkeleton rows={5} cols={5} /> : (
             <div className="space-y-6">
-              {requestQueue === 'all' && pendingFollowUp.length > 0 && (
-                <div className="card p-4 flex flex-wrap items-center justify-between gap-3 border-amber-200 bg-amber-50">
-                  <div>
-                    <p className="text-sm font-semibold text-amber-900">
-                      {pendingFollowUp.length} processed return{pendingFollowUp.length === 1 ? '' : 's'} need follow-up
-                    </p>
-                    <p className="text-xs text-amber-700 mt-0.5">These live in the processed returns follow-up queue.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setMainTab('processed'); setFilter('follow-up'); setProcPage(1); }}
-                    className="text-xs font-semibold bg-white text-amber-800 border border-amber-200 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    View Follow-ups
-                  </button>
-                </div>
-              )}
-
               {/* Awaiting parcel */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Truck size={14} className="text-orange-500" />
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">{requestQueue === 'all' ? 'Overdue Awaiting Parcel' : 'Awaiting Parcel'}</span>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Awaiting Customer</span>
                   <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{visiblePendingRequests.length}</span>
                 </div>
                 {visiblePendingRequests.length === 0 ? (
-                  requestQueue !== 'ready' && <div className="card p-6 text-center text-sm text-slate-400">{requestQueue === 'all' ? 'No overdue awaiting-parcel requests' : 'No pending requests'}</div>
+                  requestQueue !== 'ready' && <div className="card p-6 text-center text-sm text-slate-400">No requests waiting on the customer</div>
                 ) : (
                   <div className="card overflow-hidden">
                     <div className="overflow-x-auto">
@@ -910,7 +885,7 @@ export default function ReturnsPage() {
                                   disabled={updatingId === r.id}
                                   className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
                                 >
-                                  <CheckCircle2 size={12} /> Mark Received
+                                  <CheckCircle2 size={12} /> Parcel Arrived
                                 </button>
                                 <Link href={`/returns/${r.id}`} className="text-slate-400 hover:text-brand-600 transition-colors">
                                   <ChevronRight size={18} />
