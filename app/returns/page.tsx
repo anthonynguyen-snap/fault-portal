@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
-  Package, Truck, AlertCircle, CheckCircle2, Trash2, Pencil, User,
+  Truck, AlertCircle, CheckCircle2, Trash2, Pencil, User,
   DollarSign,
 } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
@@ -401,7 +401,6 @@ type MainTab = 'requested' | 'processed';
 type FilterTab = 'all' | ReturnStatus | 'follow-up';
 type ReturnSortKey = 'date' | 'customerName' | 'totalRefundAmount' | 'status';
 type SortDir = 'asc' | 'desc';
-type RequestQueue = 'awaiting' | 'ready';
 
 export default function ReturnsPage() {
   const { user } = useAuth();
@@ -409,7 +408,6 @@ export default function ReturnsPage() {
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [loading, setLoading]       = useState(true);
   const [mainTab, setMainTab]       = useState<MainTab>('requested');
-  const [requestQueue, setRequestQueue] = useState<RequestQueue>('awaiting');
   const [regionFilter, setRegionFilter] = useState<RegionFilter>('all');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [editingRequest, setEditingRequest] = useState<Return | null>(null);
@@ -447,28 +445,6 @@ export default function ReturnsPage() {
     const json = await res.json();
     setAllReturns(json.data || []);
     setLoading(false);
-  }
-
-  async function markReceived(id: string) {
-    setUpdatingId(id);
-    setAllReturns(prev => prev.map(r => r.id === id ? { ...r, parcelReceived: true } : r));
-    await fetch(`/api/returns/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parcelReceived: true }),
-    });
-    setUpdatingId(null);
-  }
-
-  async function unmarkReceived(id: string) {
-    setUpdatingId(id);
-    setAllReturns(prev => prev.map(r => r.id === id ? { ...r, parcelReceived: false } : r));
-    await fetch(`/api/returns/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parcelReceived: false }),
-    });
-    setUpdatingId(null);
   }
 
   async function updateStatus(id: string, newStatus: ReturnStatus) {
@@ -539,10 +515,7 @@ export default function ReturnsPage() {
     });
   }, [requests, reqSearch, regionFilter, mineOnly, user?.name]);
 
-  const pendingRequests   = filteredRequests.filter(r => !r.parcelReceived);
-  const receivedRequests  = filteredRequests.filter(r => r.parcelReceived);
-  const visiblePendingRequests = requestQueue === 'ready' ? [] : pendingRequests;
-  const visibleReceivedRequests = requestQueue === 'awaiting' ? [] : receivedRequests;
+  const visibleRequests = filteredRequests;
 
   // ── Processed tab data ────────────────────────────────────────────────────
   const weekEnd    = addDays(weekStart, 6);
@@ -596,7 +569,6 @@ export default function ReturnsPage() {
   };
 
   const pendingFollowUp = teamFiltered(processed).filter(r => r.followUpStatus === 'Pending');
-  const readyRequests = requests.filter(r => r.parcelReceived);
   const currentMonthRefundTotal = processed
     .filter(r => {
       const d = new Date(r.date.includes('T') ? r.date : `${r.date}T00:00:00`);
@@ -605,23 +577,20 @@ export default function ReturnsPage() {
     })
     .reduce((sum, r) => sum + r.totalRefundAmount, 0);
 
-  function openWorkflow(target: 'awaiting' | 'ready' | 'follow-up' | 'processed') {
+  function openWorkflow(target: 'awaiting' | 'follow-up' | 'processed') {
     if (target === 'processed') {
       setMainTab('processed');
       setFilter('all');
-      setRequestQueue('awaiting');
       return;
     }
     if (target === 'follow-up') {
       setMainTab('processed');
       setFilter('follow-up');
-      setRequestQueue('awaiting');
       setProcPage(1);
       return;
     }
     setMainTab('requested');
     setFilter('all');
-    setRequestQueue(target === 'awaiting' ? 'awaiting' : 'ready');
   }
 
   function handleSort(key: ReturnSortKey) {
@@ -678,7 +647,7 @@ export default function ReturnsPage() {
       </div>
 
       {/* Action summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
         <button
           type="button"
           onClick={() => openWorkflow('awaiting')}
@@ -687,25 +656,11 @@ export default function ReturnsPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Awaiting Customer</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{requests.length - readyRequests.length}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{requests.length}</p>
             </div>
             <span className="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center"><Truck size={18} /></span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Return requested, parcel not in office yet</p>
-        </button>
-        <button
-          type="button"
-          onClick={() => openWorkflow('ready')}
-          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ready to Process</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{readyRequests.length}</p>
-            </div>
-            <span className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><Package size={18} /></span>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">Parcels marked received</p>
+          <p className="mt-2 text-xs text-slate-500">Return requested, waiting until you process it in the office</p>
         </button>
         <button
           type="button"
@@ -742,15 +697,13 @@ export default function ReturnsPage() {
       {/* Workflow tabs */}
       <div className="flex flex-wrap gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
         {([
-          { key: 'awaiting', label: 'Awaiting Customer', count: requests.length - readyRequests.length },
-          { key: 'ready', label: 'Ready to Process', count: readyRequests.length },
+          { key: 'awaiting', label: 'Awaiting Customer', count: requests.length },
           { key: 'follow-up', label: 'Follow-up Required', count: pendingFollowUp.length },
           { key: 'processed', label: 'Processed', count: processed.length },
         ] as const).map(({ key, label, count }) => {
           const active =
             (key === 'processed' && mainTab === 'processed' && filter !== 'follow-up') ||
-            (key === 'awaiting' && mainTab === 'requested' && requestQueue === 'awaiting') ||
-            (key === 'ready' && mainTab === 'requested' && requestQueue === 'ready') ||
+            (key === 'awaiting' && mainTab === 'requested') ||
             (key === 'follow-up' && mainTab === 'processed' && filter === 'follow-up');
           return (
             <button key={key} onClick={() => openWorkflow(key)}
@@ -798,10 +751,10 @@ export default function ReturnsPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <Truck size={14} className="text-orange-500" />
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Awaiting Customer</span>
-                  <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{visiblePendingRequests.length}</span>
+                  <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{visibleRequests.length}</span>
                 </div>
-                {visiblePendingRequests.length === 0 ? (
-                  requestQueue !== 'ready' && <div className="card p-6 text-center text-sm text-slate-400">No requests waiting on the customer</div>
+                {visibleRequests.length === 0 ? (
+                  <div className="card p-6 text-center text-sm text-slate-400">No open return requests</div>
                 ) : (
                   <div className="card overflow-hidden">
                     <div className="overflow-x-auto">
@@ -817,7 +770,7 @@ export default function ReturnsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {visiblePendingRequests.map((r, idx) => (
+                        {visibleRequests.map((r, idx) => (
                           <tr key={r.id} className={`border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa] transition-colors group`}>
                             <td className="px-4 py-3">
                               <p className="text-xs text-slate-400 font-mono">{r.date}</p>
@@ -880,13 +833,9 @@ export default function ReturnsPage() {
                                 >
                                   <Pencil size={14} />
                                 </button>
-                                <button
-                                  onClick={() => markReceived(r.id)}
-                                  disabled={updatingId === r.id}
-                                  className="text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
-                                >
-                                  <CheckCircle2 size={12} /> Parcel Arrived
-                                </button>
+                                <Link href={`/returns/new?requestId=${r.id}`} className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                  <PlusCircle size={12} /> Process Return
+                                </Link>
                                 <Link href={`/returns/${r.id}`} className="text-slate-400 hover:text-brand-600 transition-colors">
                                   <ChevronRight size={18} />
                                 </Link>
@@ -900,72 +849,6 @@ export default function ReturnsPage() {
                   </div>
                 )}
               </div>
-
-              {/* Parcel received — awaiting processing */}
-              {visibleReceivedRequests.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Package size={14} className="text-blue-500" />
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ready to Process</span>
-                    <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{visibleReceivedRequests.length}</span>
-                  </div>
-                  <div className="card overflow-hidden">
-                    <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50">
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Date / Order</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tracking</th>
-                          <th className="px-4 py-3" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleReceivedRequests.map((r, idx) => (
-                          <tr key={r.id} className={`border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa] transition-colors`}>
-                            <td className="px-4 py-3">
-                              <p className="text-xs text-slate-400 font-mono">{r.date}</p>
-                              <p className="font-medium font-mono text-slate-800">{r.orderNumber}</p>
-                            </td>
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-slate-800">{r.customerName}</p>
-                              {r.customerEmail && <a href={`mailto:${r.customerEmail}`} className="text-xs text-brand-600 hover:underline flex items-center gap-0.5 mt-0.5"><Mail size={10} />{r.customerEmail}</a>}
-                            </td>
-                            <td className="px-4 py-3">
-                              {r.trackingNumber ? (
-                                <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-1 rounded">{r.trackingNumber}</span>
-                              ) : <span className="text-xs text-slate-400 italic">—</span>}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2 justify-end">
-                                <button
-                                  onClick={() => unmarkReceived(r.id)}
-                                  disabled={updatingId === r.id}
-                                  className="text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
-                                >
-                                  <RotateCcw size={12} /> Move Back
-                                </button>
-                                <Link href={`/returns/new?requestId=${r.id}`} className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
-                                  <PlusCircle size={12} /> Process Return
-                                </Link>
-                                <Link href={`/returns/${r.id}`} className="text-slate-400 hover:text-brand-600 transition-colors"><ChevronRight size={18} /></Link>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {requestQueue === 'ready' && visibleReceivedRequests.length === 0 && !loading && (
-                <div className="card">
-                  <EmptyState icon={Package} title="No parcels ready to process" description="Returns will appear here after they are marked received." />
-                </div>
-              )}
-
               {requests.length === 0 && !loading && (
                 <div className="card">
                   <EmptyState icon={RotateCcw} title="No return requests" description="Log a request when a customer asks to return an item." action={{ label: 'Log Return Request', onClick: () => setShowRequestForm(true) }} />
