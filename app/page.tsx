@@ -245,7 +245,12 @@ export default function DashboardPage() {
   // ── Returns calculations ───────────────────────────────────────────────────
   const thisMonday = getMondayOf(new Date());
   const thisSunday = addDays(thisMonday, 6);
-  const weekReturns = allReturns.filter(r => r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
+  const lastMonday = addDays(thisMonday, -7);
+  const lastSunday = addDays(thisMonday, -1);
+  const weekReturns = allReturns.filter(r => r.stage === 'processed' && r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
+  const lastWeekReturns = allReturns.filter(r => r.stage === 'processed' && r.date >= fmtDate(lastMonday) && r.date <= fmtDate(lastSunday));
+  const weekReturnsDelta = lastWeekReturns.length > 0
+    ? ((weekReturns.length - lastWeekReturns.length) / lastWeekReturns.length) * 100 : null;
   const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
   const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
 
@@ -322,6 +327,13 @@ export default function DashboardPage() {
           sub="returns need action"
           href="/returns?filter=follow-up"
           alert={pendingFollowUps > 0}
+        />
+        <QuickStat
+          label="Returns This Week"
+          value={weekReturns.length}
+          sub="processed this week"
+          trend={weekReturnsDelta}
+          href="/returns"
         />
       </div>
 
