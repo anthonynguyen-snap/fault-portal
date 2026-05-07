@@ -460,6 +460,17 @@ export default function ReturnsPage() {
     setUpdatingId(null);
   }
 
+  async function unmarkReceived(id: string) {
+    setUpdatingId(id);
+    setAllReturns(prev => prev.map(r => r.id === id ? { ...r, parcelReceived: false } : r));
+    await fetch(`/api/returns/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ parcelReceived: false }),
+    });
+    setUpdatingId(null);
+  }
+
   async function updateStatus(id: string, newStatus: ReturnStatus) {
     setUpdatingId(id);
     setAllReturns(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
@@ -927,6 +938,13 @@ export default function ReturnsPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2 justify-end">
+                                <button
+                                  onClick={() => unmarkReceived(r.id)}
+                                  disabled={updatingId === r.id}
+                                  className="text-xs font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1"
+                                >
+                                  <RotateCcw size={12} /> Move Back
+                                </button>
                                 <Link href="/returns/new" className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
                                   <PlusCircle size={12} /> Process
                                 </Link>
