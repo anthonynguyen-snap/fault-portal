@@ -315,13 +315,7 @@ export default function DashboardPage() {
           sub="this week"
           trend={weekCostDelta}
         />
-        <QuickStat
-          label="Awaiting Parcel"
-          value={awaitingParcel}
-          sub="return requests pending"
-          href="/returns"
-          alert={awaitingParcel > 0}
-        />
+
         <QuickStat
           label="Follow-ups Due"
           value={pendingFollowUps}
