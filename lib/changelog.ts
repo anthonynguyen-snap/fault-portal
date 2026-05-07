@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.13',
+    label: 'Stocktake Mode',
+    date: '2026-05-07',
+    isLatest: true,
+    summary: 'A dedicated Stocktake Mode on the Stock Room page makes counting inventory faster — work through products with a keyboard, track progress, and save all changes at once.',
+    changes: [
+      { category: 'Inventory', text: 'Stocktake Mode — a new mode replaces the normal table with a clean counting layout: product, SKU, on-hand quantity, a large count input, and a live variance column showing +/− differences.' },
+      { category: 'Inventory', text: 'Keyboard-first workflow — Tab or Enter moves between count inputs automatically. Pressing Enter also ticks the row as counted, letting you move through the list without touching the mouse.' },
+      { category: 'Inventory', text: 'Progress tracking — a progress bar and counter show how many products have been ticked off. A floating save bar appears as soon as changes are entered.' },
+      { category: 'Inventory', text: 'Save All — changes are committed in one action as Stocktake Adjustment movements, creating a full audit trail. EOL/discontinued products are shown but excluded from counting.' },
+      { category: 'Inventory', text: 'Print Checklist — generates a printable sheet with product name, SKU, current quantity, and blank count/tick boxes for doing a physical count on paper first.' },
+    ],
+  },
+  {
     version: 'v2.12',
     label: 'Returns Form QOL',
     date: '2026-05-07',
-    isLatest: true,
+    isLatest: false,
     summary: 'Logging returns is now faster — auto-fill from return requests includes product items, fee deductions calculate live, and a success screen lets you log the next return without navigating away.',
     changes: [
       { category: 'Returns', text: 'Item auto-population — when a return request is matched by order number, the form now pre-fills the full list of items (product/SKU, condition, decision) logged by the team, not just customer details.' },
