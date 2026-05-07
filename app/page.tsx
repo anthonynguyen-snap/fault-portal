@@ -259,7 +259,7 @@ export default function DashboardPage() {
     ? ((wtCurr.cost - wtPrev.cost) / wtPrev.cost) * 100 : null;
 
   // ── Awaiting parcel count ─────────────────────────────────────────────────
-  const awaitingParcel = allReturns.filter(r => !r.processedBy && !r.parcelReceived).length;
+  const awaitingParcel = allReturns.filter(r => r.stage === 'requested' && !r.parcelReceived).length;
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
