@@ -13,6 +13,18 @@ const DECISIONS: ReturnDecision[] = ['Full Refund', 'Exchange', 'Refund + Restoc
 const REFUND_DECISIONS = new Set(['Full Refund', 'Refund + Restocking Fee', 'Refund - Return Label Fee']);
 const LABEL_FEE = 9.50;
 
+type EditableReturnItem = ReturnItem & {
+  savedRefundAmount: number;
+  savedRestockingFee: number;
+  refundAmountEdited: boolean;
+  recalculatingRefund: boolean;
+};
+
+function formatPercent(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '');
+}
+
 function netRefundEdit(gross: number, decision: ReturnDecision, restockingPct: string): number {
   if (decision === 'Refund - Return Label Fee') return Math.max(0, gross - LABEL_FEE);
   if (decision === 'Refund + Restocking Fee') {
@@ -20,6 +32,29 @@ function netRefundEdit(gross: number, decision: ReturnDecision, restockingPct: s
     return Math.max(0, gross - (gross * pct / 100));
   }
   return gross;
+}
+
+function restockingFeeEdit(gross: number, decision: ReturnDecision, restockingPct: string): number {
+  if (decision !== 'Refund + Restocking Fee') return 0;
+  const pct = parseFloat(restockingPct) || 0;
+  return Math.max(0, gross * pct / 100);
+}
+
+function toEditableItem(item: ReturnItem): EditableReturnItem {
+  const savedRefundAmount = Number(item.refundAmount) || 0;
+  const savedRestockingFee = Number(item.restockingFee) || 0;
+  const grossRefundAmount = item.decision === 'Refund + Restocking Fee' && savedRestockingFee > 0
+    ? savedRefundAmount + savedRestockingFee
+    : savedRefundAmount;
+
+  return {
+    ...item,
+    refundAmount: grossRefundAmount,
+    savedRefundAmount,
+    savedRestockingFee,
+    refundAmountEdited: false,
+    recalculatingRefund: savedRestockingFee > 0,
+  };
 }
 
 function badge(label: string, className: string) {
@@ -51,7 +86,7 @@ export default function ReturnDetailPage() {
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [followUpStatus, setFollowUpStatus] = useState<FollowUpStatus>('N/A');
   const [status, setStatus] = useState<ReturnStatus>('Received');
-  const [editableItems, setEditableItems] = useState<ReturnItem[]>([]);
+  const [editableItems, setEditableItems] = useState<EditableReturnItem[]>([]);
   const [restockingPcts, setRestockingPcts] = useState<string[]>([]);
   const [notes, setNotes] = useState<InternalNote[]>([]);
 
@@ -61,8 +96,15 @@ export default function ReturnDetailPage() {
       .then(json => {
         if (json.data) {
           setData(json.data);
-          setEditableItems(json.data.items || []);
-          setRestockingPcts((json.data.items || []).map(() => ''));
+          setEditableItems((json.data.items || []).map(toEditableItem));
+          setRestockingPcts((json.data.items || []).map((item: ReturnItem) => {
+            const savedRefundAmount = Number(item.refundAmount) || 0;
+            const savedRestockingFee = Number(item.restockingFee) || 0;
+            const grossRefundAmount = savedRefundAmount + savedRestockingFee;
+            return item.decision === 'Refund + Restocking Fee' && grossRefundAmount > 0
+              ? formatPercent((savedRestockingFee / grossRefundAmount) * 100)
+              : '';
+          }));
           setFollowUpNotes(json.data.followUpNotes || '');
           setFollowUpStatus(json.data.followUpStatus || 'N/A');
           setStatus(json.data.status || 'Received');
@@ -73,11 +115,35 @@ export default function ReturnDetailPage() {
   }, [id]);
 
   function setItemField<K extends keyof ReturnItem>(index: number, field: K, value: ReturnItem[K]) {
-    setEditableItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
+    setEditableItems(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      const updates: Partial<EditableReturnItem> = { [field]: value } as Partial<EditableReturnItem>;
+      if (field === 'refundAmount') updates.refundAmountEdited = true;
+      return { ...item, ...updates };
+    }));
+  }
+
+  function setRecalculatingRefund(index: number) {
+    setEditableItems(prev => prev.map((item, i) => i === index
+      ? { ...item, recalculatingRefund: true, refundAmountEdited: true }
+      : item
+    ));
+  }
+
+  function shouldRecalculateRestocking(item: EditableReturnItem) {
+    return item.decision === 'Refund + Restocking Fee' && item.recalculatingRefund;
+  }
+
+  function itemNetRefund(item: EditableReturnItem, index: number) {
+    const gross = Number(item.refundAmount) || 0;
+    if (item.decision === 'Refund + Restocking Fee' && !shouldRecalculateRestocking(item)) {
+      return item.savedRefundAmount;
+    }
+    return netRefundEdit(gross, item.decision, restockingPcts[index] ?? '');
   }
 
   const totalRefund = editableItems.reduce((sum, item, i) =>
-    sum + netRefundEdit(Number(item.refundAmount) || 0, item.decision, restockingPcts[i] ?? ''), 0);
+    sum + itemNetRefund(item, i), 0);
 
   async function save() {
     setSaving(true);
@@ -91,13 +157,15 @@ export default function ReturnDetailPage() {
           product: item.product,
           condition: item.condition,
           decision: item.decision,
-          refundAmount: netRefundEdit(Number(item.refundAmount) || 0, item.decision, restockingPcts[i] ?? ''),
-          restockingFee: item.restockingFee || 0,
+          refundAmount: itemNetRefund(item, i),
+          restockingFee: shouldRecalculateRestocking(item)
+            ? restockingFeeEdit(Number(item.refundAmount) || 0, item.decision, restockingPcts[i] ?? '')
+            : item.savedRestockingFee,
         })),
       }),
     });
     const json = await res.json();
-    if (json.data) { setData(json.data); setEditableItems(json.data.items || []); setSaved(true); setTimeout(() => setSaved(false), 2000); }
+    if (json.data) { setData(json.data); setEditableItems((json.data.items || []).map(toEditableItem)); setSaved(true); setTimeout(() => setSaved(false), 2000); }
     setSaving(false);
   }
 
@@ -185,7 +253,11 @@ export default function ReturnDetailPage() {
                     <div className="space-y-2">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-xs text-slate-500 mb-1 block">Gross Refund ($)</label>
+                          <label className="text-xs text-slate-500 mb-1 block">
+                            {item.decision === 'Refund + Restocking Fee' && !shouldRecalculateRestocking(item)
+                              ? 'Saved Net Refund ($)'
+                              : 'Gross Refund ($)'}
+                          </label>
                           <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
                             <input
@@ -210,18 +282,28 @@ export default function ReturnDetailPage() {
                                 step="1"
                                 value={restockingPcts[i] ?? ''}
                                 onChange={e => setRestockingPcts(prev => prev.map((p, j) => j === i ? e.target.value : p))}
+                                disabled={!shouldRecalculateRestocking(item)}
                                 placeholder="e.g. 15"
-                                className="form-input text-sm py-1.5 pr-7"
+                                className="form-input text-sm py-1.5 pr-7 disabled:bg-slate-100 disabled:text-slate-400"
                               />
                               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">%</span>
                             </div>
+                            {!shouldRecalculateRestocking(item) && (
+                              <button
+                                type="button"
+                                onClick={() => setRecalculatingRefund(i)}
+                                className="mt-1 text-[11px] font-semibold text-brand-600 hover:text-brand-700"
+                              >
+                                Recalculate from gross
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
                       {(Number(item.refundAmount) > 0) && (
                         <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs space-y-1">
                           <div className="flex justify-between text-slate-500">
-                            <span>Gross amount</span>
+                            <span>{item.decision === 'Refund + Restocking Fee' && !shouldRecalculateRestocking(item) ? 'Saved net amount' : 'Gross amount'}</span>
                             <span className="font-mono">${(Number(item.refundAmount) || 0).toFixed(2)}</span>
                           </div>
                           {item.decision === 'Refund - Return Label Fee' && (
@@ -230,7 +312,7 @@ export default function ReturnDetailPage() {
                               <span className="font-mono">−${LABEL_FEE.toFixed(2)}</span>
                             </div>
                           )}
-                          {item.decision === 'Refund + Restocking Fee' && parseFloat(restockingPcts[i] ?? '') > 0 && (
+                          {item.decision === 'Refund + Restocking Fee' && shouldRecalculateRestocking(item) && parseFloat(restockingPcts[i] ?? '') > 0 && (
                             <div className="flex justify-between text-red-500">
                               <span>Restocking fee ({restockingPcts[i]}%)</span>
                               <span className="font-mono">−${((Number(item.refundAmount) || 0) * parseFloat(restockingPcts[i] ?? '0') / 100).toFixed(2)}</span>
@@ -238,7 +320,7 @@ export default function ReturnDetailPage() {
                           )}
                           <div className="flex justify-between text-slate-800 font-semibold border-t border-slate-200 pt-1 mt-1">
                             <span>Net refund</span>
-                            <span className="font-mono text-emerald-700">${netRefundEdit(Number(item.refundAmount) || 0, item.decision, restockingPcts[i] ?? '').toFixed(2)}</span>
+                            <span className="font-mono text-emerald-700">${itemNetRefund(item, i).toFixed(2)}</span>
                           </div>
                         </div>
                       )}

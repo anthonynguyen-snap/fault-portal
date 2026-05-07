@@ -30,6 +30,13 @@ function netRefund(item: LineItem): number {
   return gross;
 }
 
+function restockingFeeAmount(item: LineItem): number {
+  if (item.decision !== 'Refund + Restocking Fee') return 0;
+  const gross = parseFloat(item.refundAmount) || 0;
+  const pct = parseFloat(item.restockingPct) || 0;
+  return Math.max(0, gross * pct / 100);
+}
+
 interface FormState {
   date: string;
   orderNumber: string;
@@ -174,6 +181,7 @@ export default function NewReturnPage() {
         items: form.items.map(item => ({
           ...item,
           refundAmount: netRefund(item),
+          restockingFee: restockingFeeAmount(item),
         })),
       };
       const res = await fetch('/api/returns', {

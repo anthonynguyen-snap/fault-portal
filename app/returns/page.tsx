@@ -7,6 +7,7 @@ import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
   Package, Truck, AlertCircle, CheckCircle2, Trash2, Pencil, User,
+  DollarSign,
 } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -400,6 +401,7 @@ type MainTab = 'requested' | 'processed';
 type FilterTab = 'all' | ReturnStatus | 'follow-up';
 type ReturnSortKey = 'date' | 'customerName' | 'totalRefundAmount' | 'status';
 type SortDir = 'asc' | 'desc';
+type RequestQueue = 'all' | 'awaiting' | 'ready';
 
 export default function ReturnsPage() {
   const { user } = useAuth();
@@ -407,6 +409,7 @@ export default function ReturnsPage() {
   const [allReturns, setAllReturns] = useState<Return[]>([]);
   const [loading, setLoading]       = useState(true);
   const [mainTab, setMainTab]       = useState<MainTab>('requested');
+  const [requestQueue, setRequestQueue] = useState<RequestQueue>('all');
   const [regionFilter, setRegionFilter] = useState<RegionFilter>('all');
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [editingRequest, setEditingRequest] = useState<Return | null>(null);
@@ -527,6 +530,8 @@ export default function ReturnsPage() {
 
   const pendingRequests   = filteredRequests.filter(r => !r.parcelReceived);
   const receivedRequests  = filteredRequests.filter(r => r.parcelReceived);
+  const visiblePendingRequests = requestQueue === 'ready' ? [] : pendingRequests;
+  const visibleReceivedRequests = requestQueue === 'awaiting' ? [] : receivedRequests;
 
   // ── Processed tab data ────────────────────────────────────────────────────
   const weekEnd    = addDays(weekStart, 6);
@@ -580,6 +585,33 @@ export default function ReturnsPage() {
   };
 
   const pendingFollowUp = teamFiltered(processed).filter(r => r.followUpStatus === 'Pending');
+  const overdueRequests = requests.filter(r => !r.parcelReceived && daysSince(r.date) >= 7);
+  const readyRequests = requests.filter(r => r.parcelReceived);
+  const needsActionCount = overdueRequests.length + readyRequests.length + pendingFollowUp.length;
+  const currentMonthRefundTotal = processed
+    .filter(r => {
+      const d = new Date(r.date.includes('T') ? r.date : `${r.date}T00:00:00`);
+      const now = new Date();
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    })
+    .reduce((sum, r) => sum + r.totalRefundAmount, 0);
+
+  function openWorkflow(target: 'needs-action' | 'awaiting' | 'ready' | 'processed') {
+    if (target === 'processed') {
+      setMainTab('processed');
+      setFilter('all');
+      setRequestQueue('all');
+      return;
+    }
+    if (target === 'needs-action') {
+      setMainTab(readyRequests.length > 0 || overdueRequests.length > 0 ? 'requested' : 'processed');
+      setRequestQueue('all');
+      if (readyRequests.length === 0 && overdueRequests.length === 0) setFilter('follow-up');
+      return;
+    }
+    setMainTab('requested');
+    setRequestQueue(target === 'awaiting' ? 'awaiting' : 'ready');
+  }
 
   function handleSort(key: ReturnSortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -634,22 +666,93 @@ export default function ReturnsPage() {
         <button onClick={load} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
       </div>
 
-      {/* Main tabs */}
-      <div className="flex gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
+      {/* Action summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+        <button
+          type="button"
+          onClick={() => openWorkflow('needs-action')}
+          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Needs Action</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{needsActionCount}</p>
+            </div>
+            <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${needsActionCount > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              {needsActionCount > 0 ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+            </span>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{overdueRequests.length} overdue · {readyRequests.length} ready · {pendingFollowUp.length} follow-ups</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => openWorkflow('awaiting')}
+          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Awaiting Parcel</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{requests.length - readyRequests.length}</p>
+            </div>
+            <span className="w-9 h-9 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center"><Truck size={18} /></span>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{overdueRequests.length > 0 ? `${overdueRequests.length} older than 7 days` : 'No overdue requests'}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => openWorkflow('ready')}
+          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ready to Process</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{readyRequests.length}</p>
+            </div>
+            <span className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><Package size={18} /></span>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">Parcels marked received</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => openWorkflow('processed')}
+          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Refunds This Month</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">${currentMonthRefundTotal.toFixed(0)}</p>
+            </div>
+            <span className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><DollarSign size={18} /></span>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{processed.length} processed returns total</p>
+        </button>
+      </div>
+
+      {/* Workflow tabs */}
+      <div className="flex flex-wrap gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
         {([
-          { key: 'requested', label: 'Requested', count: requests.length },
+          { key: 'needs-action', label: 'Needs Action', count: needsActionCount },
+          { key: 'awaiting', label: 'Awaiting Parcel', count: requests.length - readyRequests.length },
+          { key: 'ready', label: 'Ready to Process', count: readyRequests.length },
           { key: 'processed', label: 'Processed', count: processed.length },
-        ] as { key: MainTab; label: string; count: number }[]).map(({ key, label, count }) => (
-          <button key={key} onClick={() => setMainTab(key)}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
-              mainTab === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            }`}>
-            {label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-              mainTab === key ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'
-            }`}>{count}</span>
-          </button>
-        ))}
+        ] as const).map(({ key, label, count }) => {
+          const active =
+            (key === 'processed' && mainTab === 'processed' && filter !== 'follow-up') ||
+            (key === 'awaiting' && mainTab === 'requested' && requestQueue === 'awaiting') ||
+            (key === 'ready' && mainTab === 'requested' && requestQueue === 'ready') ||
+            (key === 'needs-action' && ((mainTab === 'requested' && requestQueue === 'all') || filter === 'follow-up'));
+          return (
+            <button key={key} onClick={() => openWorkflow(key)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+                active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}>
+              {label}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                active ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'
+              }`}>{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── REQUESTED TAB ─────────────────────────────────────────────────────── */}
@@ -684,10 +787,10 @@ export default function ReturnsPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <Truck size={14} className="text-orange-500" />
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Awaiting Parcel</span>
-                  <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{pendingRequests.length}</span>
+                  <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{visiblePendingRequests.length}</span>
                 </div>
-                {pendingRequests.length === 0 ? (
-                  <div className="card p-6 text-center text-sm text-slate-400">No pending requests</div>
+                {visiblePendingRequests.length === 0 ? (
+                  requestQueue !== 'ready' && <div className="card p-6 text-center text-sm text-slate-400">No pending requests</div>
                 ) : (
                   <div className="card overflow-hidden">
                     <div className="overflow-x-auto">
@@ -703,7 +806,7 @@ export default function ReturnsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {pendingRequests.map((r, idx) => (
+                        {visiblePendingRequests.map((r, idx) => (
                           <tr key={r.id} className={`border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa] transition-colors group`}>
                             <td className="px-4 py-3">
                               <p className="text-xs text-slate-400 font-mono">{r.date}</p>
@@ -788,12 +891,12 @@ export default function ReturnsPage() {
               </div>
 
               {/* Parcel received — awaiting processing */}
-              {receivedRequests.length > 0 && (
+              {visibleReceivedRequests.length > 0 && (
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Package size={14} className="text-blue-500" />
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parcel Received — Awaiting Processing</span>
-                    <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{receivedRequests.length}</span>
+                    <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{visibleReceivedRequests.length}</span>
                   </div>
                   <div className="card overflow-hidden">
                     <div className="overflow-x-auto">
@@ -807,7 +910,7 @@ export default function ReturnsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {receivedRequests.map((r, idx) => (
+                        {visibleReceivedRequests.map((r, idx) => (
                           <tr key={r.id} className={`border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa] transition-colors`}>
                             <td className="px-4 py-3">
                               <p className="text-xs text-slate-400 font-mono">{r.date}</p>
@@ -836,6 +939,12 @@ export default function ReturnsPage() {
                     </table>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {requestQueue === 'ready' && visibleReceivedRequests.length === 0 && !loading && (
+                <div className="card">
+                  <EmptyState icon={Package} title="No parcels ready to process" description="Returns will appear here after they are marked received." />
                 </div>
               )}
 
