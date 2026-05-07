@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X } from 'lucide-react';
+import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X, CheckCircle, RotateCcw } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision } from '@/types';
 
 const CONDITIONS: ReturnCondition[] = ['Sealed', 'Open - Good Condition', 'Open - Damaged Packaging', 'Faulty'];
@@ -71,6 +71,7 @@ export default function NewReturnPage() {
   const [form, setForm]           = useState<FormState>(blankForm());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState('');
+  const [successOrder, setSuccessOrder] = useState<string | null>(null);
   const [openRequests, setOpenRequests] = useState<Return[]>([]);
   const [matchDismissed, setMatchDismissed] = useState(false);
   const [matchLinked, setMatchLinked] = useState<string | null>(null); // id of linked request
@@ -166,12 +167,46 @@ export default function NewReturnPage() {
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-      router.push('/returns');
+      setSuccessOrder(form.orderNumber);
     } catch (err: any) {
       setError(err.message || 'Failed to submit return.');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function logAnother() {
+    const processedBy = localStorage.getItem(PROCESSED_BY_KEY) || '';
+    setForm(blankForm(processedBy));
+    setSuccessOrder(null);
+    setError('');
+    setMatchDismissed(false);
+    setMatchLinked(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  if (successOrder) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <div className="flex flex-col items-center justify-center text-center py-16 px-6">
+          <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+            <CheckCircle size={28} className="text-emerald-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Return logged</h2>
+          <p className="text-slate-500 text-sm mb-8">
+            <span className="font-mono font-semibold text-slate-700">{successOrder}</span> has been saved successfully.
+          </p>
+          <div className="flex gap-3 w-full max-w-xs">
+            <Link href="/returns" className="btn-secondary flex-1 text-center">
+              View Returns
+            </Link>
+            <button onClick={logAnother} className="btn-primary flex-1 flex items-center justify-center gap-2">
+              <RotateCcw size={14} /> Log Another
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
