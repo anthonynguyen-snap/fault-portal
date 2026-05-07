@@ -99,12 +99,24 @@ export default function NewReturnPage() {
 
   async function acceptMatch(req: Return) {
     setMatchLinked(req.id);
-    // Auto-fill customer details from the request
+    // Map request items → form line items (keep blank item if request has none)
+    const mappedItems: LineItem[] = req.items?.length
+      ? req.items.map(ri => ({
+          product:       ri.product,
+          condition:     ri.condition,
+          decision:      ri.decision,
+          refundAmount:  ri.refundAmount ? String(ri.refundAmount) : '',
+          restockingPct: '',
+          restockingFee: ri.restockingFee || 0,
+        }))
+      : [blankItem()];
+    // Auto-fill customer details + items from the request
     setForm(prev => ({
       ...prev,
       customerName:     prev.customerName || req.customerName,
       customerEmail:    prev.customerEmail || req.customerEmail,
       conversationLink: prev.conversationLink || req.conversationLink,
+      items: mappedItems,
     }));
     // Mark the request as parcel received
     await fetch(`/api/returns/${req.id}`, {
@@ -141,6 +153,10 @@ export default function NewReturnPage() {
 
     if (!form.orderNumber.trim() || !form.customerName.trim()) {
       setError('Order number and customer name are required.');
+      return;
+    }
+    if (form.items.length === 0) {
+      setError('At least one item is required. Use "Add Another Item" to add one.');
       return;
     }
     if (form.items.some(item => !item.product.trim())) {
@@ -296,7 +312,7 @@ export default function NewReturnPage() {
             <div key={i} className="border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Item {i + 1}</span>
-                {form.items.length > 1 && (
+                {(form.items.length > 1 || !!matchLinked) && (
                   <button type="button" onClick={() => removeItem(i)}
                     className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50">
                     <Trash2 size={14} />
