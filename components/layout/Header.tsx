@@ -197,6 +197,15 @@ interface SearchResult {
   href: string;
 }
 
+interface CommandItem {
+  kind: 'action' | 'page' | 'result';
+  id: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  resultType?: SearchResult['type'];
+}
+
 interface GroupedResults {
   cases: SearchResult[];
   refunds: SearchResult[];
@@ -233,6 +242,45 @@ const getTypeLabel = (type: 'case' | 'refund' | 'return'): string => {
   }
 };
 
+const QUICK_ACTIONS: CommandItem[] = [
+  { kind: 'action', id: 'return-request', title: 'Log Return Request', subtitle: 'Customer has asked to send something back', href: '/returns?new=1' },
+  { kind: 'action', id: 'process-return', title: 'Process Office Return', subtitle: 'Inspect a received parcel and close the return', href: '/returns/new' },
+  { kind: 'action', id: 'refund-request', title: 'Request Refund', subtitle: 'Raise a refund for approval', href: '/refunds?new=1' },
+  { kind: 'action', id: 'fault-case', title: 'Submit Fault Case', subtitle: 'Create a product fault case', href: '/cases/new' },
+  { kind: 'action', id: 'order-lookup', title: 'Lookup Order', subtitle: 'Search cases, returns, and refunds for an order', href: '/orders' },
+];
+
+const PAGE_COMMANDS: CommandItem[] = [
+  { kind: 'page', id: 'home', title: 'Dashboard', subtitle: 'Portal overview and daily priorities', href: '/' },
+  { kind: 'page', id: 'cases', title: 'Cases', subtitle: 'Fault cases and warranty evidence', href: '/cases' },
+  { kind: 'page', id: 'returns', title: 'Returns', subtitle: 'Return requests and office processing', href: '/returns' },
+  { kind: 'page', id: 'refunds', title: 'Refunds', subtitle: 'Refund requests and approvals', href: '/refunds' },
+  { kind: 'page', id: 'orders', title: 'Order Lookup', subtitle: 'Unified order timeline', href: '/orders' },
+  { kind: 'page', id: 'stock', title: 'Stock Room', subtitle: 'Office inventory and movements', href: '/stock' },
+  { kind: 'page', id: 'replenishment', title: 'Replenishment', subtitle: 'Store replenishment orders', href: '/replenishment' },
+  { kind: 'page', id: 'roster', title: 'Roster', subtitle: 'Team schedule and coverage', href: '/roster' },
+  { kind: 'page', id: 'performance', title: 'Team Performance', subtitle: 'Commslayer performance reporting', href: '/performance' },
+  { kind: 'page', id: 'sop', title: 'SOP', subtitle: 'Customer care procedures', href: '/sop' },
+  { kind: 'page', id: 'admin', title: 'Admin', subtitle: 'Staff, settings, products, changelog', href: '/admin' },
+];
+
+function matchesCommand(item: CommandItem, q: string) {
+  if (!q) return true;
+  const haystack = `${item.title} ${item.subtitle} ${item.href}`.toLowerCase();
+  return haystack.includes(q);
+}
+
+function resultToCommand(result: SearchResult): CommandItem {
+  return {
+    kind: 'result',
+    id: `${result.type}-${result.id}`,
+    title: result.title,
+    subtitle: `${getTypeLabel(result.type)} · ${result.subtitle}`,
+    href: result.href,
+    resultType: result.type,
+  };
+}
+
 export default function Header() {
   const router = useRouter();
   const { toggle } = useSidebar();
@@ -251,6 +299,7 @@ export default function Header() {
     function handleGlobalKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
+        setShowDropdown(true);
         inputRef.current?.focus();
         inputRef.current?.select();
       }
@@ -267,7 +316,7 @@ export default function Header() {
 
     if (!query || query.length < 2) {
       setResults([]);
-      setShowDropdown(false);
+      setIsLoading(false);
       return;
     }
 
@@ -316,12 +365,16 @@ export default function Header() {
   }, [showDropdown]);
 
   const grouped = groupResults(results);
-  const hasResults = Object.values(grouped).some(arr => arr.length > 0);
+  const q = query.trim().toLowerCase();
+  const actionCommands = QUICK_ACTIONS.filter(item => matchesCommand(item, q)).slice(0, query ? 5 : 4);
+  const pageCommands = PAGE_COMMANDS.filter(item => matchesCommand(item, q)).slice(0, query ? 6 : 5);
+  const resultCommands = results.map(resultToCommand);
+  const hasResults = actionCommands.length > 0 || pageCommands.length > 0 || resultCommands.length > 0;
 
-  // Flat ordered list for keyboard navigation: cases → refunds → returns
+  // Flat ordered list for keyboard navigation: actions → pages → record results
   const flatResults = useMemo(
-    () => [...grouped.cases, ...grouped.refunds, ...grouped.returns],
-    [grouped.cases, grouped.refunds, grouped.returns]
+    () => [...actionCommands, ...pageCommands, ...resultCommands],
+    [actionCommands, pageCommands, resultCommands]
   );
 
   // Reset focused index whenever results change
@@ -334,6 +387,11 @@ export default function Header() {
     setFocusedIndex(-1);
   };
 
+  function navigateTo(item: CommandItem) {
+    router.push(item.href);
+    handleResultClick();
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!showDropdown || !hasResults) return;
     if (e.key === 'ArrowDown') {
@@ -345,10 +403,7 @@ export default function Header() {
     } else if (e.key === 'Enter' && focusedIndex >= 0) {
       e.preventDefault();
       const selected = flatResults[focusedIndex];
-      if (selected) {
-        router.push(selected.href);
-        handleResultClick();
-      }
+      if (selected) navigateTo(selected);
     }
   }
 
@@ -365,17 +420,17 @@ export default function Header() {
         </button>
 
         {/* Search Input */}
-        <div ref={searchRef} className="flex-shrink-0 w-72">
+        <div ref={searchRef} className="flex-shrink-0 w-80">
           <div className="relative">
             <div className="relative flex items-center">
               <Search className="absolute left-3 w-4 h-4 text-slate-400" />
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Search cases, refunds, returns…"
+                placeholder="Search or run a command…"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                onFocus={() => query.length >= 2 && setShowDropdown(true)}
+                onFocus={() => setShowDropdown(true)}
                 onKeyDown={handleKeyDown}
                 className="w-full pl-9 pr-16 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 autoComplete="off"
@@ -392,34 +447,39 @@ export default function Header() {
 
             {/* Dropdown Results */}
             {showDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+              <div className="absolute top-full left-0 mt-2 w-[34rem] max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
                 {hasResults ? (
                   <div className="max-h-[420px] overflow-y-auto">
-                    {(
-                      [
-                        { label: 'Cases',   type: 'case'   as const, items: grouped.cases,   offset: 0 },
-                        { label: 'Refunds', type: 'refund' as const, items: grouped.refunds, offset: grouped.cases.length },
-                        { label: 'Returns', type: 'return' as const, items: grouped.returns, offset: grouped.cases.length + grouped.refunds.length },
-                      ]
-                    ).filter(g => g.items.length > 0).map(({ label, type, items, offset }) => (
-                      <div key={type} className="border-b border-slate-100 last:border-b-0">
-                        <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-600 flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${getBadgeColor(type)}`}>
-                            {label}
-                          </span>
-                        </div>
-                        {items.map((result, i) => {
-                          const globalIdx = offset + i;
+                    {[
+                      { label: 'Quick Actions', items: actionCommands, offset: 0 },
+                      { label: 'Pages', items: pageCommands, offset: actionCommands.length },
+                      { label: 'Records', items: resultCommands, offset: actionCommands.length + pageCommands.length },
+                    ].filter(group => group.items.length > 0).map(group => (
+                      <div key={group.label} className="border-b border-slate-100 last:border-b-0">
+                        <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-600">{group.label}</div>
+                        {group.items.map((item, i) => {
+                          const globalIdx = group.offset + i;
                           const isFocused = globalIdx === focusedIndex;
                           return (
                             <Link
-                              key={`${result.type}-${result.id}`}
-                              href={result.href}
+                              key={item.id}
+                              href={item.href}
                               onClick={handleResultClick}
-                              className={`block px-3 py-2 transition-colors ${isFocused ? 'bg-brand-50 border-l-2 border-brand-500' : 'hover:bg-slate-50'}`}
+                              className={`flex items-start gap-3 px-3 py-2.5 transition-colors ${isFocused ? 'bg-brand-50 border-l-2 border-brand-500' : 'hover:bg-slate-50'}`}
                             >
-                              <div className="font-medium text-sm text-slate-900">{result.title}</div>
-                              <div className="text-xs text-slate-400">{result.subtitle}</div>
+                              <span className={`mt-0.5 px-2 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${
+                                item.kind === 'action'
+                                  ? 'bg-brand-100 text-brand-700'
+                                  : item.kind === 'page'
+                                    ? 'bg-slate-100 text-slate-600'
+                                    : getBadgeColor(item.resultType ?? 'case')
+                              }`}>
+                                {item.kind === 'action' ? 'Action' : item.kind === 'page' ? 'Page' : getTypeLabel(item.resultType ?? 'case')}
+                              </span>
+                              <div className="min-w-0">
+                                <div className="font-medium text-sm text-slate-900 truncate">{item.title}</div>
+                                <div className="text-xs text-slate-400 truncate">{item.subtitle}</div>
+                              </div>
                             </Link>
                           );
                         })}
@@ -428,7 +488,7 @@ export default function Header() {
                   </div>
                 ) : (
                   <div className="px-3 py-4 text-center text-sm text-slate-400 italic">
-                    {query.length < 2 ? 'Type at least 2 characters…' : `No results for "${query}"`}
+                    {query.length < 2 ? 'Start typing to search records, or choose a quick action.' : `No results for "${query}"`}
                   </div>
                 )}
                 {hasResults && (

@@ -33,10 +33,23 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.15',
+    label: 'Command Menu',
+    date: '2026-05-07',
+    isLatest: true,
+    summary: 'The header search is now a global command menu with quick actions, page jumps, and unified record search from anywhere in the portal.',
+    changes: [
+      { category: 'UI/UX', text: 'Command menu — click the header search or press ⌘K / Ctrl+K to open a portal-wide launcher.' },
+      { category: 'UI/UX', text: 'Quick actions — start common workflows directly, including Log Return Request, Process Office Return, Request Refund, Submit Fault Case, and Lookup Order.' },
+      { category: 'UI/UX', text: 'Page jumps — type a page name such as Returns, Stock Room, Roster, or Admin to navigate without using the sidebar.' },
+      { category: 'UI/UX', text: 'Unified results — typing an order, customer, product, or fault detail still searches cases, refunds, and returns in the same menu.' },
+    ],
+  },
+  {
     version: 'v2.14',
     label: 'Returns Workflow Cleanup',
     date: '2026-05-07',
-    isLatest: true,
+    isLatest: false,
     summary: 'Returns now match the real office workflow: requests stay in Awaiting Customer until the parcel is processed, and follow-ups only appear when deliberately marked.',
     changes: [
       { category: 'Returns', text: 'Awaiting Customer queue — return requests now stay in one clear holding area until the parcel is processed in the office. The old Ready to Process / Parcel Arrived middle step has been removed.' },
