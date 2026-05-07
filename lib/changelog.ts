@@ -33,10 +33,23 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.16',
+    label: 'Order Timeline',
+    date: '2026-05-07',
+    isLatest: true,
+    summary: 'Order Lookup is now a unified timeline that combines fault cases, returns, refunds, summary status, and quick actions in one customer-care view.',
+    changes: [
+      { category: 'Orders', text: 'Unified timeline — searching an order now shows cases, return records, and refund requests in one chronological history.' },
+      { category: 'Orders', text: 'Status summary — order results now surface high-level chips like Awaiting Customer, Follow-up Required, Refund Pending, Fault Case Open, or All Closed.' },
+      { category: 'Orders', text: 'Quick actions — from an order timeline you can jump straight to Log Return Request, Process Office Return, Request Refund, or Submit Fault Case.' },
+      { category: 'UI/UX', text: 'Related records panel — cases, returns, and refunds are counted and linked from the same view, reducing repeat searches across separate pages.' },
+    ],
+  },
+  {
     version: 'v2.15',
     label: 'Command Menu',
     date: '2026-05-07',
-    isLatest: true,
+    isLatest: false,
     summary: 'The header search is now a global command menu with quick actions, page jumps, and unified record search from anywhere in the portal.',
     changes: [
       { category: 'UI/UX', text: 'Command menu — click the header search or press ⌘K / Ctrl+K to open a portal-wide launcher.' },
