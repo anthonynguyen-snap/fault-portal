@@ -204,6 +204,7 @@ interface CommandItem {
   subtitle: string;
   href: string;
   resultType?: SearchResult['type'];
+  shortcut?: string;
 }
 
 interface GroupedResults {
@@ -243,10 +244,10 @@ const getTypeLabel = (type: 'case' | 'refund' | 'return'): string => {
 };
 
 const QUICK_ACTIONS: CommandItem[] = [
-  { kind: 'action', id: 'return-request', title: 'Log Return Request', subtitle: 'Customer has asked to send something back', href: '/returns?new=1' },
+  { kind: 'action', id: 'fault-case', title: 'Submit Fault Case', subtitle: 'Create a product fault case', href: '/cases/new', shortcut: 'F' },
+  { kind: 'action', id: 'return-request', title: 'Log Return Request', subtitle: 'Customer has asked to send something back', href: '/returns?new=1', shortcut: 'R' },
+  { kind: 'action', id: 'refund-request', title: 'Request Refund', subtitle: 'Raise a refund for approval', href: '/refunds?new=1', shortcut: 'P' },
   { kind: 'action', id: 'process-return', title: 'Process Office Return', subtitle: 'Inspect a received parcel and close the return', href: '/returns/new' },
-  { kind: 'action', id: 'refund-request', title: 'Request Refund', subtitle: 'Raise a refund for approval', href: '/refunds?new=1' },
-  { kind: 'action', id: 'fault-case', title: 'Submit Fault Case', subtitle: 'Create a product fault case', href: '/cases/new' },
   { kind: 'action', id: 'order-lookup', title: 'Lookup Order', subtitle: 'Search cases, returns, and refunds for an order', href: '/orders' },
 ];
 
@@ -266,6 +267,7 @@ const PAGE_COMMANDS: CommandItem[] = [
 
 function matchesCommand(item: CommandItem, q: string) {
   if (!q) return true;
+  if (item.shortcut?.toLowerCase() === q) return true;
   const haystack = `${item.title} ${item.subtitle} ${item.href}`.toLowerCase();
   return haystack.includes(q);
 }
@@ -366,7 +368,10 @@ export default function Header() {
 
   const grouped = groupResults(results);
   const q = query.trim().toLowerCase();
-  const actionCommands = QUICK_ACTIONS.filter(item => matchesCommand(item, q)).slice(0, query ? 5 : 4);
+  const actionCommands = QUICK_ACTIONS
+    .filter(item => matchesCommand(item, q))
+    .sort((a, b) => Number(b.shortcut?.toLowerCase() === q) - Number(a.shortcut?.toLowerCase() === q))
+    .slice(0, query ? 5 : 4);
   const pageCommands = PAGE_COMMANDS.filter(item => matchesCommand(item, q)).slice(0, query ? 6 : 5);
   const resultCommands = results.map(resultToCommand);
   const hasResults = actionCommands.length > 0 || pageCommands.length > 0 || resultCommands.length > 0;
@@ -480,6 +485,11 @@ export default function Header() {
                                 <div className="font-medium text-sm text-slate-900 truncate">{item.title}</div>
                                 <div className="text-xs text-slate-400 truncate">{item.subtitle}</div>
                               </div>
+                              {item.kind === 'action' && item.shortcut && (
+                                <kbd className="ml-auto mt-0.5 text-[10px] leading-none text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 font-mono flex-shrink-0">
+                                  ⌘K {item.shortcut}
+                                </kbd>
+                              )}
                             </Link>
                           );
                         })}

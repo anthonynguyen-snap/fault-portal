@@ -40,7 +40,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     summary: 'The header search is now a global command menu with quick actions, page jumps, and unified record search from anywhere in the portal.',
     changes: [
       { category: 'UI/UX', text: 'Command menu — click the header search or press ⌘K / Ctrl+K to open a portal-wide launcher.' },
-      { category: 'UI/UX', text: 'Quick actions — start common workflows directly, including Log Return Request, Process Office Return, Request Refund, Submit Fault Case, and Lookup Order.' },
+      { category: 'UI/UX', text: 'Quick actions — start common workflows directly, including Log Return Request, Process Office Return, Request Refund, Submit Fault Case, and Lookup Order. Sidebar hints show the fastest ⌘K letter shortcuts for the main actions.' },
       { category: 'UI/UX', text: 'Page jumps — type a page name such as Returns, Stock Room, Roster, or Admin to navigate without using the sidebar.' },
       { category: 'UI/UX', text: 'Unified results — typing an order, customer, product, or fault detail still searches cases, refunds, and returns in the same menu.' },
     ],

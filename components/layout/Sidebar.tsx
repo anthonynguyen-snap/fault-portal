@@ -125,6 +125,7 @@ type NavItem = {
   icon: React.ElementType;
   adminOnly?: boolean;
   isAction?: boolean;
+  shortcut?: string;
 };
 
 type NavGroup = {
@@ -135,9 +136,9 @@ type NavGroup = {
 
 // Quick action links — always pinned at top, styled distinctly
 const quickActions: NavItem[] = [
-  { label: 'Submit Fault',   href: '/cases/new',    icon: PlusCircle, isAction: true },
-  { label: 'Log Return',     href: '/returns?new=1', icon: RotateCcw,  isAction: true },
-  { label: 'Request Refund', href: '/refunds?new=1', icon: CreditCard, isAction: true },
+  { label: 'Submit Fault',   href: '/cases/new',     icon: PlusCircle, shortcut: '⌘K F', isAction: true },
+  { label: 'Log Return',     href: '/returns?new=1', icon: RotateCcw,  shortcut: '⌘K R', isAction: true },
+  { label: 'Request Refund', href: '/refunds?new=1', icon: CreditCard, shortcut: '⌘K P', isAction: true },
 ];
 
 const navGroups: NavGroup[] = [
@@ -264,6 +265,11 @@ export function Sidebar() {
                     <Icon size={11} className="text-brand-400" />
                   </div>
                   <span className="flex-1 truncate text-xs">{item.label}</span>
+                  {item.shortcut && (
+                    <kbd className="text-[9px] leading-none text-slate-400 bg-slate-900/70 border border-slate-700 rounded px-1.5 py-1 font-mono">
+                      {item.shortcut}
+                    </kbd>
+                  )}
                 </Link>
               );
             })}
