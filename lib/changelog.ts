@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.14',
+    label: 'Returns Workflow Cleanup',
+    date: '2026-05-07',
+    isLatest: true,
+    summary: 'Returns now match the real office workflow: requests stay in Awaiting Customer until the parcel is processed, and follow-ups only appear when deliberately marked.',
+    changes: [
+      { category: 'Returns', text: 'Awaiting Customer queue — return requests now stay in one clear holding area until the parcel is processed in the office. The old Ready to Process / Parcel Arrived middle step has been removed.' },
+      { category: 'Returns', text: 'Direct processing — each awaiting return now has a Process Return action that opens the office processing form pre-filled from the request.' },
+      { category: 'Returns', text: 'Office processing form — Log Return has been renamed to Process Office Return, with linked request context kept visible while processing.' },
+      { category: 'Returns', text: 'Follow-up Required — follow-ups are now an intentional bucket based only on returns explicitly marked for follow-up, not on how long a customer has been waiting to send a parcel.' },
+      { category: 'Returns', text: 'Closed by default — processed office returns close automatically unless follow-up is required. Follow-up owner and notes only appear when that option is selected.' },
+    ],
+  },
+  {
     version: 'v2.13',
     label: 'Stocktake Mode',
     date: '2026-05-07',
-    isLatest: true,
+    isLatest: false,
     summary: 'A dedicated Stocktake Mode on the Stock Room page makes counting inventory faster — work through products with a keyboard, track progress, and save all changes at once.',
     changes: [
       { category: 'Inventory', text: 'Stocktake Mode — a new mode replaces the normal table with a clean counting layout: product, SKU, on-hand quantity, a large count input, and a live variance column showing +/− differences.' },
