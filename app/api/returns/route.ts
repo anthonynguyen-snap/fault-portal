@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       orderNumber, customerName, customerEmail,
-      items, assignedTo, needsFollowUp, notes,
+      items, assignedTo, needsFollowUp, followUpNotes, notes,
       processedBy, date, conversationLink,
       stage, trackingNumber, linkedRequestId,
       starshipitOrderNumber,
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
         refund_amount:    0,
         assigned_to:      assignedTo || '',
         follow_up_status: needsFollowUp ? 'Pending' : 'N/A',
-        follow_up_notes:  '',
+        follow_up_notes:  followUpNotes || '',
         notes:            notes || '',
         status:           stage === 'requested' ? 'Received' : (needsFollowUp ? 'Processed' : 'Closed'),
         processed_by:     processedBy || '',

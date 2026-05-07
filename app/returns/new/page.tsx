@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X, CheckCircle, RotateCcw } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision } from '@/types';
@@ -75,6 +76,7 @@ function blankForm(processedBy = ''): FormState {
 
 export default function NewReturnPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm]           = useState<FormState>(blankForm());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState('');
@@ -82,30 +84,37 @@ export default function NewReturnPage() {
   const [openRequests, setOpenRequests] = useState<Return[]>([]);
   const [matchDismissed, setMatchDismissed] = useState(false);
   const [matchLinked, setMatchLinked] = useState<string | null>(null); // id of linked request
+  const [linkedRequest, setLinkedRequest] = useState<Return | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(PROCESSED_BY_KEY) || '';
     setForm(blankForm(saved));
-    // Load open (unprocessed) requests for auto-match
+    const requestId = searchParams.get('requestId');
     fetch('/api/returns?stage=requested')
       .then(r => r.json())
-      .then(d => setOpenRequests((d.data ?? []).filter((r: Return) => !r.parcelReceived)))
-      .catch(err => console.error('[LogReturnPage] failed to load open requests:', err));
-  }, []);
-
-  // Reset dismiss when order number changes
-  useEffect(() => { setMatchDismissed(false); setMatchLinked(null); }, [form.orderNumber]);
+      .then(d => {
+        const requests = d.data ?? [];
+        setOpenRequests(requests);
+        if (requestId) {
+          const req = requests.find((r: Return) => r.id === requestId);
+          if (req) void acceptMatch(req, { fromProcessLink: true });
+        }
+      })
+      .catch(err => console.error('[ProcessOfficeReturnPage] failed to load return requests:', err));
+  }, [searchParams]);
 
   // Auto-match: exact order number match against open requests
   const matchedRequest = useMemo((): Return | null => {
-    if (!form.orderNumber.trim() || matchDismissed) return null;
+    if (!form.orderNumber.trim() || matchDismissed || matchLinked) return null;
     return openRequests.find(r =>
       r.orderNumber.toLowerCase() === form.orderNumber.trim().toLowerCase()
     ) ?? null;
-  }, [form.orderNumber, openRequests, matchDismissed]);
+  }, [form.orderNumber, openRequests, matchDismissed, matchLinked]);
 
-  async function acceptMatch(req: Return) {
+  async function acceptMatch(req: Return, options?: { fromProcessLink?: boolean }) {
     setMatchLinked(req.id);
+    setLinkedRequest(req);
+    setMatchDismissed(false);
     // Map request items → form line items (keep blank item if request has none)
     const mappedItems: LineItem[] = req.items?.length
       ? req.items.map(ri => ({
@@ -120,22 +129,32 @@ export default function NewReturnPage() {
     // Auto-fill customer details + items from the request
     setForm(prev => ({
       ...prev,
+      orderNumber:      req.orderNumber,
       customerName:     prev.customerName || req.customerName,
       customerEmail:    prev.customerEmail || req.customerEmail,
+      trackingNumber:   prev.trackingNumber || req.trackingNumber,
       conversationLink: prev.conversationLink || req.conversationLink,
       items: mappedItems,
     }));
-    // Mark the request as parcel received
-    await fetch(`/api/returns/${req.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parcelReceived: true }),
-    });
+    if (!req.parcelReceived || options?.fromProcessLink) {
+      await fetch(`/api/returns/${req.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parcelReceived: true }),
+      });
+    }
   }
 
   function set<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm(prev => ({ ...prev, [field]: value }));
     if (field === 'processedBy') localStorage.setItem(PROCESSED_BY_KEY, value as string);
+  }
+
+  function setOrderNumber(value: string) {
+    setForm(prev => ({ ...prev, orderNumber: value }));
+    setMatchDismissed(false);
+    setMatchLinked(null);
+    setLinkedRequest(null);
   }
 
   function setItemField(index: number, field: keyof LineItem, value: string | number | ReturnCondition | ReturnDecision) {
@@ -206,6 +225,7 @@ export default function NewReturnPage() {
     setError('');
     setMatchDismissed(false);
     setMatchLinked(null);
+    setLinkedRequest(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -216,7 +236,7 @@ export default function NewReturnPage() {
           <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
             <CheckCircle size={28} className="text-emerald-600" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-1">Return logged</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Return processed</h2>
           <p className="text-slate-500 text-sm mb-8">
             <span className="font-mono font-semibold text-slate-700">{successOrder}</span> has been saved successfully.
           </p>
@@ -225,7 +245,7 @@ export default function NewReturnPage() {
               View Returns
             </Link>
             <button onClick={logAnother} className="btn-primary flex-1 flex items-center justify-center gap-2">
-              <RotateCcw size={14} /> Log Another
+              <RotateCcw size={14} /> Process Another
             </button>
           </div>
         </div>
@@ -238,8 +258,8 @@ export default function NewReturnPage() {
       <Link href="/returns" className="btn-ghost -ml-2 mb-4 inline-flex">
         <ChevronLeft size={16} /> Back to Returns
       </Link>
-      <h1 className="page-title mb-1">Log Return</h1>
-      <p className="page-subtitle mb-4">Record a new customer return</p>
+      <h1 className="page-title mb-1">Process Office Return</h1>
+      <p className="page-subtitle mb-4">Inspect a received parcel and close the return unless follow-up is required</p>
 
       <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
         <span className="text-amber-500 text-base">⚠️</span>
@@ -253,17 +273,17 @@ export default function NewReturnPage() {
           <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
             <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-emerald-900">Return request found!</p>
+              <p className="text-sm font-semibold text-emerald-900">Return request found</p>
               <p className="text-xs text-emerald-700 mt-0.5">
                 <span className="font-mono font-bold">{matchedRequest.orderNumber}</span> — {matchedRequest.customerName}
                 {matchedRequest.trackingNumber && <span className="ml-1.5 font-mono bg-emerald-100 px-1.5 py-0.5 rounded text-[10px]">{matchedRequest.trackingNumber}</span>}
                 <span className="ml-1.5 text-emerald-600">· Logged {new Date(matchedRequest.createdAt).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</span>
               </p>
-              <p className="text-xs text-emerald-700 mt-1">Confirm to auto-fill customer details and mark the request as received.</p>
+              <p className="text-xs text-emerald-700 mt-1">Link this request to prefill the office processing form.</p>
             </div>
             <div className="flex gap-2 flex-shrink-0">
               <button type="button" onClick={() => acceptMatch(matchedRequest)} className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg transition-colors">
-                Link & Mark Received
+                Link Request
               </button>
               <button type="button" onClick={() => setMatchDismissed(true)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg transition-colors">
                 <X size={14} />
@@ -272,10 +292,16 @@ export default function NewReturnPage() {
           </div>
         )}
 
-        {matchLinked && (
-          <div className="flex items-center gap-2.5 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
-            <CheckCircle2 size={15} className="text-emerald-600" />
-            <span>Linked to return request — marked as parcel received.</span>
+        {matchLinked && linkedRequest && (
+          <div className="flex items-start gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
+            <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-emerald-900">Linked return request</p>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                <span className="font-mono font-bold">{linkedRequest.orderNumber}</span> · {linkedRequest.customerName} · {linkedRequest.items.length || 1} item{(linkedRequest.items.length || 1) === 1 ? '' : 's'}
+                {linkedRequest.processedBy && <span> · logged by {linkedRequest.processedBy}</span>}
+              </p>
+            </div>
           </div>
         )}
 
@@ -289,7 +315,7 @@ export default function NewReturnPage() {
             </div>
             <div>
               <label className="form-label">Order Number <span className="text-red-400">*</span></label>
-              <input type="text" value={form.orderNumber} onChange={e => set('orderNumber', e.target.value)} placeholder="e.g. #12345" className="form-input" required />
+              <input type="text" value={form.orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="e.g. #12345" className="form-input" required />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -429,22 +455,36 @@ export default function NewReturnPage() {
 
         {/* Team */}
         <div className="card p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-700">Team</h2>
+          <h2 className="text-sm font-semibold text-slate-700">Processing</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="form-label">Team Member</label>
-              <input type="text" value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)} placeholder="Who dealt with customer?" className="form-input" />
-            </div>
             <div>
               <label className="form-label">Processed By</label>
               <input type="text" value={form.processedBy} onChange={e => set('processedBy', e.target.value)} placeholder="Your name" className="form-input" />
             </div>
+            <div>
+              <label className="form-label">Return Outcome</label>
+              <div className="form-input bg-slate-50 text-slate-700 cursor-default select-none">
+                {form.needsFollowUp ? 'Follow-up required' : 'Closed after saving'}
+              </div>
+            </div>
           </div>
-          <label className="flex items-center gap-3 cursor-pointer select-none">
+          <label className="flex items-center gap-3 cursor-pointer select-none rounded-xl border border-slate-200 px-3 py-2.5 hover:bg-slate-50">
             <input type="checkbox" checked={form.needsFollowUp} onChange={e => set('needsFollowUp', e.target.checked)}
               className="w-4 h-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-            <span className="text-sm text-slate-700">Needs follow-up with customer</span>
+            <span className="text-sm text-slate-700">Follow-up required after processing</span>
           </label>
+          {form.needsFollowUp && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Follow-up Owner</label>
+                <input type="text" value={form.assignedTo} onChange={e => set('assignedTo', e.target.value)} placeholder="Who should follow up?" className="form-input" />
+              </div>
+              <div>
+                <label className="form-label">Follow-up Notes</label>
+                <input type="text" value={form.followUpNotes} onChange={e => set('followUpNotes', e.target.value)} placeholder="What needs to happen next?" className="form-input" />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Notes */}
@@ -460,7 +500,7 @@ export default function NewReturnPage() {
         <div className="flex gap-3 pb-8">
           <Link href="/returns" className="btn-secondary flex-1 text-center">Cancel</Link>
           <button type="submit" disabled={submitting} className="btn-primary flex-1">
-            {submitting ? 'Saving…' : 'Log Return'}
+            {submitting ? 'Saving…' : 'Save Processed Return'}
           </button>
         </div>
       </form>

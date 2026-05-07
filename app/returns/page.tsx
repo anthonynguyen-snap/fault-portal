@@ -906,7 +906,7 @@ export default function ReturnsPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Package size={14} className="text-blue-500" />
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Parcel Received — Awaiting Processing</span>
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ready to Process</span>
                     <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{visibleReceivedRequests.length}</span>
                   </div>
                   <div className="card overflow-hidden">
@@ -945,8 +945,8 @@ export default function ReturnsPage() {
                                 >
                                   <RotateCcw size={12} /> Move Back
                                 </button>
-                                <Link href="/returns/new" className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
-                                  <PlusCircle size={12} /> Process
+                                <Link href={`/returns/new?requestId=${r.id}`} className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                  <PlusCircle size={12} /> Process Return
                                 </Link>
                                 <Link href={`/returns/${r.id}`} className="text-slate-400 hover:text-brand-600 transition-colors"><ChevronRight size={18} /></Link>
                               </div>
@@ -979,7 +979,7 @@ export default function ReturnsPage() {
       {/* ── PROCESSED TAB ─────────────────────────────────────────────────────── */}
       {mainTab === 'processed' && (
         <>
-          {/* Week navigator + region filter + team search + Mine + Log Return */}
+          {/* Week navigator + region filter + team search + Mine + Process Return */}
           <div className="flex flex-wrap items-center gap-3 mb-2">
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1 shadow-sm">
               <button onClick={() => { setWeekStart(d => addDays(d, -7)); setProcPage(1); }} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"><ChevronLeft size={16} /></button>
@@ -1029,7 +1029,7 @@ export default function ReturnsPage() {
               {mineOnly && <span className="w-2 h-2 bg-brand-600 rounded-full" />}
             </button>
             <Link href="/returns/new" className="btn-secondary flex items-center gap-1.5 text-sm ml-auto">
-              <PlusCircle size={14} /> Log Return
+              <PlusCircle size={14} /> Process Office Return
             </Link>
           </div>
 
@@ -1060,7 +1060,7 @@ export default function ReturnsPage() {
               ) : filter !== 'all' ? (
                 <EmptyState icon={RotateCcw} title={`No ${filter.toLowerCase()} returns this week`} description="No returns match this status for the selected week." action={{ label: 'View all returns', onClick: () => setFilter('all') }} />
               ) : (
-                <EmptyState icon={RotateCcw} title={`No returns for ${weekLabel(weekStart).toLowerCase()}`} description={isThisWeek ? 'Log a return to get started.' : 'No returns were logged for this week.'} action={isThisWeek ? { label: 'Log Return', href: '/returns/new' } : undefined} />
+                <EmptyState icon={RotateCcw} title={`No returns for ${weekLabel(weekStart).toLowerCase()}`} description={isThisWeek ? 'Process an office return to get started.' : 'No returns were logged for this week.'} action={isThisWeek ? { label: 'Process Office Return', href: '/returns/new' } : undefined} />
               )}
             </div>
           ) : (
