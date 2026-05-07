@@ -10,6 +10,17 @@ const STATUS_OPTIONS: ReturnStatus[] = ['Received', 'Inspected', 'Processed', 'C
 const FOLLOW_UP_OPTIONS: FollowUpStatus[] = ['N/A', 'Pending', 'Completed'];
 const CONDITIONS: ReturnCondition[] = ['Sealed', 'Open - Good Condition', 'Open - Damaged Packaging', 'Faulty'];
 const DECISIONS: ReturnDecision[] = ['Full Refund', 'Exchange', 'Refund + Restocking Fee', 'Refund - Return Label Fee', 'Replacement', 'Pending'];
+const REFUND_DECISIONS = new Set(['Full Refund', 'Refund + Restocking Fee', 'Refund - Return Label Fee']);
+const LABEL_FEE = 9.50;
+
+function netRefundEdit(gross: number, decision: ReturnDecision, restockingPct: string): number {
+  if (decision === 'Refund - Return Label Fee') return Math.max(0, gross - LABEL_FEE);
+  if (decision === 'Refund + Restocking Fee') {
+    const pct = parseFloat(restockingPct) || 0;
+    return Math.max(0, gross - (gross * pct / 100));
+  }
+  return gross;
+}
 
 function badge(label: string, className: string) {
   return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${className}`}>{label}</span>;
@@ -41,6 +52,7 @@ export default function ReturnDetailPage() {
   const [followUpStatus, setFollowUpStatus] = useState<FollowUpStatus>('N/A');
   const [status, setStatus] = useState<ReturnStatus>('Received');
   const [editableItems, setEditableItems] = useState<ReturnItem[]>([]);
+  const [restockingPcts, setRestockingPcts] = useState<string[]>([]);
   const [notes, setNotes] = useState<InternalNote[]>([]);
 
   useEffect(() => {
@@ -50,6 +62,7 @@ export default function ReturnDetailPage() {
         if (json.data) {
           setData(json.data);
           setEditableItems(json.data.items || []);
+          setRestockingPcts((json.data.items || []).map(() => ''));
           setFollowUpNotes(json.data.followUpNotes || '');
           setFollowUpStatus(json.data.followUpStatus || 'N/A');
           setStatus(json.data.status || 'Received');
@@ -63,7 +76,8 @@ export default function ReturnDetailPage() {
     setEditableItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item));
   }
 
-  const totalRefund = editableItems.reduce((sum, item) => sum + (Number(item.refundAmount) || 0), 0);
+  const totalRefund = editableItems.reduce((sum, item, i) =>
+    sum + netRefundEdit(Number(item.refundAmount) || 0, item.decision, restockingPcts[i] ?? ''), 0);
 
   async function save() {
     setSaving(true);
@@ -72,12 +86,12 @@ export default function ReturnDetailPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         followUpNotes, followUpStatus, status,
-        items: editableItems.map(item => ({
+        items: editableItems.map((item, i) => ({
           id: item.id,
           product: item.product,
           condition: item.condition,
           decision: item.decision,
-          refundAmount: Number(item.refundAmount) || 0,
+          refundAmount: netRefundEdit(Number(item.refundAmount) || 0, item.decision, restockingPcts[i] ?? ''),
           restockingFee: item.restockingFee || 0,
         })),
       }),
@@ -167,18 +181,69 @@ export default function ReturnDetailPage() {
                       </select>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Refund Amount ($)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.refundAmount || ''}
-                      onChange={e => setItemField(i, 'refundAmount', parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      className="form-input text-sm py-1.5 w-full"
-                    />
-                  </div>
+                  {REFUND_DECISIONS.has(item.decision) && (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-xs text-slate-500 mb-1 block">Gross Refund ($)</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.refundAmount || ''}
+                              onChange={e => setItemField(i, 'refundAmount', parseFloat(e.target.value) || 0)}
+                              placeholder="0.00"
+                              className="form-input text-sm py-1.5 pl-7"
+                            />
+                          </div>
+                        </div>
+                        {item.decision === 'Refund + Restocking Fee' && (
+                          <div>
+                            <label className="text-xs text-slate-500 mb-1 block">Restocking %</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="1"
+                                value={restockingPcts[i] ?? ''}
+                                onChange={e => setRestockingPcts(prev => prev.map((p, j) => j === i ? e.target.value : p))}
+                                placeholder="e.g. 15"
+                                className="form-input text-sm py-1.5 pr-7"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">%</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {(Number(item.refundAmount) > 0) && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs space-y-1">
+                          <div className="flex justify-between text-slate-500">
+                            <span>Gross amount</span>
+                            <span className="font-mono">${(Number(item.refundAmount) || 0).toFixed(2)}</span>
+                          </div>
+                          {item.decision === 'Refund - Return Label Fee' && (
+                            <div className="flex justify-between text-red-500">
+                              <span>Return label fee</span>
+                              <span className="font-mono">−${LABEL_FEE.toFixed(2)}</span>
+                            </div>
+                          )}
+                          {item.decision === 'Refund + Restocking Fee' && parseFloat(restockingPcts[i] ?? '') > 0 && (
+                            <div className="flex justify-between text-red-500">
+                              <span>Restocking fee ({restockingPcts[i]}%)</span>
+                              <span className="font-mono">−${((Number(item.refundAmount) || 0) * parseFloat(restockingPcts[i] ?? '0') / 100).toFixed(2)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-slate-800 font-semibold border-t border-slate-200 pt-1 mt-1">
+                            <span>Net refund</span>
+                            <span className="font-mono text-emerald-700">${netRefundEdit(Number(item.refundAmount) || 0, item.decision, restockingPcts[i] ?? '').toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -9,13 +9,25 @@ const CONDITIONS: ReturnCondition[] = ['Sealed', 'Open - Good Condition', 'Open 
 const DECISIONS: ReturnDecision[]   = ['Full Refund', 'Exchange', 'Refund + Restocking Fee', 'Refund - Return Label Fee', 'Replacement', 'Pending'];
 const REFUND_DECISIONS = new Set(['Full Refund', 'Refund + Restocking Fee', 'Refund - Return Label Fee']);
 const PROCESSED_BY_KEY = 'returns_processed_by';
+const LABEL_FEE = 9.50;
 
 interface LineItem {
   product: string;
   condition: ReturnCondition;
   decision: ReturnDecision;
-  refundAmount: string;
+  refundAmount: string;   // gross amount entered by user
+  restockingPct: string;  // restocking fee percentage (for Refund + Restocking Fee)
   restockingFee: number;
+}
+
+function netRefund(item: LineItem): number {
+  const gross = parseFloat(item.refundAmount) || 0;
+  if (item.decision === 'Refund - Return Label Fee') return Math.max(0, gross - LABEL_FEE);
+  if (item.decision === 'Refund + Restocking Fee') {
+    const pct = parseFloat(item.restockingPct) || 0;
+    return Math.max(0, gross - (gross * pct / 100));
+  }
+  return gross;
 }
 
 interface FormState {
@@ -34,7 +46,7 @@ interface FormState {
 }
 
 function blankItem(): LineItem {
-  return { product: '', condition: 'Sealed', decision: 'Pending', refundAmount: '', restockingFee: 0 };
+  return { product: '', condition: 'Sealed', decision: 'Pending', refundAmount: '', restockingPct: '', restockingFee: 0 };
 }
 
 function blankForm(processedBy = ''): FormState {
@@ -144,7 +156,7 @@ export default function NewReturnPage() {
         linkedRequestId: matchLinked ?? undefined,
         items: form.items.map(item => ({
           ...item,
-          refundAmount: parseFloat(item.refundAmount) || 0,
+          refundAmount: netRefund(item),
         })),
       };
       const res = await fetch('/api/returns', {
@@ -284,20 +296,67 @@ export default function NewReturnPage() {
               </div>
 
               {REFUND_DECISIONS.has(item.decision) && (
-                <div>
-                  <label className="form-label">Refund Amount</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.refundAmount}
-                      onChange={e => setItemField(i, 'refundAmount', e.target.value)}
-                      placeholder="0.00"
-                      className="form-input pl-7"
-                    />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="form-label">Gross Refund Amount</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.refundAmount}
+                          onChange={e => setItemField(i, 'refundAmount', e.target.value)}
+                          placeholder="0.00"
+                          className="form-input pl-7"
+                        />
+                      </div>
+                    </div>
+                    {item.decision === 'Refund + Restocking Fee' && (
+                      <div>
+                        <label className="form-label">Restocking Fee %</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={item.restockingPct}
+                            onChange={e => setItemField(i, 'restockingPct', e.target.value)}
+                            placeholder="e.g. 15"
+                            className="form-input pr-7"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">%</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  {/* Deduction breakdown */}
+                  {(parseFloat(item.refundAmount) > 0) && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs space-y-1">
+                      <div className="flex justify-between text-slate-500">
+                        <span>Gross amount</span>
+                        <span className="font-mono">${(parseFloat(item.refundAmount) || 0).toFixed(2)}</span>
+                      </div>
+                      {item.decision === 'Refund - Return Label Fee' && (
+                        <div className="flex justify-between text-red-500">
+                          <span>Return label fee</span>
+                          <span className="font-mono">−${LABEL_FEE.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {item.decision === 'Refund + Restocking Fee' && parseFloat(item.restockingPct) > 0 && (
+                        <div className="flex justify-between text-red-500">
+                          <span>Restocking fee ({item.restockingPct}%)</span>
+                          <span className="font-mono">−${((parseFloat(item.refundAmount) || 0) * (parseFloat(item.restockingPct) || 0) / 100).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-slate-800 font-semibold border-t border-slate-200 pt-1 mt-1">
+                        <span>Net refund</span>
+                        <span className="font-mono text-emerald-700">${netRefund(item).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
