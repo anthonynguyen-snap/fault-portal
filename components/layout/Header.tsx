@@ -398,6 +398,13 @@ export default function Header() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const quickAction = QUICK_ACTIONS.find(item => item.shortcut?.toLowerCase() === e.key.toLowerCase());
+    if (showDropdown && !query.trim() && quickAction && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      navigateTo(quickAction);
+      return;
+    }
+
     if (!showDropdown || !hasResults) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -487,7 +494,7 @@ export default function Header() {
                               </div>
                               {item.kind === 'action' && item.shortcut && (
                                 <kbd className="ml-auto mt-0.5 text-[10px] leading-none text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 font-mono flex-shrink-0">
-                                  ⌘K {item.shortcut}
+                                  ⌘K, {item.shortcut}
                                 </kbd>
                               )}
                             </Link>
