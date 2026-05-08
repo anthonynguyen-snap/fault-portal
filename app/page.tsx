@@ -210,7 +210,20 @@ export default function DashboardPage() {
 
   // Commslayer queue
   interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; fetchedAt: string; }
-  function fmtFRT(s: number) { if (!s || s <= 0) return '—'; const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); if (h>=24) return `${Math.floor(h/24)}d`; if (h>=1) return `${h}h ${m}m`; return `${m}m`; }
+  type FrtLevel = 'ok' | 'amber' | 'red';
+  const FRT_AMBER_SECONDS = 24 * 3600;
+  const FRT_RED_SECONDS = 48 * 3600;
+  function fmtFRT(s: number) { if (!s || s <= 0) return '—'; const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60); if (d >= 1) return h > 0 ? `${d}d ${h}h` : `${d}d`; if (h>=1) return `${h}h ${m}m`; return `${m}m`; }
+  function frtLevel(s: number): FrtLevel {
+    if (s > FRT_RED_SECONDS) return 'red';
+    if (s > FRT_AMBER_SECONDS) return 'amber';
+    return 'ok';
+  }
+  const FRT_CARD: Record<FrtLevel, { card: string; iconBg: string; icon: string; value: string; sub: string; label: string }> = {
+    ok:    { card: 'bg-slate-50 border-slate-100', iconBg: 'bg-slate-100', icon: 'text-slate-400', value: 'text-slate-900', sub: 'first response', label: 'On track' },
+    amber: { card: 'bg-amber-50 border-amber-200', iconBg: 'bg-amber-100', icon: 'text-amber-500', value: 'text-amber-700', sub: 'approaching 48h max', label: 'Watch' },
+    red:   { card: 'bg-red-50 border-red-200', iconBg: 'bg-red-100', icon: 'text-red-500', value: 'text-red-700', sub: 'over 48h max', label: 'Response needed' },
+  };
   const [queue, setQueue] = useState<QueueData | null>(null);
   const [queueError, setQueueError] = useState('');
   const [queueLoading, setQueueLoading] = useState(true);
@@ -397,26 +410,52 @@ export default function DashboardPage() {
         {!queueLoading && queueError && (
           <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
         )}
-        {!queueLoading && queue && (
-          <div className="grid grid-cols-4 gap-3">
-            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><MessageSquare size={14} className="text-brand-600" /></div>
-              <div><p className="text-xs text-slate-500 font-medium">Created</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.created}</p><p className="text-[10px] text-slate-400">tickets today</p></div>
+        {!queueLoading && queue && (() => {
+          const level = frtLevel(queue.frtSeconds);
+          const tone = FRT_CARD[level];
+          return (
+            <div className="space-y-3">
+              <div className="grid grid-cols-4 gap-3">
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><MessageSquare size={14} className="text-brand-600" /></div>
+                  <div><p className="text-xs text-slate-500 font-medium">Created</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.created}</p><p className="text-[10px] text-slate-400">tickets today</p></div>
+                </div>
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><UserX size={14} className="text-emerald-600" /></div>
+                  <div><p className="text-xs text-slate-500 font-medium">Closed</p><p className="text-xl font-bold text-emerald-700 leading-tight">{queue.closed}</p><p className="text-[10px] text-slate-400">resolved today</p></div>
+                </div>
+                <div className={`flex items-center gap-2.5 p-3 rounded-xl border ${tone.card}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${tone.iconBg}`}><Clock size={14} className={tone.icon} /></div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs text-slate-500 font-medium">Avg FRT</p>
+                      {level !== 'ok' && <span className={`text-[9px] font-bold uppercase ${level === 'red' ? 'text-red-600' : 'text-amber-600'}`}>{tone.label}</span>}
+                    </div>
+                    <p className={`text-xl font-bold leading-tight ${tone.value}`}>{fmtFRT(queue.frtSeconds)}</p>
+                    <p className="text-[10px] text-slate-400">{tone.sub}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0"><Mail size={14} className="text-indigo-500" /></div>
+                  <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
+                </div>
+              </div>
+              {level !== 'ok' && (
+                <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${level === 'red' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                  <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold">{level === 'red' ? 'Response breach: clear first replies now' : 'FRT warning: keep replies moving'}</p>
+                    <p className="text-xs opacity-80 mt-0.5">
+                      {level === 'red'
+                        ? 'Pause lower-priority portal admin, triage unresponded tickets oldest first, and pull another rostered person in until the queue is back under 48h.'
+                        : 'Keep an eye on new tickets and use saved replies where appropriate before this crosses the 48h maximum.'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><UserX size={14} className="text-emerald-600" /></div>
-              <div><p className="text-xs text-slate-500 font-medium">Closed</p><p className="text-xl font-bold text-emerald-700 leading-tight">{queue.closed}</p><p className="text-[10px] text-slate-400">resolved today</p></div>
-            </div>
-            <div className={`flex items-center gap-2.5 p-3 rounded-xl border ${queue.frtSeconds > 7200 ? 'bg-red-50 border-red-100' : queue.frtSeconds > 3600 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${queue.frtSeconds > 7200 ? 'bg-red-100' : queue.frtSeconds > 3600 ? 'bg-amber-100' : 'bg-slate-100'}`}><Clock size={14} className={queue.frtSeconds > 7200 ? 'text-red-500' : queue.frtSeconds > 3600 ? 'text-amber-500' : 'text-slate-400'} /></div>
-              <div><p className="text-xs text-slate-500 font-medium">Avg FRT</p><p className={`text-xl font-bold leading-tight ${queue.frtSeconds > 7200 ? 'text-red-600' : queue.frtSeconds > 3600 ? 'text-amber-600' : 'text-slate-900'}`}>{fmtFRT(queue.frtSeconds)}</p><p className="text-[10px] text-slate-400">first response</p></div>
-            </div>
-            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0"><Mail size={14} className="text-indigo-500" /></div>
-              <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* ── Chart + AI Briefing (2/3 + 1/3) ─────────────────────────────────── */}

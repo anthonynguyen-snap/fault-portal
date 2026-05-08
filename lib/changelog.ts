@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.19',
+    label: 'Commslayer FRT Alerts',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'Today’s Activity now treats first response time as an operational alert, with a 48-hour maximum and clearer escalation guidance.',
+    changes: [
+      { category: 'Dashboard', text: 'Avg FRT now uses practical thresholds: green under 24 hours, amber between 24 and 48 hours, and red once it exceeds the 48-hour maximum.' },
+      { category: 'Dashboard', text: 'When FRT is amber or red, the activity card now shows a response action banner so the team knows to prioritise first replies.' },
+      { category: 'Performance', text: 'Long first response times now show more detail, such as days plus hours, instead of rounding everything down to whole days.' },
+    ],
+  },
+  {
     version: 'v2.18',
     label: 'Roster-Aware Dashboard',
     date: '2026-05-08',
-    isLatest: true,
+    isLatest: false,
     summary: 'Today’s Team now reflects the actual roster for the day, including overrides and clearer login status.',
     changes: [
       { category: 'Dashboard', text: 'Today’s Team now reads today’s roster overrides, so people manually rostered on or off are shown correctly on the dashboard.' },
