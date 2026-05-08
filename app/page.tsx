@@ -474,9 +474,12 @@ export default function DashboardPage() {
                       </div>
                     )}
                     {!queue.breachingTickets?.length && queue.liveQueueError && (
-                      <p className="mt-2 text-[11px] font-medium opacity-70">
-                        Ticket drill-down unavailable. Confirm the token has Read conversations and Read messages permissions.
-                      </p>
+                      <div className="mt-2 rounded-lg border border-red-200/70 bg-white/70 px-2.5 py-2">
+                        <p className="text-[11px] font-semibold">Ticket drill-down unavailable.</p>
+                        <p className="mt-0.5 text-[11px] opacity-75">
+                          Commslayer returned: {queue.liveQueueError.slice(0, 220)}
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>
