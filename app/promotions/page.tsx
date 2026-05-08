@@ -346,9 +346,9 @@ export default function PromotionsPage() {
       await fetch(`/api/promotions/${promo.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endDate: today }),
+        body: JSON.stringify({ endDate: today, enabled: false }),
       });
-      setPromos(prev => prev.map(p => p.id === promo.id ? { ...p, endDate: today, isActive: false } : p));
+      setPromos(prev => prev.map(p => p.id === promo.id ? { ...p, endDate: today, enabled: false, isActive: false } : p));
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -410,9 +410,9 @@ export default function PromotionsPage() {
   }
 
   // Derived — split active into live vs paused
-  const live     = useMemo(() => promos.filter(p => p.isActive && p.enabled),  [promos]);
-  const paused   = useMemo(() => promos.filter(p => p.isActive && !p.enabled), [promos]);
-  const archived = useMemo(() => promos.filter(p => !p.isActive),              [promos]);
+  const live     = useMemo(() => promos.filter(p => p.isActive && p.enabled),                  [promos]);
+  const paused   = useMemo(() => promos.filter(p => p.isActive && !p.enabled && !p.endDate),    [promos]);
+  const archived = useMemo(() => promos.filter(p => !p.isActive || (!p.enabled && p.endDate)),  [promos]);
 
   // Date lookup results
   const lookupResults = useMemo(() => {
