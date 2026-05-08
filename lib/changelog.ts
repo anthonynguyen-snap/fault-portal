@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v4.3',
+    label: 'FRT Alert Polish',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'The Commslayer FRT breach alert is now clearer and more urgent without adding a distracting scrolling banner.',
+    changes: [
+      { category: 'Dashboard', text: 'FRT breach wording now calls out unassigned first replies so the action is clearer for the team.' },
+      { category: 'Dashboard', text: 'The alert now shows Current vs Max timing and how far over the 48-hour limit the queue is.' },
+      { category: 'UI/UX', text: 'The breach indicator now uses a stronger pulsing red dot and slightly firmer red treatment while keeping the dashboard calm enough to work from.' },
+    ],
+  },
+  {
     version: 'v4.2',
     label: 'Promotion End Fix',
     date: '2026-05-08',
-    isLatest: true,
+    isLatest: false,
     summary: 'Ending a promotion now immediately removes it from the dashboard and moves it out of the active promotion list.',
     changes: [
       { category: 'Promotions', text: 'End promotion now disables the promotion as well as setting today as the end date, so it clears from the dashboard immediately.' },

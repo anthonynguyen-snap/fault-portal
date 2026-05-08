@@ -443,12 +443,27 @@ export default function DashboardPage() {
                 </div>
               </div>
               {level !== 'ok' && (
-                <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${level === 'red' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${level === 'red' ? 'bg-red-50 border-red-300 text-red-800 shadow-[0_0_0_1px_rgba(248,113,113,0.12)]' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                   <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      {level === 'red' && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
-                      <p className="text-xs font-bold">{level === 'red' ? 'FRT BREACH: first replies overdue' : 'FRT warning: first replies nearing limit'}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {level === 'red' && (
+                        <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+                        </span>
+                      )}
+                      <p className="text-xs font-bold">{level === 'red' ? 'FRT BREACH: unassigned first replies overdue' : 'FRT warning: first replies nearing limit'}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
+                        level === 'red' ? 'border-red-300 bg-white/70 text-red-700' : 'border-amber-300 bg-white/70 text-amber-700'
+                      }`}>
+                        Current {fmtFRT(queue.frtSeconds)} · Max 48h
+                      </span>
+                      {level === 'red' && (
+                        <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                          {fmtFRT(queue.frtSeconds - FRT_RED_SECONDS)} over
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs opacity-80 mt-0.5">
                       {level === 'red'
