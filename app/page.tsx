@@ -229,6 +229,18 @@ export default function DashboardPage() {
   const [queue, setQueue] = useState<QueueData | null>(null);
   const [queueError, setQueueError] = useState('');
   const [queueLoading, setQueueLoading] = useState(true);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  function liveFRTSeconds(data: QueueData) {
+    const fetchedAt = Date.parse(data.fetchedAt);
+    if (Number.isNaN(fetchedAt)) return data.frtSeconds;
+    return data.frtSeconds + Math.max(0, Math.floor((clockNow - fetchedAt) / 1000));
+  }
 
   async function loadStats() {
     try {
@@ -413,7 +425,8 @@ export default function DashboardPage() {
           <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
         )}
         {!queueLoading && queue && (() => {
-          const level = frtLevel(queue.frtSeconds);
+          const liveFrt = liveFRTSeconds(queue);
+          const level = frtLevel(liveFrt);
           const tone = FRT_CARD[level];
           return (
             <div className="space-y-3">
@@ -433,7 +446,7 @@ export default function DashboardPage() {
                       <p className="text-xs text-slate-500 font-medium">Avg FRT</p>
                       {level !== 'ok' && <span className={`text-[9px] font-bold uppercase ${level === 'red' ? 'text-red-600' : 'text-amber-600'}`}>{tone.label}</span>}
                     </div>
-                    <p className={`text-xl font-bold leading-tight ${tone.value}`}>{fmtFRT(queue.frtSeconds)}</p>
+                    <p className={`text-xl font-bold leading-tight ${tone.value}`}>{fmtFRT(liveFrt)}</p>
                     <p className="text-[10px] text-slate-400">{tone.sub}</p>
                   </div>
                 </div>
@@ -457,11 +470,11 @@ export default function DashboardPage() {
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
                         level === 'red' ? 'border-red-300 bg-white/70 text-red-700' : 'border-amber-300 bg-white/70 text-amber-700'
                       }`}>
-                        Current {fmtFRT(queue.frtSeconds)} · Max 48h
+                        Current {fmtFRT(liveFrt)} · Max 48h
                       </span>
                       {level === 'red' && (
                         <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                          {fmtFRT(queue.frtSeconds - FRT_RED_SECONDS)} over
+                          {fmtFRT(liveFrt - FRT_RED_SECONDS)} over breach
                         </span>
                       )}
                     </div>

@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v4.4',
+    label: 'Live FRT Breach Timer',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'The Commslayer FRT breach alert now shows a live over-breach timer so the team can see how long the queue has been past the 48-hour limit.',
+    changes: [
+      { category: 'Dashboard', text: 'FRT breach alerts now show how long the current average first response time is over the 48-hour maximum.' },
+      { category: 'Dashboard', text: 'The FRT time updates while the dashboard is open, using the latest Commslayer fetch as the starting point until the next refresh.' },
+    ],
+  },
+  {
     version: 'v4.3',
     label: 'FRT Alert Polish',
     date: '2026-05-08',
-    isLatest: true,
+    isLatest: false,
     summary: 'The Commslayer FRT breach alert is now clearer and more urgent without adding a distracting scrolling banner.',
     changes: [
       { category: 'Dashboard', text: 'FRT breach wording now calls out unassigned first replies so the action is clearer for the team.' },
