@@ -77,6 +77,10 @@ function conversationUrl(conversation: any): string {
   return `${BASE_URL}/app/accounts/${ACCOUNT_ID}/conversations/${id}`;
 }
 
+function unassignedQueueUrl(): string {
+  return `${BASE_URL}/app/accounts/${ACCOUNT_ID}/conversations?status=open&assignee_type=unassigned`;
+}
+
 function conversationTitle(conversation: any): string {
   return String(
     conversation.subject ??
@@ -179,6 +183,7 @@ export async function GET() {
       messagesSent: msgs,
       breachingTickets,
       liveQueueError,
+      unassignedQueueUrl: unassignedQueueUrl(),
       fetchedAt: new Date().toISOString(),
     });
   } catch (err: any) {

@@ -211,7 +211,7 @@ export default function DashboardPage() {
 
   // Commslayer queue
   interface BreachingTicket { id: string; title: string; customer: string; inbox: string; ageSeconds: number; url: string; }
-  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; breachingTickets?: BreachingTicket[]; liveQueueError?: string; fetchedAt: string; }
+  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; breachingTickets?: BreachingTicket[]; liveQueueError?: string; unassignedQueueUrl?: string; fetchedAt: string; }
   type FrtLevel = 'ok' | 'amber' | 'red';
   const FRT_AMBER_SECONDS = 24 * 3600;
   const FRT_RED_SECONDS = 48 * 3600;
@@ -473,12 +473,21 @@ export default function DashboardPage() {
                         ))}
                       </div>
                     )}
-                    {!queue.breachingTickets?.length && queue.liveQueueError && (
-                      <div className="mt-2 rounded-lg border border-red-200/70 bg-white/70 px-2.5 py-2">
-                        <p className="text-[11px] font-semibold">Ticket drill-down unavailable.</p>
-                        <p className="mt-0.5 text-[11px] opacity-75">
-                          Commslayer returned: {queue.liveQueueError.slice(0, 220)}
-                        </p>
+                    {!queue.breachingTickets?.length && queue.unassignedQueueUrl && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <a
+                          href={queue.unassignedQueueUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                            level === 'red'
+                              ? 'bg-red-600 text-white hover:bg-red-700'
+                              : 'bg-amber-600 text-white hover:bg-amber-700'
+                          }`}
+                        >
+                          Open Unassigned in Commslayer <ExternalLink size={11} />
+                        </a>
+                        <span className="text-[11px] opacity-70">Ticket list not available via API yet.</span>
                       </div>
                     )}
                   </div>

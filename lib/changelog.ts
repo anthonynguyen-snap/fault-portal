@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.21',
+    label: 'Commslayer Queue Fallback',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'FRT breach alerts now include a direct Commslayer unassigned queue link when ticket-level drill-down is unavailable.',
+    changes: [
+      { category: 'Dashboard', text: 'FRT breach alerts now show an Open Unassigned in Commslayer button when the API cannot return individual tickets.' },
+      { category: 'Dashboard', text: 'Removed the raw Commslayer API diagnostic from the team-facing dashboard so the alert stays operational and clear.' },
+    ],
+  },
+  {
     version: 'v2.20',
     label: 'FRT Ticket Drill-down',
     date: '2026-05-08',
-    isLatest: true,
+    isLatest: false,
     summary: 'Commslayer FRT alerts can now show the oldest unassigned tickets with direct links into Commslayer when conversation-read access is available.',
     changes: [
       { category: 'Dashboard', text: 'FRT breach banners now list the oldest unassigned tickets when the Commslayer token can read conversations.' },
