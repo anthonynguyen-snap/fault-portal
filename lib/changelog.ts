@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.22',
+    label: 'Promotion End Fix',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'Ending a promotion now immediately removes it from the dashboard and moves it out of the active promotion list.',
+    changes: [
+      { category: 'Promotions', text: 'End promotion now disables the promotion as well as setting today as the end date, so it clears from the dashboard immediately.' },
+      { category: 'Promotions', text: 'Promotions ended manually are now shown in Archive instead of lingering as active or paused for the rest of the day.' },
+    ],
+  },
+  {
     version: 'v2.21',
     label: 'Commslayer Queue Fallback',
     date: '2026-05-08',
-    isLatest: true,
+    isLatest: false,
     summary: 'FRT breach alerts now include a direct Commslayer unassigned queue link when ticket-level drill-down is unavailable.',
     changes: [
       { category: 'Dashboard', text: 'FRT breach alerts now show an Open Unassigned in Commslayer button when the API cannot return individual tickets.' },
