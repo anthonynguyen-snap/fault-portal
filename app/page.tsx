@@ -444,11 +444,14 @@ export default function DashboardPage() {
                 <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${level === 'red' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                   <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold">{level === 'red' ? 'Response breach: clear first replies now' : 'FRT warning: keep replies moving'}</p>
+                    <div className="flex items-center gap-2">
+                      {level === 'red' && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
+                      <p className="text-xs font-bold">{level === 'red' ? 'FRT BREACH: first replies overdue' : 'FRT warning: first replies nearing limit'}</p>
+                    </div>
                     <p className="text-xs opacity-80 mt-0.5">
                       {level === 'red'
-                        ? 'Pause lower-priority portal admin, triage unresponded tickets oldest first, and pull another rostered person in until the queue is back under 48h.'
-                        : 'Keep an eye on new tickets and use saved replies where appropriate before this crosses the 48h maximum.'}
+                        ? 'Work unassigned tickets oldest-first until FRT is back under 48h.'
+                        : 'Work unassigned tickets oldest-first before this crosses the 48h maximum.'}
                     </p>
                   </div>
                 </div>
