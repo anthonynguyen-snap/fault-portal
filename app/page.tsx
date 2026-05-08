@@ -222,8 +222,8 @@ export default function DashboardPage() {
     return 'ok';
   }
   const FRT_CARD: Record<FrtLevel, { card: string; iconBg: string; icon: string; value: string; sub: string; label: string }> = {
-    ok:    { card: 'bg-slate-50 border-slate-100', iconBg: 'bg-slate-100', icon: 'text-slate-400', value: 'text-slate-900', sub: 'first response', label: 'On track' },
-    amber: { card: 'bg-amber-50 border-amber-200', iconBg: 'bg-amber-100', icon: 'text-amber-500', value: 'text-amber-700', sub: 'approaching 48h max', label: 'Watch' },
+    ok:    { card: 'bg-emerald-50 border-emerald-200', iconBg: 'bg-emerald-100', icon: 'text-emerald-600', value: 'text-emerald-700', sub: 'under 24h target', label: 'Great pace' },
+    amber: { card: 'bg-amber-50 border-amber-200', iconBg: 'bg-amber-100', icon: 'text-amber-500', value: 'text-amber-700', sub: 'within 48h max', label: 'Within target' },
     red:   { card: 'bg-red-50 border-red-200', iconBg: 'bg-red-100', icon: 'text-red-500', value: 'text-red-700', sub: 'over 48h max', label: 'Response needed' },
   };
   const [queue, setQueue] = useState<QueueData | null>(null);
@@ -444,7 +444,9 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex items-center gap-1.5">
                       <p className="text-xs text-slate-500 font-medium">Avg FRT</p>
-                      {level !== 'ok' && <span className={`text-[9px] font-bold uppercase ${level === 'red' ? 'text-red-600' : 'text-amber-600'}`}>{tone.label}</span>}
+                      <span className={`text-[9px] font-bold uppercase ${
+                        level === 'red' ? 'text-red-600' : level === 'amber' ? 'text-amber-600' : 'text-emerald-600'
+                      }`}>{tone.label}</span>
                     </div>
                     <p className={`text-xl font-bold leading-tight ${tone.value}`}>{fmtFRT(liveFrt)}</p>
                     <p className="text-[10px] text-slate-400">{tone.sub}</p>
@@ -455,9 +457,17 @@ export default function DashboardPage() {
                   <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
                 </div>
               </div>
-              {level !== 'ok' && (
-                <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${level === 'red' ? 'bg-red-50 border-red-300 text-red-800 shadow-[0_0_0_1px_rgba(248,113,113,0.12)]' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-                  <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />
+              {queue.frtSeconds > 0 && (
+                <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
+                  level === 'red'
+                    ? 'bg-red-50 border-red-300 text-red-800 shadow-[0_0_0_1px_rgba(248,113,113,0.12)]'
+                    : level === 'amber'
+                      ? 'bg-amber-50 border-amber-200 text-amber-800'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}>
+                  {level === 'ok'
+                    ? <CheckCircle size={15} className="mt-0.5 flex-shrink-0 text-emerald-600" />
+                    : <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       {level === 'red' && (
@@ -466,9 +476,19 @@ export default function DashboardPage() {
                           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
                         </span>
                       )}
-                      <p className="text-xs font-bold">{level === 'red' ? 'FRT BREACH: unassigned first replies overdue' : 'FRT warning: first replies nearing limit'}</p>
+                      <p className="text-xs font-bold">
+                        {level === 'red'
+                          ? 'FRT BREACH: unassigned first replies overdue'
+                          : level === 'amber'
+                            ? 'Within target: keep first replies under 48h'
+                            : 'Great pace: first replies under 24h'}
+                      </p>
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
-                        level === 'red' ? 'border-red-300 bg-white/70 text-red-700' : 'border-amber-300 bg-white/70 text-amber-700'
+                        level === 'red'
+                          ? 'border-red-300 bg-white/70 text-red-700'
+                          : level === 'amber'
+                            ? 'border-amber-300 bg-white/70 text-amber-700'
+                            : 'border-emerald-300 bg-white/70 text-emerald-700'
                       }`}>
                         Current {fmtFRT(liveFrt)} · Max 48h
                       </span>
@@ -481,9 +501,11 @@ export default function DashboardPage() {
                     <p className="text-xs opacity-80 mt-0.5">
                       {level === 'red'
                         ? 'Work unassigned tickets oldest-first until FRT is back under 48h.'
-                        : 'Work unassigned tickets oldest-first before this crosses the 48h maximum.'}
+                        : level === 'amber'
+                          ? 'Still within guidelines. Prioritise unassigned tickets if volume climbs.'
+                          : 'Kudos to the team. Keep this rhythm.'}
                     </p>
-                    {queue.breachingTickets && queue.breachingTickets.length > 0 && (
+                    {level === 'red' && queue.breachingTickets && queue.breachingTickets.length > 0 && (
                       <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
                         {queue.breachingTickets.slice(0, 4).map(ticket => (
                           <a
@@ -501,7 +523,7 @@ export default function DashboardPage() {
                         ))}
                       </div>
                     )}
-                    {!queue.breachingTickets?.length && queue.unassignedQueueUrl && (
+                    {level === 'red' && !queue.breachingTickets?.length && queue.unassignedQueueUrl && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <a
                           href={queue.unassignedQueueUrl}

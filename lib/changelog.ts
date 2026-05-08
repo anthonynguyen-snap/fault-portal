@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v4.5',
+    label: 'FRT Status States',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'Commslayer first response time now has clear green, amber, and red dashboard states with positive reinforcement when the team is ahead.',
+    changes: [
+      { category: 'Dashboard', text: 'FRT under 24 hours now shows a green Great pace state with a short kudos message for the team.' },
+      { category: 'Dashboard', text: 'FRT between 24 and 48 hours now shows an amber Within target state so it feels acceptable but watchful.' },
+      { category: 'Dashboard', text: 'FRT over 48 hours remains a red breach with the Commslayer unassigned queue action.' },
+    ],
+  },
+  {
     version: 'v4.4',
     label: 'Live FRT Breach Timer',
     date: '2026-05-08',
-    isLatest: true,
+    isLatest: false,
     summary: 'The Commslayer FRT breach alert now shows a live over-breach timer so the team can see how long the queue has been past the 48-hour limit.',
     changes: [
       { category: 'Dashboard', text: 'FRT breach alerts now show how long the current average first response time is over the 48-hour maximum.' },
