@@ -24,15 +24,18 @@ async function csGet(path: string, params: Record<string, string> = {}) {
   return JSON.parse(text);
 }
 
-async function csAccountGet(path: string, params: Record<string, string> = {}) {
+async function csAccountGet(path: string, params: Record<string, string> = {}, authMode: 'bearer' | 'api_access_token' = 'bearer') {
   const url = new URL(`${BASE_URL}/api/v1/accounts/${ACCOUNT_ID}${path}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString(), {
-    headers: { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: {
+      ...(authMode === 'bearer' ? { Authorization: `Bearer ${API_TOKEN}` } : { api_access_token: API_TOKEN }),
+      'Content-Type': 'application/json',
+    },
     cache: 'no-store',
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${text.slice(0, 200)}`);
+  if (!res.ok) throw new Error(`${authMode} HTTP ${res.status} — ${text.slice(0, 200)}`);
   return JSON.parse(text);
 }
 
@@ -90,11 +93,22 @@ function contactName(conversation: any): string {
 
 async function loadBreachingTickets() {
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const conversations = await csAccountGet('/conversations', {
-    status: 'open',
-    assignee_type: 'unassigned',
-    page: '1',
-  });
+  const params = { status: 'open', assignee_type: 'unassigned', page: '1' };
+  let conversations: any = null;
+  const errors: string[] = [];
+
+  for (const authMode of ['api_access_token', 'bearer'] as const) {
+    try {
+      conversations = await csAccountGet('/conversations', params, authMode);
+      break;
+    } catch (err: any) {
+      errors.push(err.message ?? String(err));
+    }
+  }
+
+  if (!conversations) {
+    throw new Error(errors.join(' | '));
+  }
 
   return getPayload(conversations)
     .map((conversation: any) => {
