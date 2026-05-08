@@ -5,20 +5,11 @@ import { verifySession } from '@/lib/auth';
 export const runtime = 'nodejs';
 
 type ShiftType = 'mon-fri' | 'tue-sat' | 'sun-thu';
-type LeaveType = 'sick' | 'makeup' | 'other' | 'ph-holiday' | 'annual';
 
 const SHIFT_DAYS: Record<ShiftType, number[]> = {
   'mon-fri': [1, 2, 3, 4, 5],
   'tue-sat': [2, 3, 4, 5, 6],
   'sun-thu': [0, 1, 2, 3, 4],
-};
-
-const LEAVE_LABELS: Record<LeaveType, string> = {
-  sick: 'Sick leave',
-  makeup: 'Make-up day',
-  other: 'Leave',
-  'ph-holiday': 'PH holiday',
-  annual: 'Annual leave',
 };
 
 function effectiveShift(shiftType: ShiftType, today: Date, rotationStart: Date): ShiftType {
@@ -49,29 +40,12 @@ export async function GET() {
     supabase.from('shift_logs').select('agent_id').eq('date', todayStr),
   ]);
 
-  const [{ data: overrides }, { data: leave }] = await Promise.all([
-    supabase.from('roster_overrides').select('agent_id, is_working, notes').eq('date', todayStr),
-    supabase.from('roster_leave').select('agent_id, leave_type, notes').eq('date', todayStr),
-  ]);
-
   const rotationStart = config?.rotation_start_date ? new Date(config.rotation_start_date) : today;
   const loggedInIds   = new Set((logs || []).map((l: { agent_id: string }) => l.agent_id));
-  const overrideMap = new Map((overrides || []).map((o: { agent_id: string; is_working: boolean; notes?: string }) => [o.agent_id, o]));
-  const leaveMap = new Map((leave || []).map((l: { agent_id: string; leave_type: LeaveType; notes?: string }) => [l.agent_id, l]));
 
   const team = (agents || []).map((a: { id: string; name: string; colour: string; shift_type: string }) => {
     const shift     = effectiveShift(a.shift_type as ShiftType, today, rotationStart);
-    const baseScheduled = SHIFT_DAYS[shift].includes(dayOfWeek);
-    const override = overrideMap.get(a.id);
-    const leaveRecord = leaveMap.get(a.id);
-    const scheduled = leaveRecord ? false : override ? Boolean(override.is_working) : baseScheduled;
-    const source = leaveRecord ? 'leave' : override ? 'override' : 'roster';
-    const statusLabel = leaveRecord
-      ? LEAVE_LABELS[leaveRecord.leave_type] ?? 'Leave'
-      : override
-        ? (override.is_working ? 'Override: working' : 'Override: off')
-        : (scheduled ? 'Rostered today' : 'Off today');
-
+    const scheduled = SHIFT_DAYS[shift].includes(dayOfWeek);
     return {
       id:        a.id,
       name:      a.name,
@@ -79,9 +53,6 @@ export async function GET() {
       shift,
       scheduled,
       loggedIn:  loggedInIds.has(a.id),
-      source,
-      statusLabel,
-      notes: leaveRecord?.notes || override?.notes || '',
     };
   });
 

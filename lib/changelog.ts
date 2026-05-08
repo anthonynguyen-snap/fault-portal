@@ -33,7 +33,7 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
-    version: 'v2.22',
+    version: 'v4.2',
     label: 'Promotion End Fix',
     date: '2026-05-08',
     isLatest: true,
@@ -44,7 +44,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.21',
+    version: 'v4.1',
     label: 'Commslayer Queue Fallback',
     date: '2026-05-08',
     isLatest: false,
@@ -55,7 +55,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.20',
+    version: 'v4.0',
     label: 'FRT Ticket Drill-down',
     date: '2026-05-08',
     isLatest: false,
@@ -67,7 +67,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.19',
+    version: 'v3.9',
     label: 'Commslayer FRT Alerts',
     date: '2026-05-08',
     isLatest: false,
@@ -79,7 +79,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.18',
+    version: 'v3.8',
     label: 'Roster-Aware Dashboard',
     date: '2026-05-08',
     isLatest: false,
@@ -91,7 +91,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.17',
+    version: 'v3.7',
     label: 'Portal QOL Links',
     date: '2026-05-07',
     isLatest: false,
@@ -105,7 +105,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.16',
+    version: 'v3.6',
     label: 'Order Timeline',
     date: '2026-05-07',
     isLatest: false,
@@ -118,7 +118,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.15',
+    version: 'v3.5',
     label: 'Command Menu',
     date: '2026-05-07',
     isLatest: false,
@@ -131,7 +131,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.14',
+    version: 'v3.4',
     label: 'Returns Workflow Cleanup',
     date: '2026-05-07',
     isLatest: false,
@@ -145,7 +145,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.13',
+    version: 'v3.3',
     label: 'Stocktake Mode',
     date: '2026-05-07',
     isLatest: false,
@@ -159,7 +159,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.12',
+    version: 'v3.2',
     label: 'Returns Form QOL',
     date: '2026-05-07',
     isLatest: false,
@@ -172,7 +172,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.11',
+    version: 'v3.1',
     label: 'Today\'s Activity on Dashboard',
     date: '2026-05-06',
     isLatest: false,
@@ -184,7 +184,7 @@ export const CHANGELOG: ChangelogVersion[] = [
     ],
   },
   {
-    version: 'v2.10',
+    version: 'v3.0',
     label: 'Daily Performance View',
     date: '2026-05-06',
     isLatest: false,

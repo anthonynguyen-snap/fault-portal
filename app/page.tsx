@@ -23,7 +23,6 @@ import {
   MessageSquare,
   Mail,
   UserX,
-  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -48,17 +47,7 @@ const SHIFT_LABELS: Record<string, string> = {
   'tue-sat': 'Tue–Sat',
   'sun-thu': 'Sun–Thu',
 };
-type TeamMember = {
-  id: string;
-  name: string;
-  colour: string;
-  shift: string;
-  scheduled: boolean;
-  loggedIn: boolean;
-  source?: 'roster' | 'override' | 'leave';
-  statusLabel?: string;
-  notes?: string;
-};
+type TeamMember = { id: string; name: string; colour: string; shift: string; scheduled: boolean; loggedIn: boolean };
 
 function TodaysTeam() {
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -68,21 +57,12 @@ function TodaysTeam() {
   if (!team.length) return null;
   const onShift = team.filter(m => m.scheduled);
   const offShift = team.filter(m => !m.scheduled);
-  const missingLoginCount = onShift.filter(m => !m.loggedIn).length;
   return (
     <div className="card px-4 py-3 flex items-center gap-4 flex-wrap">
       <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">Today&apos;s Team</span>
       <div className="flex items-center gap-3 flex-wrap flex-1">
         {onShift.map(m => (
-          <div
-            key={m.id}
-            title={[m.statusLabel, m.notes].filter(Boolean).join(' · ')}
-            className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
-              m.loggedIn
-                ? 'border-emerald-100 bg-emerald-50/50'
-                : 'border-red-200 bg-red-50'
-            }`}
-          >
+          <div key={m.id} className="flex items-center gap-2">
             <span className="relative flex-shrink-0">
               <span className="w-2.5 h-2.5 rounded-full block" style={{ backgroundColor: m.colour }} />
               {m.loggedIn && (
@@ -91,11 +71,8 @@ function TodaysTeam() {
             </span>
             <span className="text-sm font-medium text-slate-700">{m.name}</span>
             <span className="text-xs text-slate-400">{SHIFT_LABELS[m.shift]}</span>
-            {m.source === 'override' && (
-              <span className="text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-1.5 py-0.5">override</span>
-            )}
             {!m.loggedIn && (
-              <span className="text-[10px] text-red-600 font-semibold">not signed in</span>
+              <span className="text-[10px] text-slate-300 font-medium">not signed in</span>
             )}
           </div>
         ))}
@@ -103,31 +80,17 @@ function TodaysTeam() {
           <>
             <span className="text-slate-200 text-xs">|</span>
             {offShift.map(m => (
-              <div
-                key={m.id}
-                title={[m.statusLabel, m.notes].filter(Boolean).join(' · ')}
-                className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${
-                  m.source === 'leave'
-                    ? 'bg-red-50 text-red-500'
-                    : m.source === 'override'
-                      ? 'bg-slate-100 text-slate-500'
-                      : 'opacity-40'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full block ${m.source === 'leave' ? 'bg-red-400' : 'bg-slate-300'}`} />
-                <span className={`text-xs ${m.source === 'leave' ? 'text-red-600' : 'text-slate-400 line-through'}`}>{m.name}</span>
-                {m.source !== 'roster' && (
-                  <span className="text-[9px] font-bold uppercase">{m.source === 'leave' ? 'leave' : 'override off'}</span>
-                )}
+              <div key={m.id} className="flex items-center gap-1.5 opacity-40">
+                <span className="w-2 h-2 rounded-full block bg-slate-300" />
+                <span className="text-xs text-slate-400 line-through">{m.name}</span>
               </div>
             ))}
           </>
         )}
       </div>
-      <div className="text-[10px] hidden sm:flex items-center gap-3 text-slate-400 flex-shrink-0">
-        <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1" />signed in</span>
-        {missingLoginCount > 0 && <span className="text-red-500 font-semibold">{missingLoginCount} not signed in</span>}
-      </div>
+      <span className="text-[10px] text-slate-300 hidden sm:block flex-shrink-0">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1" />signed in today
+      </span>
     </div>
   );
 }
@@ -210,22 +173,8 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Commslayer queue
-  interface BreachingTicket { id: string; title: string; customer: string; inbox: string; ageSeconds: number; url: string; }
-  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; breachingTickets?: BreachingTicket[]; liveQueueError?: string; unassignedQueueUrl?: string; fetchedAt: string; }
-  type FrtLevel = 'ok' | 'amber' | 'red';
-  const FRT_AMBER_SECONDS = 24 * 3600;
-  const FRT_RED_SECONDS = 48 * 3600;
-  function fmtFRT(s: number) { if (!s || s <= 0) return '—'; const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60); if (d >= 1) return h > 0 ? `${d}d ${h}h` : `${d}d`; if (h>=1) return `${h}h ${m}m`; return `${m}m`; }
-  function frtLevel(s: number): FrtLevel {
-    if (s > FRT_RED_SECONDS) return 'red';
-    if (s > FRT_AMBER_SECONDS) return 'amber';
-    return 'ok';
-  }
-  const FRT_CARD: Record<FrtLevel, { card: string; iconBg: string; icon: string; value: string; sub: string; label: string }> = {
-    ok:    { card: 'bg-slate-50 border-slate-100', iconBg: 'bg-slate-100', icon: 'text-slate-400', value: 'text-slate-900', sub: 'first response', label: 'On track' },
-    amber: { card: 'bg-amber-50 border-amber-200', iconBg: 'bg-amber-100', icon: 'text-amber-500', value: 'text-amber-700', sub: 'approaching 48h max', label: 'Watch' },
-    red:   { card: 'bg-red-50 border-red-200', iconBg: 'bg-red-100', icon: 'text-red-500', value: 'text-red-700', sub: 'over 48h max', label: 'Response needed' },
-  };
+  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; fetchedAt: string; }
+  function fmtFRT(s: number) { if (!s || s <= 0) return '—'; const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); if (h>=24) return `${Math.floor(h/24)}d`; if (h>=1) return `${h}h ${m}m`; return `${m}m`; }
   const [queue, setQueue] = useState<QueueData | null>(null);
   const [queueError, setQueueError] = useState('');
   const [queueLoading, setQueueLoading] = useState(true);
@@ -412,90 +361,26 @@ export default function DashboardPage() {
         {!queueLoading && queueError && (
           <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
         )}
-        {!queueLoading && queue && (() => {
-          const level = frtLevel(queue.frtSeconds);
-          const tone = FRT_CARD[level];
-          return (
-            <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-3">
-                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><MessageSquare size={14} className="text-brand-600" /></div>
-                  <div><p className="text-xs text-slate-500 font-medium">Created</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.created}</p><p className="text-[10px] text-slate-400">tickets today</p></div>
-                </div>
-                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><UserX size={14} className="text-emerald-600" /></div>
-                  <div><p className="text-xs text-slate-500 font-medium">Closed</p><p className="text-xl font-bold text-emerald-700 leading-tight">{queue.closed}</p><p className="text-[10px] text-slate-400">resolved today</p></div>
-                </div>
-                <div className={`flex items-center gap-2.5 p-3 rounded-xl border ${tone.card}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${tone.iconBg}`}><Clock size={14} className={tone.icon} /></div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-xs text-slate-500 font-medium">Avg FRT</p>
-                      {level !== 'ok' && <span className={`text-[9px] font-bold uppercase ${level === 'red' ? 'text-red-600' : 'text-amber-600'}`}>{tone.label}</span>}
-                    </div>
-                    <p className={`text-xl font-bold leading-tight ${tone.value}`}>{fmtFRT(queue.frtSeconds)}</p>
-                    <p className="text-[10px] text-slate-400">{tone.sub}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0"><Mail size={14} className="text-indigo-500" /></div>
-                  <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
-                </div>
-              </div>
-              {level !== 'ok' && (
-                <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${level === 'red' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
-                  <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      {level === 'red' && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
-                      <p className="text-xs font-bold">{level === 'red' ? 'FRT BREACH: first replies overdue' : 'FRT warning: first replies nearing limit'}</p>
-                    </div>
-                    <p className="text-xs opacity-80 mt-0.5">
-                      {level === 'red'
-                        ? 'Work unassigned tickets oldest-first until FRT is back under 48h.'
-                        : 'Work unassigned tickets oldest-first before this crosses the 48h maximum.'}
-                    </p>
-                    {queue.breachingTickets && queue.breachingTickets.length > 0 && (
-                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {queue.breachingTickets.slice(0, 4).map(ticket => (
-                          <a
-                            key={ticket.id}
-                            href={ticket.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 rounded-lg border border-red-200/70 bg-white/70 px-2.5 py-2 text-red-800 hover:bg-white transition-colors"
-                          >
-                            <span className="font-mono text-[11px] font-bold">#{ticket.id}</span>
-                            <span className="text-xs font-semibold whitespace-nowrap">{fmtFRT(ticket.ageSeconds)}</span>
-                            <span className="min-w-0 flex-1 truncate text-xs">{ticket.customer} · {ticket.title}</span>
-                            <ExternalLink size={11} className="flex-shrink-0 opacity-60" />
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                    {!queue.breachingTickets?.length && queue.unassignedQueueUrl && (
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <a
-                          href={queue.unassignedQueueUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                            level === 'red'
-                              ? 'bg-red-600 text-white hover:bg-red-700'
-                              : 'bg-amber-600 text-white hover:bg-amber-700'
-                          }`}
-                        >
-                          Open Unassigned in Commslayer <ExternalLink size={11} />
-                        </a>
-                        <span className="text-[11px] opacity-70">Ticket list not available via API yet.</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+        {!queueLoading && queue && (
+          <div className="grid grid-cols-4 gap-3">
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><MessageSquare size={14} className="text-brand-600" /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Created</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.created}</p><p className="text-[10px] text-slate-400">tickets today</p></div>
             </div>
-          );
-        })()}
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><UserX size={14} className="text-emerald-600" /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Closed</p><p className="text-xl font-bold text-emerald-700 leading-tight">{queue.closed}</p><p className="text-[10px] text-slate-400">resolved today</p></div>
+            </div>
+            <div className={`flex items-center gap-2.5 p-3 rounded-xl border ${queue.frtSeconds > 7200 ? 'bg-red-50 border-red-100' : queue.frtSeconds > 3600 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50 border-slate-100'}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${queue.frtSeconds > 7200 ? 'bg-red-100' : queue.frtSeconds > 3600 ? 'bg-amber-100' : 'bg-slate-100'}`}><Clock size={14} className={queue.frtSeconds > 7200 ? 'text-red-500' : queue.frtSeconds > 3600 ? 'text-amber-500' : 'text-slate-400'} /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Avg FRT</p><p className={`text-xl font-bold leading-tight ${queue.frtSeconds > 7200 ? 'text-red-600' : queue.frtSeconds > 3600 ? 'text-amber-600' : 'text-slate-900'}`}>{fmtFRT(queue.frtSeconds)}</p><p className="text-[10px] text-slate-400">first response</p></div>
+            </div>
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0"><Mail size={14} className="text-indigo-500" /></div>
+              <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Chart + AI Briefing (2/3 + 1/3) ─────────────────────────────────── */}
