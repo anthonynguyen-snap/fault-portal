@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.18',
+    label: 'Roster-Aware Dashboard',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'Today’s Team now reflects the actual roster for the day, including overrides and clearer login status.',
+    changes: [
+      { category: 'Dashboard', text: 'Today’s Team now reads today’s roster overrides, so people manually rostered on or off are shown correctly on the dashboard.' },
+      { category: 'Dashboard', text: 'Scheduled team members who have not logged in are now highlighted clearly instead of appearing as a muted note.' },
+      { category: 'Roster', text: 'Leave and override context is carried into the dashboard strip, making today’s coverage easier to scan without opening the roster.' },
+    ],
+  },
+  {
     version: 'v2.17',
     label: 'Portal QOL Links',
     date: '2026-05-07',
-    isLatest: true,
+    isLatest: false,
     summary: 'Order numbers are now more connected across the portal, with recent order recall, timeline links, and smoother pre-filled actions from customer-care history.',
     changes: [
       { category: 'Orders', text: 'Recent orders — the command menu now remembers recently viewed order timelines so you can reopen customer context quickly.' },

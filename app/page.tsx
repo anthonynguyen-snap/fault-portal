@@ -47,7 +47,17 @@ const SHIFT_LABELS: Record<string, string> = {
   'tue-sat': 'Tue–Sat',
   'sun-thu': 'Sun–Thu',
 };
-type TeamMember = { id: string; name: string; colour: string; shift: string; scheduled: boolean; loggedIn: boolean };
+type TeamMember = {
+  id: string;
+  name: string;
+  colour: string;
+  shift: string;
+  scheduled: boolean;
+  loggedIn: boolean;
+  source?: 'roster' | 'override' | 'leave';
+  statusLabel?: string;
+  notes?: string;
+};
 
 function TodaysTeam() {
   const [team, setTeam] = useState<TeamMember[]>([]);
@@ -57,12 +67,21 @@ function TodaysTeam() {
   if (!team.length) return null;
   const onShift = team.filter(m => m.scheduled);
   const offShift = team.filter(m => !m.scheduled);
+  const missingLoginCount = onShift.filter(m => !m.loggedIn).length;
   return (
     <div className="card px-4 py-3 flex items-center gap-4 flex-wrap">
       <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">Today&apos;s Team</span>
       <div className="flex items-center gap-3 flex-wrap flex-1">
         {onShift.map(m => (
-          <div key={m.id} className="flex items-center gap-2">
+          <div
+            key={m.id}
+            title={[m.statusLabel, m.notes].filter(Boolean).join(' · ')}
+            className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 ${
+              m.loggedIn
+                ? 'border-emerald-100 bg-emerald-50/50'
+                : 'border-red-200 bg-red-50'
+            }`}
+          >
             <span className="relative flex-shrink-0">
               <span className="w-2.5 h-2.5 rounded-full block" style={{ backgroundColor: m.colour }} />
               {m.loggedIn && (
@@ -71,8 +90,11 @@ function TodaysTeam() {
             </span>
             <span className="text-sm font-medium text-slate-700">{m.name}</span>
             <span className="text-xs text-slate-400">{SHIFT_LABELS[m.shift]}</span>
+            {m.source === 'override' && (
+              <span className="text-[10px] font-semibold text-brand-600 bg-brand-50 border border-brand-100 rounded-full px-1.5 py-0.5">override</span>
+            )}
             {!m.loggedIn && (
-              <span className="text-[10px] text-slate-300 font-medium">not signed in</span>
+              <span className="text-[10px] text-red-600 font-semibold">not signed in</span>
             )}
           </div>
         ))}
@@ -80,17 +102,31 @@ function TodaysTeam() {
           <>
             <span className="text-slate-200 text-xs">|</span>
             {offShift.map(m => (
-              <div key={m.id} className="flex items-center gap-1.5 opacity-40">
-                <span className="w-2 h-2 rounded-full block bg-slate-300" />
-                <span className="text-xs text-slate-400 line-through">{m.name}</span>
+              <div
+                key={m.id}
+                title={[m.statusLabel, m.notes].filter(Boolean).join(' · ')}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${
+                  m.source === 'leave'
+                    ? 'bg-red-50 text-red-500'
+                    : m.source === 'override'
+                      ? 'bg-slate-100 text-slate-500'
+                      : 'opacity-40'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full block ${m.source === 'leave' ? 'bg-red-400' : 'bg-slate-300'}`} />
+                <span className={`text-xs ${m.source === 'leave' ? 'text-red-600' : 'text-slate-400 line-through'}`}>{m.name}</span>
+                {m.source !== 'roster' && (
+                  <span className="text-[9px] font-bold uppercase">{m.source === 'leave' ? 'leave' : 'override off'}</span>
+                )}
               </div>
             ))}
           </>
         )}
       </div>
-      <span className="text-[10px] text-slate-300 hidden sm:block flex-shrink-0">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1" />signed in today
-      </span>
+      <div className="text-[10px] hidden sm:flex items-center gap-3 text-slate-400 flex-shrink-0">
+        <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1" />signed in</span>
+        {missingLoginCount > 0 && <span className="text-red-500 font-semibold">{missingLoginCount} not signed in</span>}
+      </div>
     </div>
   );
 }
