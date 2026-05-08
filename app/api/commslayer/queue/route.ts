@@ -24,21 +24,6 @@ async function csGet(path: string, params: Record<string, string> = {}) {
   return JSON.parse(text);
 }
 
-async function csAccountGet(path: string, params: Record<string, string> = {}, authMode: 'bearer' | 'api_access_token' = 'bearer') {
-  const url = new URL(`${BASE_URL}/api/v1/accounts/${ACCOUNT_ID}${path}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), {
-    headers: {
-      ...(authMode === 'bearer' ? { Authorization: `Bearer ${API_TOKEN}` } : { api_access_token: API_TOKEN }),
-      'Content-Type': 'application/json',
-    },
-    cache: 'no-store',
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${authMode} HTTP ${res.status} — ${text.slice(0, 200)}`);
-  return JSON.parse(text);
-}
-
 async function csFlexibleGet(path: string, params: Record<string, string>, authMode: 'bearer' | 'api_access_token') {
   const url = new URL(`${BASE_URL}${path}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -113,9 +98,10 @@ async function loadBreachingTickets() {
   const errors: string[] = [];
 
   const attempts = [
-    { path: `/api/v1/accounts/${ACCOUNT_ID}/conversations`, includeAccountInPath: true },
     { path: '/api/integration/v1/conversations', includeAccountInPath: false },
     { path: `/api/integration/v1/accounts/${ACCOUNT_ID}/conversations`, includeAccountInPath: true },
+    { path: '/api/integration/v1/tickets', includeAccountInPath: false },
+    { path: '/api/integration/v1/messages', includeAccountInPath: false },
   ];
 
   for (const attempt of attempts) {
@@ -131,14 +117,6 @@ async function loadBreachingTickets() {
       }
     }
     if (conversations) break;
-  }
-
-  if (!conversations) {
-    try {
-      conversations = await csAccountGet('/conversations', { status: params.status, assignee_type: params.assignee_type, page: params.page }, 'api_access_token');
-    } catch (err: any) {
-      errors.push(err.message ?? String(err));
-    }
   }
 
   if (!conversations) {
