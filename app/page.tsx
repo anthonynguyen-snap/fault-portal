@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Mail,
   UserX,
+  ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -209,7 +210,8 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Commslayer queue
-  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; fetchedAt: string; }
+  interface BreachingTicket { id: string; title: string; customer: string; inbox: string; ageSeconds: number; url: string; }
+  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; breachingTickets?: BreachingTicket[]; liveQueueError?: string; fetchedAt: string; }
   type FrtLevel = 'ok' | 'amber' | 'red';
   const FRT_AMBER_SECONDS = 24 * 3600;
   const FRT_RED_SECONDS = 48 * 3600;
@@ -443,7 +445,7 @@ export default function DashboardPage() {
               {level !== 'ok' && (
                 <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${level === 'red' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                   <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       {level === 'red' && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
                       <p className="text-xs font-bold">{level === 'red' ? 'FRT BREACH: first replies overdue' : 'FRT warning: first replies nearing limit'}</p>
@@ -453,6 +455,29 @@ export default function DashboardPage() {
                         ? 'Work unassigned tickets oldest-first until FRT is back under 48h.'
                         : 'Work unassigned tickets oldest-first before this crosses the 48h maximum.'}
                     </p>
+                    {queue.breachingTickets && queue.breachingTickets.length > 0 && (
+                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {queue.breachingTickets.slice(0, 4).map(ticket => (
+                          <a
+                            key={ticket.id}
+                            href={ticket.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 rounded-lg border border-red-200/70 bg-white/70 px-2.5 py-2 text-red-800 hover:bg-white transition-colors"
+                          >
+                            <span className="font-mono text-[11px] font-bold">#{ticket.id}</span>
+                            <span className="text-xs font-semibold whitespace-nowrap">{fmtFRT(ticket.ageSeconds)}</span>
+                            <span className="min-w-0 flex-1 truncate text-xs">{ticket.customer} · {ticket.title}</span>
+                            <ExternalLink size={11} className="flex-shrink-0 opacity-60" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {!queue.breachingTickets?.length && queue.liveQueueError && (
+                      <p className="mt-2 text-[11px] font-medium opacity-70">
+                        Ticket drill-down unavailable. Confirm the token has Read conversations and Read messages permissions.
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

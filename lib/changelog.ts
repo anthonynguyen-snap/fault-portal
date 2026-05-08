@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v2.20',
+    label: 'FRT Ticket Drill-down',
+    date: '2026-05-08',
+    isLatest: true,
+    summary: 'Commslayer FRT alerts can now show the oldest unassigned tickets with direct links into Commslayer when conversation-read access is available.',
+    changes: [
+      { category: 'Dashboard', text: 'FRT breach banners now list the oldest unassigned tickets when the Commslayer token can read conversations.' },
+      { category: 'Dashboard', text: 'Each listed ticket links directly to the matching Commslayer conversation so the team can work the breach oldest-first.' },
+      { category: 'Performance', text: 'If live ticket access is missing, the dashboard now explains that conversation/message read permissions are required for drill-down.' },
+    ],
+  },
+  {
     version: 'v2.19',
     label: 'Commslayer FRT Alerts',
     date: '2026-05-08',
-    isLatest: true,
+    isLatest: false,
     summary: 'Today’s Activity now treats first response time as an operational alert, with a 48-hour maximum and clearer escalation guidance.',
     changes: [
       { category: 'Dashboard', text: 'Avg FRT now uses practical thresholds: green under 24 hours, amber between 24 and 48 hours, and red once it exceeds the 48-hour maximum.' },
