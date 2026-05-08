@@ -39,6 +39,21 @@ async function csAccountGet(path: string, params: Record<string, string> = {}, a
   return JSON.parse(text);
 }
 
+async function csFlexibleGet(path: string, params: Record<string, string>, authMode: 'bearer' | 'api_access_token') {
+  const url = new URL(`${BASE_URL}${path}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), {
+    headers: {
+      ...(authMode === 'bearer' ? { Authorization: `Bearer ${API_TOKEN}` } : { api_access_token: API_TOKEN }),
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`${path} ${authMode} HTTP ${res.status} — ${text.slice(0, 160)}`);
+  return JSON.parse(text);
+}
+
 function toACST(date: Date): string {
   // ACST = UTC+9:30 — use Adelaide locale for date string
   return date.toLocaleDateString('en-CA', { timeZone: 'Australia/Adelaide' });
@@ -93,14 +108,34 @@ function contactName(conversation: any): string {
 
 async function loadBreachingTickets() {
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const params = { status: 'open', assignee_type: 'unassigned', page: '1' };
+  const params = { status: 'open', assignee_type: 'unassigned', page: '1', account_id: ACCOUNT_ID };
   let conversations: any = null;
   const errors: string[] = [];
 
-  for (const authMode of ['api_access_token', 'bearer'] as const) {
+  const attempts = [
+    { path: `/api/v1/accounts/${ACCOUNT_ID}/conversations`, includeAccountInPath: true },
+    { path: '/api/integration/v1/conversations', includeAccountInPath: false },
+    { path: `/api/integration/v1/accounts/${ACCOUNT_ID}/conversations`, includeAccountInPath: true },
+  ];
+
+  for (const attempt of attempts) {
+    for (const authMode of ['api_access_token', 'bearer'] as const) {
+      try {
+        const requestParams = attempt.includeAccountInPath
+          ? { status: params.status, assignee_type: params.assignee_type, page: params.page }
+          : params;
+        conversations = await csFlexibleGet(attempt.path, requestParams, authMode);
+        break;
+      } catch (err: any) {
+        errors.push(err.message ?? String(err));
+      }
+    }
+    if (conversations) break;
+  }
+
+  if (!conversations) {
     try {
-      conversations = await csAccountGet('/conversations', params, authMode);
-      break;
+      conversations = await csAccountGet('/conversations', { status: params.status, assignee_type: params.assignee_type, page: params.page }, 'api_access_token');
     } catch (err: any) {
       errors.push(err.message ?? String(err));
     }
@@ -155,6 +190,7 @@ export async function GET() {
       breachingTickets = await loadBreachingTickets();
     } catch (ticketErr: any) {
       liveQueueError = ticketErr.message ?? String(ticketErr);
+      console.warn('[GET /api/commslayer/queue] live queue unavailable:', liveQueueError);
     }
 
     return NextResponse.json({
