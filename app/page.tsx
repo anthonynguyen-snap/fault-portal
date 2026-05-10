@@ -457,6 +457,60 @@ export default function DashboardPage() {
                   <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
                 </div>
               </div>
+              {/* ── Oldest unassigned ticket alert ───────────────────────── */}
+              {(() => {
+                const oldest = queue.breachingTickets?.[0];
+                if (!oldest || oldest.ageSeconds < 86400) return null; // < 24h, skip
+                const isRed = oldest.ageSeconds >= 72 * 3600; // 3+ days = red
+                return (
+                  <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
+                    isRed
+                      ? 'bg-red-50 border-red-300 text-red-800'
+                      : 'bg-amber-50 border-amber-200 text-amber-800'
+                  }`}>
+                    <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${isRed ? 'text-red-500' : 'text-amber-500'}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isRed && (
+                          <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+                          </span>
+                        )}
+                        <p className="text-xs font-bold">
+                          {isRed ? 'Neglected ticket: unassigned for over 3 days' : 'Old unassigned ticket needs attention'}
+                        </p>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
+                          isRed
+                            ? 'border-red-300 bg-white/70 text-red-700'
+                            : 'border-amber-300 bg-white/70 text-amber-700'
+                        }`}>
+                          {fmtFRT(oldest.ageSeconds)} old
+                        </span>
+                      </div>
+                      <p className="text-xs opacity-80 mt-0.5">
+                        {isRed
+                          ? 'Assign this ticket immediately — it has been waiting over 3 days with no response.'
+                          : 'This ticket has been unassigned for over a day. Assign it soon to stay within SLA.'}
+                      </p>
+                      <a
+                        href={oldest.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mt-2 inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs hover:bg-white transition-colors ${
+                          isRed ? 'border-red-200/70 bg-white/60 text-red-800' : 'border-amber-200/70 bg-white/60 text-amber-800'
+                        }`}
+                      >
+                        <span className="font-mono font-bold">#{oldest.id}</span>
+                        <span className="font-semibold">{fmtFRT(oldest.ageSeconds)}</span>
+                        <span className="max-w-[260px] truncate opacity-80">{oldest.customer} · {oldest.title}</span>
+                        <ExternalLink size={11} className="flex-shrink-0 opacity-60" />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {queue.frtSeconds > 0 && (
                 <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
                   level === 'red'
