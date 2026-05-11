@@ -7,6 +7,7 @@ function fromRow(row: Record<string, unknown>): RetailCustomer {
     id: row.id as string,
     createdAt: row.created_at as string,
     name: (row.name as string) || '',
+    companyName: (row.company_name as string) || '',
     email: (row.email as string) || '',
     phone: (row.phone as string) || '',
     shippingAddress: (row.shipping_address as string) || '',
@@ -35,6 +36,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     .from('retail_customers')
     .update({
       name: body.name,
+      company_name: body.companyName || '',
       email: body.email,
       phone: body.phone,
       shipping_address: body.shippingAddress,

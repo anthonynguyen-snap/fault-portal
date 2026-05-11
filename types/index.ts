@@ -461,6 +461,7 @@ export interface RetailCustomer {
   id: string;
   createdAt: string;
   name: string;
+  companyName: string;
   email: string;
   phone: string;
   shippingAddress: string;
@@ -491,6 +492,7 @@ export interface RetailOrderItem {
   sku: string;
   quantityOrdered: number;
   quantityShipped: number;
+  unitPrice: number;
 }
 
 export interface RetailOrder {
@@ -502,6 +504,7 @@ export interface RetailOrder {
   orderDate: string;
   // Customer
   customerName: string;
+  companyName: string;
   customerEmail: string;
   customerPhone: string;
   shippingAddress: string;

@@ -10,6 +10,7 @@ function fromItemRow(row: Record<string, unknown>): RetailOrderItem {
     sku: (row.sku as string) || '',
     quantityOrdered: (row.quantity_ordered as number) || 0,
     quantityShipped: (row.quantity_shipped as number) || 0,
+    unitPrice: (row.unit_price as number) || 0,
   };
 }
 
@@ -22,6 +23,7 @@ function fromRow(row: Record<string, unknown>): RetailOrder {
     platform: (row.platform as string) || 'Shopify',
     orderDate: (row.order_date as string) || '',
     customerName: (row.customer_name as string) || '',
+    companyName: (row.company_name as string) || '',
     customerEmail: (row.customer_email as string) || '',
     customerPhone: (row.customer_phone as string) || '',
     shippingAddress: (row.shipping_address as string) || '',
@@ -66,7 +68,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const updatePayload: Record<string, unknown> = {};
   const map: Record<string, string> = {
     orderNumber: 'order_number', platform: 'platform', orderDate: 'order_date',
-    customerName: 'customer_name', customerEmail: 'customer_email', customerPhone: 'customer_phone',
+    customerName: 'customer_name', companyName: 'company_name',
+    customerEmail: 'customer_email', customerPhone: 'customer_phone',
     shippingAddress: 'shipping_address', shippingCity: 'shipping_city',
     shippingState: 'shipping_state', shippingPostcode: 'shipping_postcode', shippingCountry: 'shipping_country',
     thirdPlReference: 'third_pl_reference', warehouse: 'warehouse', thirdPlNotes: 'third_pl_notes',
@@ -92,6 +95,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         sku: item.sku || '',
         quantity_ordered: item.quantityOrdered || 0,
         quantity_shipped: item.quantityShipped || 0,
+        unit_price: item.unitPrice || 0,
       }));
       await supabase.from('retail_order_items').insert(itemRows);
     }

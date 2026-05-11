@@ -76,9 +76,9 @@ function StatusBadge({ status }: { status: RetailOrderStatus }) {
 
 function blankOrder(): Omit<RetailOrder, 'id' | 'createdAt'> {
   return {
-    orderNumber: '', platform: 'Shopify', orderDate: new Date().toISOString().split('T')[0],
-    customerName: '', customerEmail: '', customerPhone: '',
-    shippingAddress: '', shippingCity: '', shippingState: '', shippingPostcode: '', shippingCountry: 'AU',
+    orderNumber: '', platform: 'B2B', orderDate: new Date().toISOString().split('T')[0],
+    customerName: '', companyName: '', customerEmail: '', customerPhone: '',
+    shippingAddress: '', shippingCity: '', shippingState: 'VIC', shippingPostcode: '', shippingCountry: 'AU',
     thirdPlReference: '', warehouse: '', thirdPlNotes: '',
     carrier: '', trackingNumber: '', trackingUrl: '', status: 'Pending',
     shippedDate: '', deliveredDate: '', estimatedDelivery: '', notes: '',
@@ -191,7 +191,7 @@ function OrderPanel({
     setForm(f => { const items = [...f.items]; items[idx] = { ...items[idx], [key]: value }; return { ...f, items }; });
   }
   function addItem() {
-    setForm(f => ({ ...f, items: [...f.items, { id: '', orderId: '', product: '', sku: '', quantityOrdered: 1, quantityShipped: 0 }] }));
+    setForm(f => ({ ...f, items: [...f.items, { id: '', orderId: '', product: '', sku: '', quantityOrdered: 1, quantityShipped: 0, unitPrice: 0 }] }));
   }
   function removeItem(idx: number) {
     setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
@@ -202,6 +202,7 @@ function OrderPanel({
       ...f,
       customerId: c.id,
       customerName: c.name,
+      companyName: c.companyName,
       customerEmail: c.email,
       customerPhone: c.phone,
       shippingAddress: c.shippingAddress,
@@ -230,6 +231,7 @@ function OrderPanel({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: form.customerName,
+            companyName: form.companyName,
             email: form.customerEmail,
             phone: form.customerPhone,
             shippingAddress: form.shippingAddress,
@@ -366,8 +368,10 @@ function OrderPanel({
                 )}
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2"><label className="form-label">Name *</label>
+                  <div><label className="form-label">Name *</label>
                     <input className="form-input w-full" value={form.customerName} onChange={e => set('customerName', e.target.value)} /></div>
+                  <div><label className="form-label">Company Name</label>
+                    <input className="form-input w-full" value={form.companyName} onChange={e => set('companyName', e.target.value)} placeholder="e.g. Acme Corp" /></div>
                   <div><label className="form-label">Email</label>
                     <input type="email" className="form-input w-full" value={form.customerEmail} onChange={e => set('customerEmail', e.target.value)} /></div>
                   <div><label className="form-label">Phone</label>
@@ -409,19 +413,45 @@ function OrderPanel({
                   </button>
                 ) : (
                   <div className="space-y-2">
-                    <div className="grid grid-cols-12 gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide px-1">
-                      <span className="col-span-4">Product</span><span className="col-span-2">SKU</span>
-                      <span className="col-span-2 text-center">Ordered</span><span className="col-span-2 text-center">Shipped</span><span className="col-span-2"></span>
+                    <div className="grid grid-cols-[1fr_80px_52px_52px_72px_28px] gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wide px-1">
+                      <span>Product / SKU</span>
+                      <span className="text-right">Unit Price</span>
+                      <span className="text-center">Ord.</span>
+                      <span className="text-center">Ship.</span>
+                      <span className="text-right">Line Total</span>
+                      <span></span>
                     </div>
-                    {form.items.map((item, idx) => (
-                      <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                        <input className="form-input col-span-4 text-xs" value={item.product} onChange={e => setItem(idx, 'product', e.target.value)} placeholder="Product" />
-                        <input className="form-input col-span-2 text-xs" value={item.sku} onChange={e => setItem(idx, 'sku', e.target.value)} placeholder="SKU" />
-                        <input type="number" min="0" className="form-input col-span-2 text-xs text-center" value={item.quantityOrdered} onChange={e => setItem(idx, 'quantityOrdered', parseInt(e.target.value) || 0)} />
-                        <input type="number" min="0" className="form-input col-span-2 text-xs text-center" value={item.quantityShipped} onChange={e => setItem(idx, 'quantityShipped', parseInt(e.target.value) || 0)} />
-                        <button onClick={() => removeItem(idx)} className="col-span-2 flex justify-center text-slate-300 hover:text-red-400"><X size={14} /></button>
-                      </div>
-                    ))}
+                    {form.items.map((item, idx) => {
+                      const lineTotal = (item.unitPrice || 0) * (item.quantityOrdered || 0);
+                      return (
+                        <div key={idx} className="grid grid-cols-[1fr_80px_52px_52px_72px_28px] gap-2 items-center">
+                          <div className="space-y-1">
+                            <input className="form-input w-full text-xs" value={item.product} onChange={e => setItem(idx, 'product', e.target.value)} placeholder="Product name" />
+                            <input className="form-input w-full text-xs font-mono text-slate-500" value={item.sku} onChange={e => setItem(idx, 'sku', e.target.value)} placeholder="SKU" />
+                          </div>
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                            <input type="number" min="0" step="0.01" className="form-input w-full text-xs text-right pl-5" value={item.unitPrice || ''} onChange={e => setItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)} placeholder="0.00" />
+                          </div>
+                          <input type="number" min="0" className="form-input text-xs text-center" value={item.quantityOrdered} onChange={e => setItem(idx, 'quantityOrdered', parseInt(e.target.value) || 0)} />
+                          <input type="number" min="0" className="form-input text-xs text-center" value={item.quantityShipped} onChange={e => setItem(idx, 'quantityShipped', parseInt(e.target.value) || 0)} />
+                          <div className="text-right text-xs font-semibold text-slate-700">
+                            {lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : <span className="text-slate-300">—</span>}
+                          </div>
+                          <button onClick={() => removeItem(idx)} className="flex justify-center text-slate-300 hover:text-red-400"><X size={14} /></button>
+                        </div>
+                      );
+                    })}
+                    {/* Order total */}
+                    {(() => {
+                      const total = form.items.reduce((s, i) => s + (i.unitPrice || 0) * (i.quantityOrdered || 0), 0);
+                      return total > 0 ? (
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 px-1">
+                          <span className="text-xs text-slate-500 font-medium">Order Total</span>
+                          <span className="text-sm font-bold text-slate-900">${total.toFixed(2)}</span>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                 )}
               </section>
@@ -483,7 +513,10 @@ function OrderPanel({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-3">
                   <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</h3>
-                  <p className="font-semibold text-slate-900">{currentOrder.customerName || '—'}</p>
+                  <div>
+                    <p className="font-semibold text-slate-900">{currentOrder.customerName || '—'}</p>
+                    {currentOrder.companyName && <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-0.5"><Building2 size={12} className="text-slate-400" />{currentOrder.companyName}</p>}
+                  </div>
                   {currentOrder.customerEmail && (
                     <a href={`mailto:${currentOrder.customerEmail}`} className="flex items-center gap-1.5 text-sm text-brand-600 hover:underline">
                       <Mail size={12} /> {currentOrder.customerEmail}
@@ -542,20 +575,25 @@ function OrderPanel({
                         <tr>
                           <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Product</th>
                           <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">SKU</th>
+                          <th className="text-right px-3 py-2.5 text-xs font-semibold text-slate-500">Unit Price</th>
                           <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500">Ordered</th>
                           <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500">Shipped</th>
+                          <th className="text-right px-3 py-2.5 text-xs font-semibold text-slate-500">Line Total</th>
                           <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500">Δ</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {currentOrder.items.map((item, i) => {
                           const diff = item.quantityShipped - item.quantityOrdered;
+                          const lineTotal = (item.unitPrice || 0) * item.quantityOrdered;
                           return (
                             <tr key={i} className={diff !== 0 && item.quantityShipped > 0 ? 'bg-amber-50/50' : ''}>
                               <td className="px-4 py-2.5 font-medium text-slate-800">{item.product || '—'}</td>
                               <td className="px-4 py-2.5 text-xs font-mono text-slate-400">{item.sku || '—'}</td>
+                              <td className="px-3 py-2.5 text-right text-slate-600">{item.unitPrice > 0 ? `$${item.unitPrice.toFixed(2)}` : <span className="text-slate-300">—</span>}</td>
                               <td className="px-3 py-2.5 text-center">{item.quantityOrdered}</td>
                               <td className="px-3 py-2.5 text-center font-semibold">{item.quantityShipped}</td>
+                              <td className="px-3 py-2.5 text-right font-semibold text-slate-800">{lineTotal > 0 ? `$${lineTotal.toFixed(2)}` : <span className="text-slate-300">—</span>}</td>
                               <td className="px-3 py-2.5 text-center">
                                 {item.quantityShipped > 0 && diff !== 0
                                   ? <span className={`text-xs font-bold ${diff > 0 ? 'text-blue-500' : 'text-amber-600'}`}>{diff > 0 ? `+${diff}` : diff}</span>
@@ -567,6 +605,17 @@ function OrderPanel({
                           );
                         })}
                       </tbody>
+                      {currentOrder.items.some(i => i.unitPrice > 0) && (
+                        <tfoot className="bg-slate-50 border-t border-slate-100">
+                          <tr>
+                            <td colSpan={5} className="px-4 py-2.5 text-xs font-semibold text-slate-500 text-right">Order Total</td>
+                            <td className="px-3 py-2.5 text-right font-bold text-slate-900">
+                              ${currentOrder.items.reduce((s, i) => s + (i.unitPrice || 0) * i.quantityOrdered, 0).toFixed(2)}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 </div>
@@ -616,7 +665,7 @@ function CustomerPanel({
 }) {
   const [mode, setMode] = useState<'view' | 'edit'>(customer ? 'view' : 'edit');
   const [form, setForm] = useState<Omit<RetailCustomer, 'id' | 'createdAt'>>(
-    customer ? { ...customer } : { name: '', email: '', phone: '', shippingAddress: '', shippingCity: '', shippingState: '', shippingPostcode: '', shippingCountry: 'AU', notes: '' }
+    customer ? { ...customer } : { name: '', companyName: '', email: '', phone: '', shippingAddress: '', shippingCity: '', shippingState: '', shippingPostcode: '', shippingCountry: 'AU', notes: '' }
   );
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -687,6 +736,7 @@ function CustomerPanel({
               </div>
               <div>
                 <p className="font-semibold text-slate-900">{customer.name}</p>
+                {customer.companyName && <p className="text-sm text-slate-500">{customer.companyName}</p>}
                 <p className="text-xs text-slate-400">{orderCount} order{orderCount !== 1 ? 's' : ''} · Customer since {fmt(customer.createdAt)}</p>
               </div>
             </div>
@@ -694,7 +744,8 @@ function CustomerPanel({
 
           {isEdit ? (
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2"><label className="form-label">Name *</label><input className="form-input w-full" value={form.name} onChange={e => set('name', e.target.value)} /></div>
+              <div><label className="form-label">Name *</label><input className="form-input w-full" value={form.name} onChange={e => set('name', e.target.value)} /></div>
+              <div><label className="form-label">Company Name</label><input className="form-input w-full" value={form.companyName} onChange={e => set('companyName', e.target.value)} placeholder="e.g. Acme Corp" /></div>
               <div><label className="form-label">Email</label><input type="email" className="form-input w-full" value={form.email} onChange={e => set('email', e.target.value)} /></div>
               <div><label className="form-label">Phone</label><input className="form-input w-full" value={form.phone} onChange={e => set('phone', e.target.value)} /></div>
               <div className="col-span-2"><label className="form-label">Street Address</label><input className="form-input w-full" value={form.shippingAddress} onChange={e => set('shippingAddress', e.target.value)} /></div>
@@ -978,7 +1029,10 @@ export default function RetailOrdersPage() {
                           <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
                             {c.name.charAt(0).toUpperCase()}
                           </div>
-                          <p className="font-medium text-slate-800">{c.name}</p>
+                          <div>
+                            <p className="font-medium text-slate-800">{c.name}</p>
+                            {c.companyName && <p className="text-xs text-slate-400">{c.companyName}</p>}
+                          </div>
                         </div>
                       </td>
                       <td className="px-5 py-3.5">

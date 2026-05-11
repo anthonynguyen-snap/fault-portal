@@ -10,6 +10,7 @@ function fromItemRow(row: Record<string, unknown>): RetailOrderItem {
     sku: (row.sku as string) || '',
     quantityOrdered: (row.quantity_ordered as number) || 0,
     quantityShipped: (row.quantity_shipped as number) || 0,
+    unitPrice: (row.unit_price as number) || 0,
   };
 }
 
@@ -22,6 +23,7 @@ function fromRow(row: Record<string, unknown>): RetailOrder {
     platform: (row.platform as string) || 'Shopify',
     orderDate: (row.order_date as string) || '',
     customerName: (row.customer_name as string) || '',
+    companyName: (row.company_name as string) || '',
     customerEmail: (row.customer_email as string) || '',
     customerPhone: (row.customer_phone as string) || '',
     shippingAddress: (row.shipping_address as string) || '',
@@ -67,6 +69,7 @@ export async function POST(req: Request) {
       platform: fields.platform || 'Shopify',
       order_date: fields.orderDate || null,
       customer_name: fields.customerName || '',
+      company_name: fields.companyName || '',
       customer_email: fields.customerEmail || '',
       customer_phone: fields.customerPhone || '',
       shipping_address: fields.shippingAddress || '',
@@ -99,6 +102,7 @@ export async function POST(req: Request) {
       sku: item.sku || '',
       quantity_ordered: item.quantityOrdered || 0,
       quantity_shipped: item.quantityShipped || 0,
+      unit_price: item.unitPrice || 0,
     }));
     const { error: itemErr } = await supabase.from('retail_order_items').insert(itemRows);
     if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 500 });
