@@ -5,7 +5,7 @@ import {
   PlusCircle, Search, X, Package, Truck, MapPin, Phone, Mail,
   Copy, ExternalLink, AlertTriangle, CheckCircle2,
   Clock, Loader2, Pencil, Trash2, Check, Building2, Users, ChevronRight,
-  UserPlus, BookUser,
+  UserPlus, BookUser, FileText, Send,
 } from 'lucide-react';
 import { RetailOrder, RetailOrderItem, RetailOrderStatus, RetailCustomer } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -74,6 +74,8 @@ function StatusBadge({ status }: { status: RetailOrderStatus }) {
   );
 }
 
+const CIN7_INVOICE_URL = 'https://go.cin7.com/Cloud/CRM/MembersList.aspx?idWebSite=26235&idCustomerAppsLink=1245560';
+
 function blankOrder(): Omit<RetailOrder, 'id' | 'createdAt'> {
   return {
     orderNumber: '', platform: 'B2B', orderDate: new Date().toISOString().split('T')[0],
@@ -82,7 +84,7 @@ function blankOrder(): Omit<RetailOrder, 'id' | 'createdAt'> {
     thirdPlReference: '', warehouse: '', thirdPlNotes: '',
     carrier: '', trackingNumber: '', trackingUrl: '', status: 'Pending',
     shippedDate: '', deliveredDate: '', estimatedDelivery: '', notes: '',
-    customerId: '', items: [],
+    invoiceSent: false, customerId: '', items: [],
   };
 }
 
@@ -840,6 +842,17 @@ export default function RetailOrdersPage() {
     return map;
   }, [orders]);
 
+  async function handleToggleInvoice(order: RetailOrder, e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = !order.invoiceSent;
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, invoiceSent: next } : o));
+    await fetch(`/api/retail-orders/${order.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invoiceSent: next }),
+    });
+  }
+
   function handleOrderSaved(order: RetailOrder) {
     setOrders(prev => prev.find(o => o.id === order.id) ? prev.map(o => o.id === order.id ? order : o) : [order, ...prev]);
     setSelectedOrder(order);
@@ -944,6 +957,7 @@ export default function RetailOrdersPage() {
                     <th className="px-5 py-3 text-left font-semibold">Customer</th>
                     <th className="px-5 py-3 text-left font-semibold">Items</th>
                     <th className="px-5 py-3 text-left font-semibold">Status</th>
+                    <th className="px-5 py-3 text-left font-semibold">Invoice</th>
                     <th className="px-5 py-3 text-left font-semibold">Tracking</th>
                     <th className="px-5 py-3 text-left font-semibold">Delivery</th>
                     <th className="px-5 py-3 w-8"></th>
@@ -974,6 +988,30 @@ export default function RetailOrdersPage() {
                           </div>
                         </td>
                         <td className="px-5 py-3.5"><StatusBadge status={order.status} /></td>
+                        <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={CIN7_INVOICE_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-slate-100 text-slate-600 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                              title="Open Cin7 invoicing"
+                            >
+                              <FileText size={11} /> Cin7
+                            </a>
+                            <button
+                              onClick={e => handleToggleInvoice(order, e)}
+                              title={order.invoiceSent ? 'Mark as not sent' : 'Mark invoice as sent'}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                order.invoiceSent
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-white border border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                              }`}
+                            >
+                              {order.invoiceSent ? <><CheckCircle2 size={11} /> Sent</> : <><Send size={11} /> Send</>}
+                            </button>
+                          </div>
+                        </td>
                         <td className="px-5 py-3.5">
                           {order.trackingNumber ? (
                             <div><p className="font-mono text-xs text-slate-700">{order.trackingNumber}</p>{order.carrier && <p className="text-xs text-slate-400">{order.carrier}</p>}</div>

@@ -42,6 +42,7 @@ function fromRow(row: Record<string, unknown>): RetailOrder {
     deliveredDate: (row.delivered_date as string) || '',
     estimatedDelivery: (row.estimated_delivery as string) || '',
     notes: (row.notes as string) || '',
+    invoiceSent: (row.invoice_sent as boolean) || false,
     customerId: (row.customer_id as string) || '',
     items: rawItems.map(fromItemRow),
   };
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
       delivered_date: fields.deliveredDate || null,
       estimated_delivery: fields.estimatedDelivery || null,
       notes: fields.notes || '',
+      invoice_sent: fields.invoiceSent || false,
     }])
     .select()
     .single();

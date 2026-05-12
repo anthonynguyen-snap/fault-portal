@@ -42,6 +42,7 @@ function fromRow(row: Record<string, unknown>): RetailOrder {
     deliveredDate: (row.delivered_date as string) || '',
     estimatedDelivery: (row.estimated_delivery as string) || '',
     notes: (row.notes as string) || '',
+    invoiceSent: (row.invoice_sent as boolean) || false,
     customerId: (row.customer_id as string) || '',
     items: rawItems.map(fromItemRow),
   };
@@ -70,6 +71,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     orderNumber: 'order_number', platform: 'platform', orderDate: 'order_date',
     customerName: 'customer_name', companyName: 'company_name',
     customerEmail: 'customer_email', customerPhone: 'customer_phone',
+    invoiceSent: 'invoice_sent',
     shippingAddress: 'shipping_address', shippingCity: 'shipping_city',
     shippingState: 'shipping_state', shippingPostcode: 'shipping_postcode', shippingCountry: 'shipping_country',
     thirdPlReference: 'third_pl_reference', warehouse: 'warehouse', thirdPlNotes: 'third_pl_notes',
@@ -78,8 +80,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     status: 'status', shippedDate: 'shipped_date', deliveredDate: 'delivered_date',
     estimatedDelivery: 'estimated_delivery', notes: 'notes',
   };
+  const booleanFields = new Set(['invoice_sent']);
   for (const [camel, snake] of Object.entries(map)) {
-    if (camel in fields) updatePayload[snake] = fields[camel] || null;
+    if (camel in fields) {
+      updatePayload[snake] = booleanFields.has(snake) ? Boolean(fields[camel]) : (fields[camel] || null);
+    }
   }
 
   const { error } = await supabase.from('retail_orders').update(updatePayload).eq('id', id);

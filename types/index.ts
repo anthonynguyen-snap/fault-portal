@@ -527,6 +527,8 @@ export interface RetailOrder {
   // Items & notes
   items: RetailOrderItem[];
   notes: string;
+  // Invoice
+  invoiceSent: boolean;
   // Linked customer
   customerId: string;
 }
