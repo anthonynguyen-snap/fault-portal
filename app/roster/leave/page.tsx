@@ -1198,8 +1198,8 @@ export default function LeavePage() {
                     </button>
                   ))}
                 </div>
-                {/* 2-week notice warning */}
-                {annualNoticeWarning !== null && (
+                {/* 2-week notice warning — staff only, admins are exempt */}
+                {annualNoticeWarning !== null && !isAdmin && (
                   <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg mt-2">
                     <span className="text-amber-500 text-xs mt-0.5">⚠️</span>
                     <p className="text-xs text-amber-700">
