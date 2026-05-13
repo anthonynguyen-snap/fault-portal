@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v5.7',
+    label: 'Integration Health',
+    date: '2026-05-13',
+    isLatest: true,
+    summary: 'Admin now has an Integration Health view for checking Google Sheets, Supabase, and Commslayer connectivity from inside the portal.',
+    changes: [
+      { category: 'Admin', text: 'Added an Admin > Health tab with Connected, Partial, Broken, and Not configured states for each integration.' },
+      { category: 'Admin', text: 'Google Sheets health now checks cases, products, manufacturers, fault types, and claims.' },
+      { category: 'Admin', text: 'Supabase and Commslayer health now show reachable tables/endpoints, response timing, and plain-language error details.' },
+    ],
+  },
+  {
     version: 'v5.6',
     label: 'Commslayer Ticket Endpoint',
     date: '2026-05-13',
-    isLatest: true,
+    isLatest: false,
     summary: 'Commslayer ticket drill-down now targets the documented Integration API conversation endpoint for unassigned ticket visibility.',
     changes: [
       { category: 'Dashboard', text: 'Today’s Activity now tries the documented GET /conversations integration endpoint first when loading unassigned Commslayer tickets.' },

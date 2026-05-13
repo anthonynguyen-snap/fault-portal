@@ -18,12 +18,14 @@ import {
   Eye,
   EyeOff,
   History,
+  Database,
+  RefreshCw,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
 
 // Generic CRUD panel used for all three entity types
-type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'changelog';
+type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'health' | 'changelog';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('products');
@@ -50,6 +52,7 @@ export default function AdminPage() {
     { key: 'logins',        label: 'Logins',        icon: KeyRound     },
     { key: 'kpiTargets',    label: 'KPI Targets',   icon: Target       },
     { key: 'roster',        label: 'Roster',        icon: CalendarDays },
+    { key: 'health',        label: 'Health',        icon: Database     },
     { key: 'changelog',     label: 'Changelog',     icon: History,     badge: hasNewChangelog, onSelect: handleChangelogTab },
   ];
 
@@ -90,6 +93,7 @@ export default function AdminPage() {
       {activeTab === 'logins'        && <LoginsPanel />}
       {activeTab === 'kpiTargets'    && <KpiTargetsPanel />}
       {activeTab === 'roster'        && <RosterSettingsPanel />}
+      {activeTab === 'health'        && <IntegrationHealthPanel />}
       {activeTab === 'changelog'     && <ChangelogPanel />}
     </div>
   );
@@ -1422,6 +1426,186 @@ function RosterSettingsPanel() {
           <p className="text-[10px] text-slate-400">
             Tip: after updating, the Leave Log page will reflect each agent&apos;s new window immediately.
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Integration Health Panel ──────────────────────────────────────────────────
+
+type IntegrationStatus = 'connected' | 'partial' | 'broken' | 'not_configured';
+
+type IntegrationCheck = {
+  name: string;
+  status: IntegrationStatus;
+  detail: string;
+  latencyMs?: number;
+  checkedAt: string;
+};
+
+type IntegrationGroup = {
+  name: string;
+  status: IntegrationStatus;
+  summary: string;
+  checks: IntegrationCheck[];
+};
+
+type IntegrationHealth = {
+  checkedAt: string;
+  status: IntegrationStatus;
+  summary: string;
+  groups: IntegrationGroup[];
+};
+
+const HEALTH_STYLES: Record<IntegrationStatus, { label: string; card: string; pill: string; dot: string; icon: string }> = {
+  connected: {
+    label: 'Connected',
+    card: 'border-emerald-200 bg-emerald-50/60',
+    pill: 'bg-emerald-100 text-emerald-700',
+    dot: 'bg-emerald-500',
+    icon: 'text-emerald-600',
+  },
+  partial: {
+    label: 'Partial',
+    card: 'border-amber-200 bg-amber-50/60',
+    pill: 'bg-amber-100 text-amber-700',
+    dot: 'bg-amber-500',
+    icon: 'text-amber-600',
+  },
+  broken: {
+    label: 'Broken',
+    card: 'border-red-200 bg-red-50/60',
+    pill: 'bg-red-100 text-red-700',
+    dot: 'bg-red-500',
+    icon: 'text-red-600',
+  },
+  not_configured: {
+    label: 'Not configured',
+    card: 'border-slate-200 bg-slate-50',
+    pill: 'bg-slate-100 text-slate-600',
+    dot: 'bg-slate-400',
+    icon: 'text-slate-500',
+  },
+};
+
+function IntegrationHealthPanel() {
+  const [health, setHealth] = useState<IntegrationHealth | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/integration-health', { cache: 'no-store' });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'Health check failed');
+      setHealth(json);
+    } catch (err: any) {
+      setError(err.message || 'Health check failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const overall = health ? HEALTH_STYLES[health.status] : HEALTH_STYLES.not_configured;
+
+  return (
+    <div className="max-w-4xl space-y-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Integration Health</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Check whether the portal can reach Google Sheets, Supabase, and Commslayer.</p>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="btn-secondary inline-flex items-center gap-2"
+        >
+          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          Run Health Check
+        </button>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className={`rounded-xl border px-5 py-4 ${overall.card}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Overall Status</p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${overall.dot}`} />
+              <span className="text-xl font-bold text-slate-900">{overall.label}</span>
+            </div>
+            <p className="mt-1 text-sm text-slate-600">{health?.summary ?? 'Run a health check to test integrations.'}</p>
+          </div>
+          {health?.checkedAt && (
+            <div className="text-right text-xs text-slate-500">
+              <p className="font-semibold text-slate-600">Last checked</p>
+              <p>{new Date(health.checkedAt).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {loading && !health ? (
+        <div className="grid gap-4 md:grid-cols-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="card p-5">
+              <div className="h-4 w-28 rounded bg-slate-100 animate-pulse" />
+              <div className="mt-4 space-y-2">
+                <div className="h-3 rounded bg-slate-100 animate-pulse" />
+                <div className="h-3 w-2/3 rounded bg-slate-100 animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-3">
+          {health?.groups.map(group => {
+            const style = HEALTH_STYLES[group.status];
+            return (
+              <div key={group.name} className={`rounded-xl border bg-white p-4 ${style.card}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">{group.name}</h3>
+                    <p className="mt-1 text-xs text-slate-500">{group.summary}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${style.pill}`}>
+                    {style.label}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {group.checks.map(check => {
+                    const checkStyle = HEALTH_STYLES[check.status];
+                    return (
+                      <div key={check.name} className="rounded-lg border border-white/70 bg-white/75 px-3 py-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            {check.status === 'connected'
+                              ? <CheckCircle size={14} className={checkStyle.icon} />
+                              : <AlertCircle size={14} className={checkStyle.icon} />}
+                            <span className="truncate text-sm font-medium text-slate-800">{check.name}</span>
+                          </div>
+                          {typeof check.latencyMs === 'number' && (
+                            <span className="text-[10px] font-medium text-slate-400">{check.latencyMs}ms</span>
+                          )}
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{check.detail}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
