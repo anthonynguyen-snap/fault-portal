@@ -105,25 +105,34 @@ function contactName(conversation: any): string {
   return String(contact.name ?? contact.email ?? conversation.contact_name ?? 'Customer');
 }
 
+function isOpenConversation(conversation: any) {
+  const status = String(conversation.status ?? conversation.state ?? '').toLowerCase();
+  if (['open', 'opened', 'pending'].includes(status)) return true;
+  if (['resolved', 'closed', 'archived'].includes(status)) return false;
+  return !conversation.closed_at && !conversation.resolved_at;
+}
+
+function isUnassignedConversation(conversation: any) {
+  const assignee = conversation.assignee ?? conversation.assigned_to ?? conversation.user ?? conversation.agent;
+  const assigneeId = conversation.assignee_id ?? conversation.assigned_to_id ?? conversation.user_id ?? conversation.agent_id;
+  return !assignee && !assigneeId;
+}
+
 async function loadBreachingTickets() {
   const nowSeconds = Math.floor(Date.now() / 1000);
-  const params = { status: 'open', assignee_type: 'unassigned', page: '1', account_id: ACCOUNT_ID };
   let conversations: any = null;
   const errors: string[] = [];
 
-  const attempts = [
-    { path: '/conversations', includeAccountInPath: false },
-    { path: '/api/integration/v1/conversations', includeAccountInPath: false },
-    { path: `/api/integration/v1/accounts/${ACCOUNT_ID}/conversations`, includeAccountInPath: true },
+  const attempts: Array<{ path: string; params: Record<string, string> }> = [
+    { path: '/conversations', params: { page: '1' } },
+    { path: '/conversations', params: {} },
+    { path: '/api/integration/v1/conversations', params: { page: '1' } },
   ];
 
   for (const attempt of attempts) {
-    for (const authMode of ['api_access_token', 'bearer'] as const) {
+    for (const authMode of ['bearer', 'api_access_token'] as const) {
       try {
-        const requestParams = attempt.includeAccountInPath
-          ? { status: params.status, assignee_type: params.assignee_type, page: params.page }
-          : params;
-        conversations = await csFlexibleGet(attempt.path, requestParams, authMode);
+        conversations = await csFlexibleGet(attempt.path, attempt.params, authMode);
         break;
       } catch (err: any) {
         errors.push(err.message ?? String(err));
@@ -137,6 +146,7 @@ async function loadBreachingTickets() {
   }
 
   return getPayload(conversations)
+    .filter((conversation: any) => isOpenConversation(conversation) && isUnassignedConversation(conversation))
     .map((conversation: any) => {
       const ageSeconds = conversationAgeSeconds(conversation, nowSeconds);
       const id = String(conversation.display_id ?? conversation.id ?? '');

@@ -59,10 +59,28 @@ function integrationUrl(path: string) {
   return new URL(`${root}/api/integration/v1${path.startsWith('/') ? path : `/${path}`}`);
 }
 
-async function commslayerGet(path: string, params: Record<string, string> = {}) {
+function getPayload(json: any): any[] {
+  const payload = json?.data?.payload ?? json?.payload ?? json?.data?.data ?? json?.data ?? [];
+  return Array.isArray(payload) ? payload : [];
+}
+
+function isOpenConversation(conversation: any) {
+  const status = String(conversation.status ?? conversation.state ?? '').toLowerCase();
+  if (['open', 'opened', 'pending'].includes(status)) return true;
+  if (['resolved', 'closed', 'archived'].includes(status)) return false;
+  return !conversation.closed_at && !conversation.resolved_at;
+}
+
+function isUnassignedConversation(conversation: any) {
+  const assignee = conversation.assignee ?? conversation.assigned_to ?? conversation.user ?? conversation.agent;
+  const assigneeId = conversation.assignee_id ?? conversation.assigned_to_id ?? conversation.user_id ?? conversation.agent_id;
+  return !assignee && !assigneeId;
+}
+
+async function commslayerGet(path: string, params: Record<string, string> = {}, includeAccountId = false) {
   const url = integrationUrl(path);
   const accountId = process.env.COMMSLAYER_ACCOUNT_ID;
-  if (accountId) url.searchParams.set('account_id', accountId);
+  if (includeAccountId && accountId) url.searchParams.set('account_id', accountId);
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
 
   const res = await fetch(url.toString(), {
@@ -191,18 +209,49 @@ async function checkCommslayer(): Promise<HealthGroup> {
   }
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Adelaide' });
+  let conversationsJson: any = null;
   const checks = await Promise.all([
-    commslayerCheck('Reports', '/reports/overview', { from_date: today, to_date: today }, checkedAt),
-    commslayerCheck('Conversations', '/conversations', { status: 'open', page: '1' }, checkedAt),
-    commslayerCheck('Unassigned conversations', '/conversations', { status: 'open', assignee_type: 'unassigned', page: '1' }, checkedAt),
+    commslayerCheck('Reports', '/reports/overview', { from_date: today, to_date: today }, checkedAt, true),
+    (async (): Promise<HealthCheck> => {
+      try {
+        const { value, latencyMs } = await timed(() => commslayerGet('/conversations', { page: '1' }));
+        conversationsJson = value;
+        const conversations = getPayload(value);
+        return {
+          name: 'Conversations',
+          status: 'connected',
+          detail: `${conversations.length} conversations reachable on the first page`,
+          latencyMs,
+          checkedAt,
+        };
+      } catch (err: any) {
+        return {
+          name: 'Conversations',
+          status: 'broken',
+          detail: err.message ?? String(err),
+          checkedAt,
+        };
+      }
+    })(),
   ]);
+
+  const conversations = conversationsJson ? getPayload(conversationsJson) : [];
+  checks.push({
+    name: 'Unassigned conversations',
+    status: conversationsJson ? 'connected' : 'broken',
+    detail: conversationsJson
+      ? `${conversations.filter(conversation => isOpenConversation(conversation) && isUnassignedConversation(conversation)).length} open unassigned-looking records found on the first page`
+      : 'Conversation list was not reachable, so unassigned records could not be inspected.',
+    checkedAt,
+  });
+
   const status = groupStatus(checks);
   return { name: 'Commslayer', status, summary: groupSummary(status), checks };
 }
 
-async function commslayerCheck(name: string, path: string, params: Record<string, string>, checkedAt: string): Promise<HealthCheck> {
+async function commslayerCheck(name: string, path: string, params: Record<string, string>, checkedAt: string, includeAccountId = false): Promise<HealthCheck> {
   try {
-    const { latencyMs } = await timed(() => commslayerGet(path, params));
+    const { latencyMs } = await timed(() => commslayerGet(path, params, includeAccountId));
     return {
       name,
       status: 'connected',

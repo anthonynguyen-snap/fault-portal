@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v5.8',
+    label: 'Commslayer Health Filter Fix',
+    date: '2026-05-13',
+    isLatest: true,
+    summary: 'Commslayer health checks now avoid server-side conversation filters that can trigger API errors, then inspect open/unassigned records inside the portal.',
+    changes: [
+      { category: 'Admin', text: 'Integration Health now calls the documented conversations endpoint without risky status filters, preventing Commslayer 500 errors from simple health checks.' },
+      { category: 'Dashboard', text: 'Today’s Activity now fetches conversations first and locally detects open unassigned records for FRT drill-down.' },
+    ],
+  },
+  {
     version: 'v5.7',
     label: 'Integration Health',
     date: '2026-05-13',
-    isLatest: true,
+    isLatest: false,
     summary: 'Admin now has an Integration Health view for checking Google Sheets, Supabase, and Commslayer connectivity from inside the portal.',
     changes: [
       { category: 'Admin', text: 'Added an Admin > Health tab with Connected, Partial, Broken, and Not configured states for each integration.' },
