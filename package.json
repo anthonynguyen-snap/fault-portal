@@ -21,6 +21,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "googleapis": "^140.0.1",
+    "html5-qrcode": "^2.3.8",
     "jose": "^6.2.3",
     "lucide-react": "^0.383.0",
     "multer": "^1.4.5-lts.1",

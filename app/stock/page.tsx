@@ -4,6 +4,7 @@ import {
   Package, Plus, X, ArrowDownCircle, ArrowUpCircle,
   ChevronDown, ChevronUp, AlertTriangle, Pencil, Trash2,
   CheckCircle, RefreshCw, ClipboardList, Printer, CheckSquare, Square,
+  Camera, Keyboard, Undo2, Download, Search, Flashlight, RotateCcw,
 } from 'lucide-react';
 import { StockItem, StockMovement } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -33,6 +34,22 @@ function SlideOver({ open, onClose, title, children }: {
 
 // ── Movement line type ────────────────────────────────────────────────────────
 type MovementLine = { stockItemId: string; quantity: number };
+type BarcodeRow = { barcode: string; sku: string; productName: string; comment: string; sourcePage: string };
+type ScanStatus = 'matched' | 'untracked' | 'unknown';
+type ScanEvent = {
+  id: string;
+  timestamp: string;
+  barcode: string;
+  sku: string;
+  productName: string;
+  stockItemId: string;
+  location: string;
+  delta: number;
+  source: 'scan' | 'manual' | 'batch';
+  status: ScanStatus;
+};
+type FallbackMatch = BarcodeRow & { stockItem?: StockItem; reason: string; status: ScanStatus };
+type ScanEntryMode = 'batch' | 'unit';
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function StockPage() {
@@ -74,6 +91,31 @@ export default function StockPage() {
   const [stSaving, setStSaving]     = useState(false);
   const [stSaved, setStSaved]       = useState(false);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // ── Barcode stocktake mode ─────────────────────────────────────────────────
+  const [scanMode, setScanMode] = useState(false);
+  const [barcodeRows, setBarcodeRows] = useState<BarcodeRow[]>([]);
+  const [barcodeLoadError, setBarcodeLoadError] = useState('');
+  const [scanEvents, setScanEvents] = useState<ScanEvent[]>([]);
+  const [scanLocation, setScanLocation] = useState('');
+  const [scanUser, setScanUser] = useState('');
+  const [manualBarcode, setManualBarcode] = useState('');
+  const [scanEntryMode, setScanEntryMode] = useState<ScanEntryMode>('batch');
+  const [pendingCountItem, setPendingCountItem] = useState<ScanEvent | null>(null);
+  const [batchQuantity, setBatchQuantity] = useState('1');
+  const [finalisingStocktake, setFinalisingStocktake] = useState(false);
+  const [addingScannedSku, setAddingScannedSku] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [scanNotice, setScanNotice] = useState('');
+  const [lastConfirmedScan, setLastConfirmedScan] = useState<ScanEvent | null>(null);
+  const [scanFlash, setScanFlash] = useState<ScanStatus | null>(null);
+  const [scannerError, setScannerError] = useState('');
+  const [scannerActive, setScannerActive] = useState(false);
+  const scannerRef = useRef<any>(null);
+  const lastScanRef = useRef<{ barcode: string; at: number } | null>(null);
+  const quantityHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quantityHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function load() {
     setLoading(true);
@@ -237,6 +279,83 @@ export default function StockPage() {
     });
   }, [items]);
 
+  const itemBySku = useMemo(() => {
+    const map = new Map<string, StockItem>();
+    for (const item of items) {
+      if (item.sku) map.set(item.sku.trim().toUpperCase(), item);
+    }
+    return map;
+  }, [items]);
+
+  const barcodeByCode = useMemo(() => {
+    const map = new Map<string, BarcodeRow>();
+    for (const row of barcodeRows) map.set(row.barcode, row);
+    return map;
+  }, [barcodeRows]);
+
+  const scanTotals = useMemo(() => {
+    const map = new Map<string, { sku: string; productName: string; barcode: string; quantity: number; status: ScanStatus }>();
+    for (const event of scanEvents) {
+      const key = event.sku || event.barcode;
+      const current = map.get(key) ?? {
+        sku: event.sku,
+        productName: event.productName,
+        barcode: event.barcode,
+        quantity: 0,
+        status: event.status,
+      };
+      current.quantity += event.delta;
+      map.set(key, current);
+    }
+    return Array.from(map.values()).sort((a, b) => a.sku.localeCompare(b.sku) || a.productName.localeCompare(b.productName));
+  }, [scanEvents]);
+
+  const fallbackMatches = useMemo<FallbackMatch[]>(() => {
+    const query = manualBarcode.trim().toLowerCase();
+    if (query.length < 2) return [];
+    const digits = query.replace(/\D/g, '');
+    const scored: Array<FallbackMatch & { score: number }> = [];
+
+    for (const row of barcodeRows) {
+      const sku = row.sku.toLowerCase();
+      const product = row.productName.toLowerCase();
+      const stockItem = itemBySku.get(row.sku.toUpperCase());
+      let score = 0;
+      let reason = '';
+
+      if (digits.length >= 3 && row.barcode.endsWith(digits)) {
+        score = 100 + digits.length;
+        reason = `ends in ${digits}`;
+      } else if (digits.length >= 4 && row.barcode.includes(digits)) {
+        score = 80 + digits.length;
+        reason = `contains ${digits}`;
+      } else if (sku === query) {
+        score = 75;
+        reason = 'exact SKU';
+      } else if (sku.includes(query)) {
+        score = 55;
+        reason = 'SKU match';
+      } else if (query.length >= 3 && product.includes(query)) {
+        score = 35;
+        reason = 'product match';
+      }
+
+      if (score > 0) {
+        scored.push({
+          ...row,
+          stockItem,
+          reason,
+          status: stockItem ? 'matched' : 'untracked',
+          score,
+        });
+      }
+    }
+
+    return scored
+      .sort((a, b) => b.score - a.score || a.sku.localeCompare(b.sku))
+      .slice(0, 8);
+  }, [barcodeRows, itemBySku, manualBarcode]);
+
   function stockStatus(item: StockItem) {
     if (item.discontinued) return 'discontinued';
     if (item.quantity === 0) return 'out';
@@ -260,6 +379,421 @@ export default function StockPage() {
       setError(e.message);
     }
   }
+
+  function parseCsvLine(line: string) {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const next = line[i + 1];
+      if (char === '"' && next === '"') {
+        current += '"';
+        i++;
+      } else if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        values.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current);
+    return values;
+  }
+
+  function parseBarcodeCsv(text: string): BarcodeRow[] {
+    return text
+      .split(/\r?\n/)
+      .slice(1)
+      .map(line => {
+        const cols = parseCsvLine(line);
+        return {
+          barcode: (cols[0] ?? '').trim(),
+          sku: (cols[1] ?? '').trim(),
+          productName: (cols[2] ?? '').trim(),
+          comment: (cols[3] ?? '').trim(),
+          sourcePage: (cols[4] ?? '').trim(),
+        };
+      })
+      .filter(row => row.barcode && row.sku);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/data/snap-master-barcodes.csv')
+      .then(res => {
+        if (!res.ok) throw new Error('Barcode file could not be loaded');
+        return res.text();
+      })
+      .then(text => {
+        if (!cancelled) setBarcodeRows(parseBarcodeCsv(text));
+      })
+      .catch(() => {
+        if (!cancelled) setBarcodeLoadError('Barcode list could not be loaded');
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const raw = localStorage.getItem('stocktake-scan-events');
+    if (!raw) return;
+    try {
+      const saved = JSON.parse(raw);
+      if (Array.isArray(saved)) setScanEvents(saved);
+    } catch { /* ignore old local data */ }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('stocktake-scan-events', JSON.stringify(scanEvents));
+  }, [scanEvents]);
+
+  function makeScanEvent(barcode: string, source: 'scan' | 'manual' | 'batch', overrideRow?: BarcodeRow, delta = 1): ScanEvent {
+    const cleanBarcode = barcode.trim();
+    const barcodeRow = overrideRow ?? barcodeByCode.get(cleanBarcode);
+    const stockItem = barcodeRow ? itemBySku.get(barcodeRow.sku.toUpperCase()) : undefined;
+    const status: ScanStatus = stockItem ? 'matched' : barcodeRow ? 'untracked' : 'unknown';
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: new Date().toISOString(),
+      barcode: cleanBarcode,
+      sku: barcodeRow?.sku ?? '',
+      productName: barcodeRow?.productName ?? 'Unknown barcode',
+      stockItemId: stockItem?.id ?? '',
+      location: scanLocation.trim(),
+      delta,
+      source,
+      status,
+    };
+  }
+
+  function recordScanEvent(event: ScanEvent) {
+    setScanEvents(prev => [event, ...prev]);
+    setLastConfirmedScan(event);
+    setScanFlash(event.status);
+    setTimeout(() => setScanFlash(null), 700);
+    setScanNotice(event.status === 'matched'
+      ? `${event.sku} counted (${event.delta})`
+      : event.status === 'untracked'
+      ? `${event.sku} is not in stock items`
+      : 'Unknown barcode');
+    if (navigator.vibrate) navigator.vibrate(event.status === 'matched' ? 35 : [60, 40, 60]);
+  }
+
+  function selectCountItem(event: ScanEvent) {
+    setPendingCountItem(event);
+    setLastConfirmedScan(event);
+    setScanFlash(event.status);
+    setTimeout(() => setScanFlash(null), 700);
+    setScanNotice(event.status === 'matched' ? `${event.sku} selected` : event.status === 'untracked' ? `${event.sku} needs review` : 'Unknown barcode');
+    if (navigator.vibrate) navigator.vibrate(event.status === 'matched' ? 25 : [60, 40, 60]);
+  }
+
+  function confirmScan(barcode: string, source: 'scan' | 'manual' = 'scan', overrideRow?: BarcodeRow) {
+    const cleanBarcode = barcode.trim();
+    if (!cleanBarcode) return;
+    const now = Date.now();
+    const last = lastScanRef.current;
+    if (source === 'scan' && last?.barcode === cleanBarcode && now - last.at < 1400) {
+      setScanNotice('Duplicate scan paused');
+      if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+      return;
+    }
+    lastScanRef.current = { barcode: cleanBarcode, at: now };
+    const event = makeScanEvent(cleanBarcode, source, overrideRow);
+    if (scanEntryMode === 'batch') {
+      selectCountItem(event);
+    } else {
+      recordScanEvent(event);
+    }
+  }
+
+  function countFallbackMatch(match: FallbackMatch) {
+    confirmScan(match.barcode, 'manual', match);
+    setManualBarcode('');
+  }
+
+  async function addScannedSkuToStock(event: ScanEvent) {
+    if (!event.sku || event.status !== 'untracked') return;
+    if (!confirm(`Add ${event.sku} to Stock Room with quantity 0?`)) return;
+    setAddingScannedSku(true);
+    setScannerError('');
+    try {
+      const res = await fetch('/api/stock/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: event.productName, sku: event.sku, lowStockThreshold: 5 }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      const newItem = json.data as StockItem;
+      setItems(prev => [...prev, newItem].sort((a, b) => a.name.localeCompare(b.name)));
+
+      const updatedEvent: ScanEvent = {
+        ...event,
+        stockItemId: newItem.id,
+        status: 'matched',
+      };
+      setPendingCountItem(prev => prev?.id === event.id ? updatedEvent : prev);
+      setLastConfirmedScan(prev => prev?.id === event.id ? updatedEvent : prev);
+      setScanEvents(prev => prev.map(scan => scan.id === event.id ? updatedEvent : scan));
+      setScanNotice(`${event.sku} added to Stock Room`);
+    } catch (e: any) {
+      setScannerError(e.message || 'Could not add SKU to Stock Room');
+    } finally {
+      setAddingScannedSku(false);
+    }
+  }
+
+  function addBatchCount() {
+    if (!pendingCountItem) return;
+    const quantity = Math.max(0, parseInt(batchQuantity, 10) || 0);
+    if (quantity <= 0) {
+      setScanNotice('Enter a quantity first');
+      return;
+    }
+    const event = {
+      ...pendingCountItem,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: new Date().toISOString(),
+      location: scanLocation.trim(),
+      delta: quantity,
+      source: 'batch' as const,
+    };
+    recordScanEvent(event);
+    setBatchQuantity('1');
+  }
+
+  function adjustBatchQuantity(delta: number) {
+    setBatchQuantity(prev => {
+      const current = parseInt(prev, 10);
+      const next = Math.max(1, (Number.isFinite(current) ? current : 1) + delta);
+      return String(next);
+    });
+  }
+
+  function stopQuantityHold() {
+    if (quantityHoldTimeoutRef.current) {
+      clearTimeout(quantityHoldTimeoutRef.current);
+      quantityHoldTimeoutRef.current = null;
+    }
+    if (quantityHoldIntervalRef.current) {
+      clearInterval(quantityHoldIntervalRef.current);
+      quantityHoldIntervalRef.current = null;
+    }
+  }
+
+  function startQuantityHold(delta: number) {
+    stopQuantityHold();
+    adjustBatchQuantity(delta);
+    quantityHoldTimeoutRef.current = setTimeout(() => {
+      quantityHoldIntervalRef.current = setInterval(() => adjustBatchQuantity(delta), 90);
+    }, 350);
+  }
+
+  function undoLastScan() {
+    setScanEvents(prev => prev.slice(1));
+    setLastConfirmedScan(scanEvents[1] ?? pendingCountItem ?? null);
+    setScanNotice('Last scan undone');
+  }
+
+  function exportScanCsv() {
+    const headers = ['event_id', 'timestamp', 'user', 'barcode', 'sku', 'product_name', 'delta', 'location', 'source', 'status'];
+    const rows = scanEvents.map(event => [
+      event.id,
+      event.timestamp,
+      scanUser,
+      event.barcode,
+      event.sku,
+      event.productName,
+      String(event.delta),
+      event.location,
+      event.source,
+      event.status,
+    ]);
+    const csv = [headers, ...rows]
+      .map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `stocktake-scans-${date}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function clearScanSession() {
+    if (!confirm('Clear this device scan session? Export first if these counts are needed.')) return;
+    setScanEvents([]);
+    setPendingCountItem(null);
+    setLastConfirmedScan(null);
+    setScanNotice('Scan session cleared');
+  }
+
+  async function finaliseScanStocktake() {
+    const counted = new Map<string, { item: StockItem; quantity: number }>();
+    for (const event of scanEvents) {
+      if (event.status !== 'matched' || !event.stockItemId) continue;
+      const item = items.find(i => i.id === event.stockItemId);
+      if (!item) continue;
+      const current = counted.get(item.id) ?? { item, quantity: 0 };
+      current.quantity += event.delta;
+      counted.set(item.id, current);
+    }
+
+    const rows = Array.from(counted.values());
+    if (rows.length === 0) {
+      setScanNotice('No matched counts to finalise');
+      return;
+    }
+
+    const changes = rows.filter(row => row.quantity !== row.item.quantity);
+    if (changes.length === 0) {
+      if (!confirm(`No stock quantity changes for ${rows.length} counted SKU${rows.length !== 1 ? 's' : ''}. Clear this stocktake session?`)) return;
+      clearScanSession();
+      return;
+    }
+
+    if (!confirm(`Finalise stocktake for ${rows.length} counted SKU${rows.length !== 1 ? 's' : ''}? This will update Stock Room quantities for counted SKUs only.`)) return;
+
+    const inItems = changes
+      .filter(row => row.quantity > row.item.quantity)
+      .map(row => ({ stockItemId: row.item.id, quantity: row.quantity - row.item.quantity }));
+    const outItems = changes
+      .filter(row => row.quantity < row.item.quantity)
+      .map(row => ({ stockItemId: row.item.id, quantity: row.item.quantity - row.quantity }));
+
+    setFinalisingStocktake(true);
+    setScannerError('');
+    try {
+      const notes = `Scan stocktake finalised by ${scanUser || 'Unknown'}${scanLocation ? ` · ${scanLocation}` : ''}`;
+      if (inItems.length > 0) {
+        const res = await fetch('/api/stock/movements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'in', reason: 'Stocktake Adjustment', notes, items: inItems }),
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+      }
+      if (outItems.length > 0) {
+        const res = await fetch('/api/stock/movements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'out', reason: 'Stocktake Adjustment', notes, items: outItems }),
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+      }
+      setScanNotice(`Finalised ${changes.length} stock adjustment${changes.length !== 1 ? 's' : ''}`);
+      setScanEvents([]);
+      setPendingCountItem(null);
+      setLastConfirmedScan(null);
+      await load();
+    } catch (e: any) {
+      setScannerError(e.message || 'Could not finalise stocktake');
+    } finally {
+      setFinalisingStocktake(false);
+    }
+  }
+
+  async function startScanner() {
+    setScannerError('');
+    setTorchAvailable(false);
+    setTorchOn(false);
+    try {
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode');
+      if (scannerRef.current) {
+        await scannerRef.current.stop().catch(() => {});
+        await scannerRef.current.clear().catch(() => {});
+      }
+      const scanner = new Html5Qrcode('stocktake-reader', {
+        verbose: false,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+        ],
+      });
+      scannerRef.current = scanner;
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            const width = Math.floor(Math.min(viewfinderWidth * 0.9, 360));
+            return { width, height: Math.floor(width * 0.42) };
+          },
+        },
+        (decodedText: string) => confirmScan(decodedText, 'scan'),
+        () => {}
+      );
+      setScannerActive(true);
+      const capabilities = scanner.getRunningTrackCapabilities?.();
+      setTorchAvailable(Boolean(capabilities && 'torch' in capabilities));
+    } catch (e: any) {
+      setScannerError(e.message || 'Camera scanner could not start');
+      setScannerActive(false);
+    }
+  }
+
+  async function stopScanner() {
+    if (!scannerRef.current) return;
+    if (torchOn) await toggleTorch(false);
+    await scannerRef.current.stop().catch(() => {});
+    await scannerRef.current.clear().catch(() => {});
+    scannerRef.current = null;
+    setScannerActive(false);
+    setTorchAvailable(false);
+    setTorchOn(false);
+  }
+
+  async function resetScanner() {
+    await stopScanner();
+    setTimeout(() => { startScanner(); }, 150);
+  }
+
+  async function toggleTorch(force?: boolean) {
+    if (!scannerRef.current) return;
+    const next = force ?? !torchOn;
+    try {
+      await scannerRef.current.applyVideoConstraints({ advanced: [{ torch: next } as MediaTrackConstraintSet] });
+      setTorchOn(next);
+    } catch {
+      setTorchAvailable(false);
+      setScannerError('Torch is not available on this device');
+    }
+  }
+
+  function enterScanMode() {
+    setScanMode(true);
+    setScanNotice('');
+    setScannerError('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function exitScanMode() {
+    await stopScanner();
+    setScanMode(false);
+  }
+
+  useEffect(() => {
+    if (!scanMode) return;
+    return () => {
+      stopQuantityHold();
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current.clear().catch(() => {});
+        scannerRef.current = null;
+      }
+    };
+  }, [scanMode]);
 
   // ── Stocktake helpers ───────────────────────────────────────────────────────
   const countableItems = useMemo(() => items.filter(i => !i.discontinued), [items]);
@@ -396,6 +930,434 @@ export default function StockPage() {
 
   const reasons = panel === 'receive' ? IN_REASONS : OUT_REASONS;
 
+  // ── Barcode Scan Mode render ───────────────────────────────────────────────
+  if (scanMode) {
+    const matchedCount = scanEvents.filter(e => e.status === 'matched').length;
+    const unknownCount = scanEvents.filter(e => e.status !== 'matched').length;
+    const isPendingSelection = Boolean(pendingCountItem && lastConfirmedScan?.id === pendingCountItem.id);
+    const lastScanTotal = lastConfirmedScan
+      ? scanEvents
+          .filter(e => (lastConfirmedScan.sku ? e.sku === lastConfirmedScan.sku : e.barcode === lastConfirmedScan.barcode))
+          .reduce((sum, e) => sum + e.delta, 0)
+      : 0;
+
+    return (
+      <div className="max-w-5xl mx-auto space-y-4 pb-24 sm:pb-0">
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 -mx-6 px-4 sm:px-6 py-3">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Camera size={18} className="text-brand-600" /> Scan Stocktake
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {scanEvents.length} scans · {matchedCount} matched · {unknownCount} to review
+              </p>
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              <button onClick={undoLastScan} disabled={scanEvents.length === 0} className="btn-secondary px-3 disabled:opacity-40" title="Undo last scan">
+                <Undo2 size={15} />
+              </button>
+              <button onClick={exportScanCsv} disabled={scanEvents.length === 0} className="btn-secondary px-3 disabled:opacity-40" title="Export CSV">
+                <Download size={15} />
+              </button>
+              <button onClick={finaliseScanStocktake} disabled={scanEvents.length === 0 || finalisingStocktake} className="btn-primary disabled:opacity-40">
+                {finalisingStocktake ? 'Finalising...' : 'Finalise'}
+              </button>
+              <button onClick={exitScanMode} className="btn-secondary">Exit</button>
+            </div>
+          </div>
+        </div>
+
+        {barcodeLoadError && (
+          <div className="card p-4 border-red-200 bg-red-50">
+            <p className="text-sm text-red-700">{barcodeLoadError}</p>
+          </div>
+        )}
+
+        <div className="grid lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,.95fr)] gap-4">
+          <div className="space-y-4">
+            <div className="card p-4">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Counter</label>
+                  <input value={scanUser} onChange={e => setScanUser(e.target.value)} className="form-input h-11 text-base sm:h-auto sm:text-sm" placeholder="Name" />
+                </div>
+                <div>
+                  <label className="form-label">Location / bin</label>
+                  <input value={scanLocation} onChange={e => setScanLocation(e.target.value)} className="form-input h-11 text-base sm:h-auto sm:text-sm" placeholder="e.g. Shelf A, Box 4" />
+                </div>
+              </div>
+            </div>
+
+            <div className="card p-4">
+              <label className="form-label flex items-center gap-2">
+                <Keyboard size={14} /> Find item manually
+              </label>
+              <div className="flex gap-2">
+                <input
+                  value={manualBarcode}
+                  onChange={e => setManualBarcode(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && fallbackMatches.length > 0) {
+                      countFallbackMatch(fallbackMatches[0]);
+                    } else if (e.key === 'Enter') {
+                      confirmScan(manualBarcode, 'manual');
+                      setManualBarcode('');
+                    }
+                  }}
+                  inputMode={/^\d*$/.test(manualBarcode) ? 'numeric' : 'search'}
+                  className="form-input h-11 text-base sm:h-auto sm:text-sm"
+                  placeholder="Type last digits, SKU, or product"
+                />
+                <button
+                  onClick={() => {
+                    if (fallbackMatches.length > 0) countFallbackMatch(fallbackMatches[0]);
+                    else {
+                      confirmScan(manualBarcode, 'manual');
+                      setManualBarcode('');
+                    }
+                  }}
+                  className="btn-primary px-5"
+                >
+                  Add
+                </button>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">For iPhone, type the last 4-6 barcode digits to bring up quick matches.</p>
+              {manualBarcode.trim().length >= 2 && (
+                <div className="mt-3 rounded-lg border border-slate-100 overflow-hidden divide-y divide-slate-100">
+                  {fallbackMatches.length > 0 ? fallbackMatches.map(match => (
+                    <button
+                      key={`${match.barcode}-${match.sku}`}
+                      onClick={() => countFallbackMatch(match)}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-3 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{match.productName}</p>
+                        <p className="text-[11px] text-slate-400 font-mono truncate">{match.sku} · {match.barcode}</p>
+                        <p className="text-[11px] text-brand-600 mt-0.5">{match.reason}</p>
+                      </div>
+                      <span className={`badge flex-shrink-0 ${
+                        match.status === 'matched' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        +1
+                      </span>
+                    </button>
+                  )) : (
+                    <div className="px-3 py-4 text-sm text-slate-400 text-center">
+                      No matches yet. Keep typing or enter the full barcode.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="card p-4 space-y-4">
+              <div>
+                <label className="form-label">Count mode</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setScanEntryMode('batch')}
+                    className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                      scanEntryMode === 'batch'
+                        ? 'border-brand-600 bg-brand-50 text-brand-700'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Batch Count
+                  </button>
+                  <button
+                    onClick={() => setScanEntryMode('unit')}
+                    className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                      scanEntryMode === 'unit'
+                        ? 'border-brand-600 bg-brand-50 text-brand-700'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Scan +1
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  Batch Count scans one item to identify the SKU, then lets you enter the physical quantity counted.
+                </p>
+              </div>
+
+              {scanEntryMode === 'batch' && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  {pendingCountItem ? (
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-brand-600">Selected SKU</p>
+                          <p className="text-sm font-semibold text-slate-900 truncate">{pendingCountItem.productName}</p>
+                          <p className="text-[11px] font-mono text-slate-400 truncate">{pendingCountItem.sku || pendingCountItem.barcode}</p>
+                        </div>
+                        <button onClick={() => setPendingCountItem(null)} className="btn-ghost p-1.5">
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-[56px_1fr_56px] gap-2">
+                        <button
+                          type="button"
+                          onPointerDown={() => startQuantityHold(-1)}
+                          onPointerUp={stopQuantityHold}
+                          onPointerLeave={stopQuantityHold}
+                          onPointerCancel={stopQuantityHold}
+                          className="h-12 rounded-lg border border-slate-200 bg-white text-2xl font-bold text-slate-600 hover:bg-slate-50 active:bg-slate-100 touch-none"
+                          aria-label="Decrease quantity"
+                        >
+                          −
+                        </button>
+                        <input
+                          value={batchQuantity}
+                          onChange={e => setBatchQuantity(e.target.value)}
+                          onFocus={e => e.target.select()}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          type="number"
+                          min="0"
+                          className="form-input h-12 text-lg font-bold text-center"
+                          placeholder="Qty"
+                        />
+                        <button
+                          type="button"
+                          onPointerDown={() => startQuantityHold(1)}
+                          onPointerUp={stopQuantityHold}
+                          onPointerLeave={stopQuantityHold}
+                          onPointerCancel={stopQuantityHold}
+                          className="h-12 rounded-lg border border-slate-200 bg-white text-2xl font-bold text-slate-600 hover:bg-slate-50 active:bg-slate-100 touch-none"
+                          aria-label="Increase quantity"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <button onClick={addBatchCount} disabled={pendingCountItem.status !== 'matched'} className="btn-primary w-full justify-center py-3 disabled:opacity-40">
+                          Add Count
+                      </button>
+                      <p className="text-[11px] text-slate-400">Tap or hold − / + to adjust before adding the count.</p>
+                      {pendingCountItem.status !== 'matched' && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <p className="text-xs text-amber-700 font-medium">This barcode is known, but it is not in Stock Room yet.</p>
+                          {pendingCountItem.status === 'untracked' && (
+                            <button
+                              onClick={() => addScannedSkuToStock(pendingCountItem)}
+                              disabled={addingScannedSku}
+                              className="mt-2 btn-secondary w-full justify-center bg-white disabled:opacity-50"
+                            >
+                              {addingScannedSku ? 'Adding...' : 'Add to Stock Room'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Scan or search an item, then enter the counted quantity here.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="card overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+                <p className="text-sm font-semibold text-slate-800">Camera scan</p>
+                <p className="text-xs text-slate-500 mt-0.5">Hold steady, fill the box with the barcode, and move closer if it looks blurry.</p>
+              </div>
+              <div
+                className={`relative border-4 transition-colors duration-150 ${
+                  scanFlash === 'matched'
+                    ? 'border-emerald-400'
+                    : scanFlash === 'untracked'
+                    ? 'border-amber-400'
+                    : scanFlash === 'unknown'
+                    ? 'border-red-400'
+                    : 'border-slate-950'
+                }`}
+              >
+                <div id="stocktake-reader" className="min-h-[360px] sm:min-h-[420px] bg-slate-950" />
+                {lastConfirmedScan && (
+                  <div className="absolute left-2 right-2 bottom-2 sm:left-3 sm:right-3 sm:bottom-3 rounded-lg bg-white/95 border border-slate-200 shadow-xl p-3 sm:p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className={`text-[11px] font-bold uppercase tracking-wide ${
+                          lastConfirmedScan.status === 'matched'
+                            ? 'text-emerald-600'
+                            : lastConfirmedScan.status === 'untracked'
+                            ? 'text-amber-600'
+                            : 'text-red-600'
+                        }`}>
+                          {isPendingSelection
+                            ? 'Ready for quantity'
+                            : lastConfirmedScan.status === 'matched'
+                            ? `Counted ${lastConfirmedScan.delta}`
+                            : lastConfirmedScan.status === 'untracked'
+                            ? 'Known barcode, review'
+                            : 'Unknown barcode'}
+                        </p>
+                        <p className="text-base sm:text-sm font-semibold text-slate-900 truncate mt-0.5">
+                          {lastConfirmedScan.productName}
+                        </p>
+                        <p className="text-[11px] font-mono text-slate-400 truncate">
+                          {lastConfirmedScan.sku || lastConfirmedScan.barcode}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-400">{isPendingSelection ? 'Enter Qty' : 'This SKU'}</p>
+                        <p className="text-4xl sm:text-3xl font-bold text-slate-900 leading-none">{isPendingSelection ? batchQuantity || '0' : lastScanTotal}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <div className="text-xs text-slate-500 min-w-0">
+                  {barcodeRows.length} barcodes loaded
+                  {scannerError && <span className="ml-2 text-red-600 font-medium">{scannerError}</span>}
+                  {scanNotice && <span className="ml-2 text-brand-700 font-medium">{scanNotice}</span>}
+                </div>
+                <div className="grid grid-cols-2 sm:flex gap-2">
+                  {scannerActive ? (
+                    <button onClick={stopScanner} className="btn-secondary justify-center">
+                      <X size={14} /> Stop
+                    </button>
+                  ) : (
+                    <button onClick={startScanner} className="btn-primary col-span-2 sm:col-span-1 justify-center py-3 sm:py-2">
+                      <Camera size={14} /> Start Camera
+                    </button>
+                  )}
+                  {scannerActive && (
+                    <button onClick={resetScanner} className="btn-secondary justify-center">
+                      <RotateCcw size={14} /> Reset
+                    </button>
+                  )}
+                  {scannerActive && torchAvailable && (
+                    <button onClick={() => toggleTorch()} className={`btn-secondary col-span-2 sm:col-span-1 justify-center ${torchOn ? 'bg-amber-50 border-amber-200 text-amber-700' : ''}`}>
+                      <Flashlight size={14} /> {torchOn ? 'Torch On' : 'Torch'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="card p-3">
+                <p className="text-xl font-bold text-slate-900">{scanEvents.length}</p>
+                <p className="text-[11px] text-slate-500">Scans</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xl font-bold text-emerald-600">{matchedCount}</p>
+                <p className="text-[11px] text-slate-500">Matched</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xl font-bold text-amber-600">{unknownCount}</p>
+                <p className="text-[11px] text-slate-500">Review</p>
+              </div>
+            </div>
+
+            <div className="card overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">Pending Counts</h2>
+                  <p className="text-[11px] text-slate-400">Stock Room updates only after Finalise</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={finaliseScanStocktake} disabled={scanEvents.length === 0 || finalisingStocktake} className="btn-ghost text-xs text-brand-600 disabled:opacity-40">
+                    {finalisingStocktake ? 'Finalising...' : 'Finalise'}
+                  </button>
+                  <button onClick={clearScanSession} disabled={scanEvents.length === 0} className="btn-ghost text-xs disabled:opacity-40">Clear</button>
+                </div>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto divide-y divide-slate-50">
+                {scanTotals.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-slate-400">
+                    <Search size={22} className="mx-auto mb-2" />
+                    No scans yet
+                  </div>
+                ) : scanTotals.map(total => {
+                  const untrackedEvent = total.status === 'untracked'
+                    ? scanEvents.find(event => event.status === 'untracked' && (event.sku || event.barcode) === (total.sku || total.barcode))
+                    : undefined;
+                  return (
+                  <div key={total.sku || total.barcode} className="px-4 py-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">{total.productName}</p>
+                      <p className="text-[11px] font-mono text-slate-400">{total.sku || total.barcode}</p>
+                      {total.status !== 'matched' && (
+                        <p className="text-[11px] text-amber-600 font-medium mt-0.5">
+                          {total.status === 'untracked' ? 'Barcode known, product not in stock list' : 'Unknown barcode'}
+                        </p>
+                      )}
+                      {untrackedEvent && (
+                        <button
+                          onClick={() => addScannedSkuToStock(untrackedEvent)}
+                          disabled={addingScannedSku}
+                          className="mt-2 text-xs font-semibold text-brand-600 hover:text-brand-700 disabled:opacity-50"
+                        >
+                          {addingScannedSku ? 'Adding...' : 'Add to Stock Room'}
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-2xl font-bold text-slate-900">{total.quantity}</span>
+                  </div>
+                );
+                })}
+              </div>
+            </div>
+
+            <div className="card overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-800">Last Scans</h2>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto divide-y divide-slate-50">
+                {scanEvents.slice(0, 20).map(event => (
+                  <div key={event.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{event.productName}</p>
+                        <p className="text-[11px] font-mono text-slate-400">{event.barcode}</p>
+                      </div>
+                      <span className={`badge ${
+                        event.status === 'matched'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : event.status === 'untracked'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {event.status}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {new Date(event.timestamp).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}
+                      {event.location && <span> · {event.location}</span>}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur p-3 sm:hidden">
+          <div className="grid grid-cols-4 gap-2">
+            <button onClick={undoLastScan} disabled={scanEvents.length === 0} className="btn-secondary justify-center py-3 disabled:opacity-40">
+              <Undo2 size={15} /> Undo
+            </button>
+            <button onClick={exportScanCsv} disabled={scanEvents.length === 0} className="btn-secondary justify-center py-3 disabled:opacity-40">
+              <Download size={15} /> Export
+            </button>
+            <button onClick={finaliseScanStocktake} disabled={scanEvents.length === 0 || finalisingStocktake} className="btn-primary justify-center py-3 disabled:opacity-40">
+              {finalisingStocktake ? '...' : 'Final'}
+            </button>
+            <button onClick={exitScanMode} className="btn-primary justify-center py-3">
+              Exit
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── Stocktake Mode render ───────────────────────────────────────────────────
   if (stocktakeMode) {
     const tickedCount   = stTicked.size;
@@ -404,11 +1366,11 @@ export default function StockPage() {
     const allTicked     = tickedCount === totalCountable && totalCountable > 0;
 
     return (
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="max-w-5xl mx-auto space-y-5 pb-24 sm:pb-0">
         {/* Stocktake header */}
-        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 -mx-6 px-6 py-4">
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 -mx-6 px-4 sm:px-6 py-4">
           <div className="max-w-5xl mx-auto">
-            <div className="flex items-center justify-between gap-4 mb-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-3">
               <div>
                 <h1 className="text-base font-bold text-slate-900 flex items-center gap-2">
                   <ClipboardList size={18} className="text-brand-600" /> Stocktake Mode
@@ -420,17 +1382,17 @@ export default function StockPage() {
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={printChecklist} className="btn-secondary gap-1.5 text-xs">
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                <button onClick={printChecklist} className="hidden sm:inline-flex btn-secondary gap-1.5 text-xs">
                   <Printer size={13} /> Print Checklist
                 </button>
-                <button onClick={exitStocktake} className="btn-secondary text-xs">
+                <button onClick={exitStocktake} className="btn-secondary justify-center text-xs">
                   Exit
                 </button>
                 <button
                   onClick={saveStocktake}
                   disabled={stSaving || stSaved}
-                  className={`btn-primary text-sm flex items-center gap-2 ${stSaved ? 'bg-emerald-600 hover:bg-emerald-600' : ''}`}
+                  className={`btn-primary justify-center text-sm flex items-center gap-2 ${stSaved ? 'bg-emerald-600 hover:bg-emerald-600' : ''}`}
                 >
                   {stSaved
                     ? <><CheckCircle size={14} /> Saved!</>
@@ -460,7 +1422,8 @@ export default function StockPage() {
 
         {/* Stocktake table */}
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-4 py-3 w-10">
@@ -597,20 +1560,21 @@ export default function StockPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Bottom save bar */}
         {stChanges.length > 0 && (
-          <div className="sticky bottom-4 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto bg-slate-900 text-white rounded-xl shadow-xl px-5 py-3 flex items-center gap-4">
+          <div className="fixed inset-x-0 bottom-0 z-40 p-3 sm:sticky sm:bottom-4 sm:flex sm:justify-center pointer-events-none">
+            <div className="pointer-events-auto bg-slate-900 text-white rounded-xl shadow-xl px-4 sm:px-5 py-3 flex items-center justify-between sm:justify-start gap-3 sm:gap-4">
               <div className="text-sm">
                 <span className="font-semibold">{stChanges.length} change{stChanges.length !== 1 ? 's' : ''}</span>
-                <span className="text-slate-400 ml-1.5">ready to save</span>
+                <span className="hidden sm:inline text-slate-400 ml-1.5">ready to save</span>
               </div>
               <button
                 onClick={saveStocktake}
                 disabled={stSaving || stSaved}
-                className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 sm:py-1.5 rounded-lg transition-colors disabled:opacity-60"
               >
                 {stSaving ? 'Saving…' : stSaved ? '✓ Saved' : 'Save All Changes'}
               </button>
@@ -626,29 +1590,82 @@ export default function StockPage() {
     <div className="max-w-5xl mx-auto space-y-6">
 
       {/* Header */}
-      <div className="page-header">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
         <div>
           <h1 className="page-title">Stock Room</h1>
           <p className="page-subtitle">In-house office stock only — does not reflect 3PL inventory</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden sm:flex sm:flex-col sm:items-end gap-2">
           {saveOk && (
             <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
               <CheckCircle size={14} /> Saved
             </span>
           )}
-          <button onClick={load} className="btn-secondary">
-            <RefreshCw size={14} /> Refresh
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button onClick={load} className="btn-secondary justify-center">
+              <RefreshCw size={14} /> Refresh
+            </button>
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
+              <span className="px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stocktake</span>
+              <button onClick={enterScanMode} className="btn-primary justify-center gap-1.5">
+                <Camera size={15} /> Scan Count
+              </button>
+              <button onClick={enterStocktake} className="btn-secondary justify-center gap-1.5">
+                <ClipboardList size={15} className="text-brand-600" /> Manual Count
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1.5 shadow-sm">
+              <span className="px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Stock Movement</span>
+              <button onClick={() => openPanel('receive')} className="btn-secondary justify-center">
+                <ArrowDownCircle size={15} className="text-emerald-600" /> Receive
+              </button>
+              <button onClick={() => openPanel('dispatch')} className="btn-secondary justify-center">
+                <ArrowUpCircle size={15} className="text-brand-600" /> Dispatch
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-4 sm:hidden">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Stocktake</p>
+          <button onClick={enterScanMode} className="btn-primary w-full justify-center py-3 text-base">
+            <Camera size={18} /> Start Scan Count
           </button>
-          <button onClick={enterStocktake} className="btn-secondary gap-1.5">
-            <ClipboardList size={15} className="text-brand-600" /> Stocktake
-          </button>
-          <button onClick={() => openPanel('receive')} className="btn-secondary">
-            <ArrowDownCircle size={15} className="text-emerald-600" /> Receive Stock
-          </button>
-          <button onClick={() => openPanel('dispatch')} className="btn-primary">
-            <ArrowUpCircle size={15} /> Dispatch Stock
-          </button>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button onClick={enterStocktake} className="btn-secondary justify-center py-2.5">
+              <ClipboardList size={14} /> Manual Count
+            </button>
+            <button onClick={load} className="btn-secondary justify-center py-2.5">
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
+        </div>
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Stock Movement</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => openPanel('receive')} className="btn-secondary justify-center py-2.5">
+              <ArrowDownCircle size={14} className="text-emerald-600" /> Receive
+            </button>
+            <button onClick={() => openPanel('dispatch')} className="btn-secondary justify-center py-2.5">
+              <ArrowUpCircle size={14} className="text-brand-600" /> Dispatch
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg bg-slate-50 p-2">
+            <p className="text-lg font-bold text-slate-900">{items.length}</p>
+            <p className="text-[10px] text-slate-500">Products</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-2">
+            <p className="text-lg font-bold text-slate-900">{totalUnits}</p>
+            <p className="text-[10px] text-slate-500">Units</p>
+          </div>
+          <div className="rounded-lg bg-slate-50 p-2">
+            <p className="text-lg font-bold text-slate-900">{outOfStock.length + lowStock.length}</p>
+            <p className="text-[10px] text-slate-500">Alerts</p>
+          </div>
         </div>
       </div>
 
@@ -659,7 +1676,7 @@ export default function StockPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="hidden sm:grid sm:grid-cols-3 gap-4">
         <div className="card p-4 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
             <Package size={18} className="text-brand-600" />
@@ -691,7 +1708,7 @@ export default function StockPage() {
 
       {/* Stock Table */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-slate-100">
           <h2 className="text-sm font-semibold text-slate-800">Current Stock</h2>
           <button onClick={() => setPanel('add-product')} className="btn-ghost text-xs gap-1.5">
             <Plus size={13} /> Add Product
@@ -710,7 +1727,8 @@ export default function StockPage() {
             </button>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
@@ -837,6 +1855,7 @@ export default function StockPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

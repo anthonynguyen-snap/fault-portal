@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v6.2',
+    label: 'Stocktake Mode Visibility',
+    date: '2026-05-13',
+    isLatest: true,
+    summary: 'Stock Room now clearly shows both Scan Count and Manual Count stocktake entry points.',
+    changes: [
+      { category: 'Inventory', text: 'Stock Room header now separates Scan Count from Manual Count so the original stocktake workflow is easy to find.' },
+      { category: 'UI/UX', text: 'Renamed the secondary stocktake action from Review to Manual Count to make the mode clearer.' },
+    ],
+  },
+  {
     version: 'v6.1',
     label: 'Admin Navigation Panels',
     date: '2026-05-13',
-    isLatest: true,
+    isLatest: false,
     summary: 'Admin grouped navigation now uses visible section panels instead of a horizontally scrolling tab strip.',
     changes: [
       { category: 'Admin', text: 'Catalogue, Team, and Portal admin sections now appear as separate panels so every setting area is visible without horizontal scrolling.' },
