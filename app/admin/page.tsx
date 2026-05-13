@@ -79,33 +79,33 @@ export default function AdminPage() {
       </div>
 
       {/* Grouped tab bar */}
-      <div className="overflow-x-auto mb-6 pb-0.5 -mx-1 px-1">
-        <div className="flex w-max max-w-full gap-3 rounded-2xl bg-slate-100/80 p-1.5">
-          {tabGroups.map(group => (
-            <div key={group.label} className="flex items-center gap-1 rounded-xl bg-white/45 p-1">
-              <span className="hidden px-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:inline">
-                {group.label}
-              </span>
+      <div className="mb-6 grid gap-3 lg:grid-cols-3">
+        {tabGroups.map(group => (
+          <div key={group.label} className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+            <div className="px-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              {group.label}
+            </div>
+            <div className="grid grid-cols-1 gap-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
               {group.tabs.map(t => (
                 <button
                   key={t.key}
                   onClick={() => { if (t.onSelect) t.onSelect(); else setActiveTab(t.key); }}
-                  className={`relative flex h-10 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-all ${
+                  className={`relative flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-all ${
                     activeTab === t.key
-                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
-                      : 'text-slate-500 hover:bg-white/60 hover:text-slate-700'
+                      ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-200'
+                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
                   }`}
                 >
                   <t.icon size={15} />
                   {t.label}
                   {t.badge && (
-                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500" />
+                    <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500" />
                   )}
                 </button>
               ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
 
       {activeTab === 'products'      && <ProductsPanel />}

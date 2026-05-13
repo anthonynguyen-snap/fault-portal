@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v6.1',
+    label: 'Admin Navigation Panels',
+    date: '2026-05-13',
+    isLatest: true,
+    summary: 'Admin grouped navigation now uses visible section panels instead of a horizontally scrolling tab strip.',
+    changes: [
+      { category: 'Admin', text: 'Catalogue, Team, and Portal admin sections now appear as separate panels so every setting area is visible without horizontal scrolling.' },
+      { category: 'UI/UX', text: 'Admin navigation now wraps cleanly across desktop and smaller screens while keeping the grouped structure.' },
+    ],
+  },
+  {
     version: 'v6.0',
     label: 'Admin Grouped Tabs',
     date: '2026-05-13',
-    isLatest: true,
+    isLatest: false,
     summary: 'Admin settings now groups tabs into Catalogue, Team, and Portal sections for cleaner navigation.',
     changes: [
       { category: 'Admin', text: 'Admin tabs are now grouped into Catalogue, Team, and Portal so settings are easier to scan.' },
