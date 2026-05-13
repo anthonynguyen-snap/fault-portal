@@ -11,9 +11,17 @@ function isConfigured() {
   return BASE_URL && ACCOUNT_ID && API_TOKEN;
 }
 
+function appRoot() {
+  return BASE_URL.replace(/\/api\/integration\/v1\/?$/, '').replace(/\/$/, '');
+}
+
+function integrationUrl(path: string) {
+  const root = appRoot();
+  return new URL(`${root}/api/integration/v1${path.startsWith('/') ? path : `/${path}`}`);
+}
+
 async function csGet(path: string, params: Record<string, string> = {}) {
-  const url = new URL(`${BASE_URL}${path}`);
-  url.searchParams.set('account_id', ACCOUNT_ID);
+  const url = integrationUrl(path);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString(), {
     headers: { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' },
@@ -25,7 +33,9 @@ async function csGet(path: string, params: Record<string, string> = {}) {
 }
 
 async function csFlexibleGet(path: string, params: Record<string, string>, authMode: 'bearer' | 'api_access_token') {
-  const url = new URL(`${BASE_URL}${path}`);
+  const url = path.startsWith('/api/')
+    ? new URL(`${appRoot()}${path}`)
+    : integrationUrl(path);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString(), {
     headers: {
@@ -74,11 +84,11 @@ function conversationUrl(conversation: any): string {
   const explicit = conversation.url ?? conversation.link ?? conversation.conversation_url;
   if (explicit) return String(explicit);
   const id = conversation.display_id ?? conversation.id;
-  return `${BASE_URL}/app/accounts/${ACCOUNT_ID}/conversations/${id}`;
+  return `${appRoot()}/app/accounts/${ACCOUNT_ID}/conversations/${id}`;
 }
 
 function unassignedQueueUrl(): string {
-  return `${BASE_URL}/app/accounts/${ACCOUNT_ID}/conversations?status=open&assignee_type=unassigned`;
+  return `${appRoot()}/app/accounts/${ACCOUNT_ID}/conversations?status=open&assignee_type=unassigned`;
 }
 
 function conversationTitle(conversation: any): string {
@@ -102,10 +112,9 @@ async function loadBreachingTickets() {
   const errors: string[] = [];
 
   const attempts = [
+    { path: '/conversations', includeAccountInPath: false },
     { path: '/api/integration/v1/conversations', includeAccountInPath: false },
     { path: `/api/integration/v1/accounts/${ACCOUNT_ID}/conversations`, includeAccountInPath: true },
-    { path: '/api/integration/v1/tickets', includeAccountInPath: false },
-    { path: '/api/integration/v1/messages', includeAccountInPath: false },
   ];
 
   for (const attempt of attempts) {
@@ -124,7 +133,7 @@ async function loadBreachingTickets() {
   }
 
   if (!conversations) {
-    throw new Error(errors.join(' | '));
+    throw new Error(errors.slice(0, 4).join(' | '));
   }
 
   return getPayload(conversations)
@@ -153,7 +162,7 @@ export async function GET() {
   try {
     const today = toACST(new Date());
 
-    const json = await csGet('/api/integration/v1/reports/overview', {
+    const json = await csGet('/reports/overview', {
       from_date: today,
       to_date: today,
     });
