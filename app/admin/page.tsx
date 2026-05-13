@@ -44,45 +44,67 @@ export default function AdminPage() {
     setHasNewChangelog(false);
   }
 
-  const tabs: { key: Tab; label: string; icon: React.ElementType; badge?: boolean; onSelect?: () => void }[] = [
-    { key: 'products',      label: 'Products',      icon: Package      },
-    { key: 'manufacturers', label: 'Manufacturers', icon: Building2    },
-    { key: 'faultTypes',    label: 'Fault Types',   icon: Tag          },
-    { key: 'staff',         label: 'Staff',         icon: Users        },
-    { key: 'logins',        label: 'Logins',        icon: KeyRound     },
-    { key: 'kpiTargets',    label: 'KPI Targets',   icon: Target       },
-    { key: 'roster',        label: 'Roster',        icon: CalendarDays },
-    { key: 'health',        label: 'Health',        icon: Database     },
-    { key: 'changelog',     label: 'Changelog',     icon: History,     badge: hasNewChangelog, onSelect: handleChangelogTab },
+  const tabGroups: { label: string; tabs: { key: Tab; label: string; icon: React.ElementType; badge?: boolean; onSelect?: () => void }[] }[] = [
+    {
+      label: 'Catalogue',
+      tabs: [
+        { key: 'products',      label: 'Products',      icon: Package   },
+        { key: 'manufacturers', label: 'Manufacturers', icon: Building2 },
+        { key: 'faultTypes',    label: 'Fault Types',   icon: Tag       },
+      ],
+    },
+    {
+      label: 'Team',
+      tabs: [
+        { key: 'staff',  label: 'Staff',  icon: Users        },
+        { key: 'logins', label: 'Logins', icon: KeyRound     },
+        { key: 'roster', label: 'Roster', icon: CalendarDays },
+      ],
+    },
+    {
+      label: 'Portal',
+      tabs: [
+        { key: 'kpiTargets', label: 'KPI Targets', icon: Target   },
+        { key: 'health',     label: 'Health',      icon: Database },
+        { key: 'changelog',  label: 'Changelog',   icon: History,  badge: hasNewChangelog, onSelect: handleChangelogTab },
+      ],
+    },
   ];
 
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="page-title">Admin Settings</h1>
-        <p className="page-subtitle">Manage products, manufacturers, and fault types</p>
+        <p className="page-subtitle">Manage portal data, team settings, health checks, and release history</p>
       </div>
 
-      {/* Tab Bar — scrollable on small screens, wraps naturally on large */}
+      {/* Grouped tab bar */}
       <div className="overflow-x-auto mb-6 pb-0.5 -mx-1 px-1">
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-max max-w-full">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => { if (t.onSelect) t.onSelect(); else setActiveTab(t.key); }}
-            className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === t.key
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <t.icon size={15} />
-            {t.label}
-            {t.badge && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-brand-500 rounded-full border-2 border-slate-100" />
-            )}
-          </button>
-        ))}
+        <div className="flex w-max max-w-full gap-3 rounded-2xl bg-slate-100/80 p-1.5">
+          {tabGroups.map(group => (
+            <div key={group.label} className="flex items-center gap-1 rounded-xl bg-white/45 p-1">
+              <span className="hidden px-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 lg:inline">
+                {group.label}
+              </span>
+              {group.tabs.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => { if (t.onSelect) t.onSelect(); else setActiveTab(t.key); }}
+                  className={`relative flex h-10 items-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-all ${
+                    activeTab === t.key
+                      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                      : 'text-slate-500 hover:bg-white/60 hover:text-slate-700'
+                  }`}
+                >
+                  <t.icon size={15} />
+                  {t.label}
+                  {t.badge && (
+                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-brand-500" />
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
 

@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v6.0',
+    label: 'Admin Grouped Tabs',
+    date: '2026-05-13',
+    isLatest: true,
+    summary: 'Admin settings now groups tabs into Catalogue, Team, and Portal sections for cleaner navigation.',
+    changes: [
+      { category: 'Admin', text: 'Admin tabs are now grouped into Catalogue, Team, and Portal so settings are easier to scan.' },
+      { category: 'UI/UX', text: 'Updated the Admin subtitle and tab styling to avoid cramped two-line labels and make the page feel more organised.' },
+    ],
+  },
+  {
     version: 'v5.9',
     label: 'Commslayer Conversation Diagnostics',
     date: '2026-05-13',
-    isLatest: true,
+    isLatest: false,
     summary: 'Commslayer health checks now try multiple conversation endpoint variants so we can identify the working ticket access path instead of relying on one request shape.',
     changes: [
       { category: 'Admin', text: 'Integration Health now tests conversations with bearer auth, api_access_token auth, page parameters, and account_id variants, then reports the first working combination.' },
