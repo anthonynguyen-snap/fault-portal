@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v5.9',
+    label: 'Commslayer Conversation Diagnostics',
+    date: '2026-05-13',
+    isLatest: true,
+    summary: 'Commslayer health checks now try multiple conversation endpoint variants so we can identify the working ticket access path instead of relying on one request shape.',
+    changes: [
+      { category: 'Admin', text: 'Integration Health now tests conversations with bearer auth, api_access_token auth, page parameters, and account_id variants, then reports the first working combination.' },
+      { category: 'Dashboard', text: 'Today’s Activity now also tries account_id conversation variants before falling back to the Commslayer unassigned queue link.' },
+    ],
+  },
+  {
     version: 'v5.8',
     label: 'Commslayer Health Filter Fix',
     date: '2026-05-13',
-    isLatest: true,
+    isLatest: false,
     summary: 'Commslayer health checks now avoid server-side conversation filters that can trigger API errors, then inspect open/unassigned records inside the portal.',
     changes: [
       { category: 'Admin', text: 'Integration Health now calls the documented conversations endpoint without risky status filters, preventing Commslayer 500 errors from simple health checks.' },

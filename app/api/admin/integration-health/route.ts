@@ -21,6 +21,8 @@ type HealthGroup = {
   checks: HealthCheck[];
 };
 
+type CommslayerAuthMode = 'bearer' | 'api_access_token';
+
 function hasEnv(keys: string[]) {
   return keys.every(key => Boolean(process.env[key]));
 }
@@ -77,7 +79,12 @@ function isUnassignedConversation(conversation: any) {
   return !assignee && !assigneeId;
 }
 
-async function commslayerGet(path: string, params: Record<string, string> = {}, includeAccountId = false) {
+async function commslayerGet(
+  path: string,
+  params: Record<string, string> = {},
+  includeAccountId = false,
+  authMode: CommslayerAuthMode = 'bearer'
+) {
   const url = integrationUrl(path);
   const accountId = process.env.COMMSLAYER_ACCOUNT_ID;
   if (includeAccountId && accountId) url.searchParams.set('account_id', accountId);
@@ -85,7 +92,9 @@ async function commslayerGet(path: string, params: Record<string, string> = {}, 
 
   const res = await fetch(url.toString(), {
     headers: {
-      Authorization: `Bearer ${process.env.COMMSLAYER_API_TOKEN}`,
+      ...(authMode === 'bearer'
+        ? { Authorization: `Bearer ${process.env.COMMSLAYER_API_TOKEN}` }
+        : { api_access_token: process.env.COMMSLAYER_API_TOKEN ?? '' }),
       'Content-Type': 'application/json',
     },
     cache: 'no-store',
@@ -209,37 +218,17 @@ async function checkCommslayer(): Promise<HealthGroup> {
   }
 
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Adelaide' });
-  let conversationsJson: any = null;
   const checks = await Promise.all([
     commslayerCheck('Reports', '/reports/overview', { from_date: today, to_date: today }, checkedAt, true),
-    (async (): Promise<HealthCheck> => {
-      try {
-        const { value, latencyMs } = await timed(() => commslayerGet('/conversations', { page: '1' }));
-        conversationsJson = value;
-        const conversations = getPayload(value);
-        return {
-          name: 'Conversations',
-          status: 'connected',
-          detail: `${conversations.length} conversations reachable on the first page`,
-          latencyMs,
-          checkedAt,
-        };
-      } catch (err: any) {
-        return {
-          name: 'Conversations',
-          status: 'broken',
-          detail: err.message ?? String(err),
-          checkedAt,
-        };
-      }
-    })(),
+    loadConversationsForHealth(checkedAt),
   ]);
 
-  const conversations = conversationsJson ? getPayload(conversationsJson) : [];
+  const conversationCheck = checks.find(check => check.name === 'Conversations') as HealthCheck & { raw?: any };
+  const conversations = conversationCheck?.raw ? getPayload(conversationCheck.raw) : [];
   checks.push({
     name: 'Unassigned conversations',
-    status: conversationsJson ? 'connected' : 'broken',
-    detail: conversationsJson
+    status: conversationCheck?.status === 'connected' ? 'connected' : 'broken',
+    detail: conversationCheck?.status === 'connected'
       ? `${conversations.filter(conversation => isOpenConversation(conversation) && isUnassignedConversation(conversation)).length} open unassigned-looking records found on the first page`
       : 'Conversation list was not reachable, so unassigned records could not be inspected.',
     checkedAt,
@@ -247,6 +236,42 @@ async function checkCommslayer(): Promise<HealthGroup> {
 
   const status = groupStatus(checks);
   return { name: 'Commslayer', status, summary: groupSummary(status), checks };
+}
+
+async function loadConversationsForHealth(checkedAt: string): Promise<HealthCheck & { raw?: any }> {
+  const variants: Array<{ label: string; path: string; params: Record<string, string>; includeAccountId: boolean; authMode: CommslayerAuthMode }> = [
+    { label: 'bearer /conversations', path: '/conversations', params: {}, includeAccountId: false, authMode: 'bearer' },
+    { label: 'bearer /conversations?page=1', path: '/conversations', params: { page: '1' }, includeAccountId: false, authMode: 'bearer' },
+    { label: 'bearer /conversations + account_id', path: '/conversations', params: {}, includeAccountId: true, authMode: 'bearer' },
+    { label: 'bearer /conversations?page=1 + account_id', path: '/conversations', params: { page: '1' }, includeAccountId: true, authMode: 'bearer' },
+    { label: 'api_access_token /conversations', path: '/conversations', params: {}, includeAccountId: false, authMode: 'api_access_token' },
+    { label: 'api_access_token /conversations + account_id', path: '/conversations', params: {}, includeAccountId: true, authMode: 'api_access_token' },
+  ];
+
+  const errors: string[] = [];
+  for (const variant of variants) {
+    try {
+      const { value, latencyMs } = await timed(() => commslayerGet(variant.path, variant.params, variant.includeAccountId, variant.authMode));
+      const conversations = getPayload(value);
+      return {
+        name: 'Conversations',
+        status: 'connected',
+        detail: `${conversations.length} conversations reachable via ${variant.label}`,
+        latencyMs,
+        checkedAt,
+        raw: value,
+      };
+    } catch (err: any) {
+      errors.push(`${variant.label}: ${err.message ?? String(err)}`);
+    }
+  }
+
+  return {
+    name: 'Conversations',
+    status: 'broken',
+    detail: `All conversation variants failed. ${errors.slice(0, 3).join(' | ')}`,
+    checkedAt,
+  };
 }
 
 async function commslayerCheck(name: string, path: string, params: Record<string, string>, checkedAt: string, includeAccountId = false): Promise<HealthCheck> {

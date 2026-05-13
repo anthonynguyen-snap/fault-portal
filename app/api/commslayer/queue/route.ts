@@ -126,6 +126,10 @@ async function loadBreachingTickets() {
   const attempts: Array<{ path: string; params: Record<string, string> }> = [
     { path: '/conversations', params: { page: '1' } },
     { path: '/conversations', params: {} },
+    ...(ACCOUNT_ID ? [
+      { path: '/conversations', params: { account_id: ACCOUNT_ID } },
+      { path: '/conversations', params: { account_id: ACCOUNT_ID, page: '1' } },
+    ] : []),
     { path: '/api/integration/v1/conversations', params: { page: '1' } },
   ];
 
