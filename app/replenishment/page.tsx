@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   Truck, Plus, RefreshCw, ChevronRight, Package,
   AlertTriangle, CheckCircle, Clock, Send, Bell, ChevronDown,
+  BarChart3, ClipboardList,
 } from 'lucide-react';
 import { ReplenishmentRequest, ReplenishmentStatus, StockItem } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -36,6 +37,12 @@ function StatusBadge({ status }: { status: ReplenishmentStatus }) {
       {STATUS_ICONS[status]} {status}
     </span>
   );
+}
+
+function daysSince(dateStr: string) {
+  if (!dateStr) return 0;
+  const d = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`);
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'];
@@ -98,12 +105,109 @@ interface NewItemRow {
   skipped: boolean;
 }
 
+type SmartImportLine = {
+  sku: string;
+  requested: number;
+  slackOnHand: number | null;
+  stock?: StockItem;
+  rows: NewItemRow[];
+  warning?: string;
+};
+
+function normaliseSku(value: string) {
+  return value
+    .replace(/[–—−]/g, '-')
+    .replace(/\s+/g, '')
+    .toUpperCase()
+    .trim();
+}
+
+function parseSlackRequest(text: string, stockBySku: Map<string, StockItem>) {
+  const lines: SmartImportLine[] = [];
+  const unmatched: Array<{ sku: string; requested: number; raw: string }> = [];
+  const seen = new Set<string>();
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.replace(/[–—−]/g, '-').trim();
+    if (!/\bsend\s+\d+/i.test(line)) continue;
+
+    const qtyMatch = line.match(/\bsend\s+(\d+)/i);
+    const skuMatches = Array.from(line.matchAll(/\b[A-Z0-9]+(?:-[A-Z0-9]+)+\b/gi));
+    const sku = normaliseSku(skuMatches.at(-1)?.[0] ?? '');
+    const requested = Number(qtyMatch?.[1] ?? 0);
+    if (!sku || !requested) continue;
+    if (seen.has(`${sku}:${requested}:${line}`)) continue;
+    seen.add(`${sku}:${requested}:${line}`);
+
+    const stock = stockBySku.get(sku);
+    const slackOnHandMatch = line.match(/on hand:\s*(\d+)/i);
+    const slackOnHand = slackOnHandMatch ? Number(slackOnHandMatch[1]) : null;
+
+    if (!stock) {
+      unmatched.push({ sku, requested, raw: rawLine.trim() });
+      continue;
+    }
+
+    const available = Math.max(0, Number(stock.quantity) || 0);
+    const storeroomQty = Math.min(available, requested);
+    const tplQty = Math.max(0, requested - storeroomQty);
+    const rows: NewItemRow[] = [];
+
+    if (storeroomQty > 0) {
+      rows.push({
+        stockItemId: stock.id,
+        stockItemName: stock.name,
+        sku: stock.sku,
+        quantityRequested: storeroomQty,
+        quantityOnHand: available,
+        source: 'Storeroom',
+        skipped: false,
+      });
+    }
+
+    if (tplQty > 0) {
+      rows.push({
+        stockItemId: stock.id,
+        stockItemName: stock.name,
+        sku: stock.sku,
+        quantityRequested: tplQty,
+        quantityOnHand: available,
+        source: '3PL',
+        skipped: false,
+      });
+    }
+
+    lines.push({
+      sku,
+      requested,
+      slackOnHand,
+      stock,
+      rows,
+      warning: stock.discontinued ? 'EOL item' : undefined,
+    });
+  }
+
+  const splitCount = lines.filter(line => line.rows.length > 1).length;
+  const storeroomUnits = lines.flatMap(line => line.rows).filter(row => row.source === 'Storeroom').reduce((sum, row) => sum + row.quantityRequested, 0);
+  const tplUnits = lines.flatMap(line => line.rows).filter(row => row.source === '3PL').reduce((sum, row) => sum + row.quantityRequested, 0);
+
+  return {
+    lines,
+    unmatched,
+    splitCount,
+    storeroomUnits,
+    tplUnits,
+    totalUnits: storeroomUnits + tplUnits,
+  };
+}
+
 function ReplenishmentPageInner() {
   const searchParams = useSearchParams();
   const [requests, setRequests]     = useState<ReplenishmentRequest[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading]       = useState(true);
   const [filter, setFilter]         = useState<'All' | ReplenishmentStatus>('All');
+  const [view, setView]             = useState<'list' | 'insights'>('list');
   const [showModal, setShowModal]       = useState(false);
   const [saving, setSaving]             = useState(false);
   const [includeEOL, setIncludeEOL]     = useState(false);
@@ -125,6 +229,7 @@ function ReplenishmentPageInner() {
   });
   const [newItems, setNewItems] = useState<NewItemRow[]>([]);
   const [formError, setFormError] = useState('');
+  const [smartImportText, setSmartImportText] = useState('');
 
   async function load() {
     setLoading(true);
@@ -200,6 +305,115 @@ function ReplenishmentPageInner() {
     Delivered:            requests.filter(r => r.status === 'Delivered').length,
   };
 
+  const insightsSource = useMemo(() => {
+    let list = [...requests];
+    if (filterFrom) list = list.filter(r => r.date >= filterFrom);
+    if (filterTo)   list = list.filter(r => r.date <= filterTo);
+    return list;
+  }, [requests, filterFrom, filterTo]);
+
+  const insightStores = useMemo(() => {
+    return STORES.map(store => {
+      const storeRequests = insightsSource.filter(r => r.store === store);
+      const activeItems = storeRequests.flatMap(r => r.items.filter(i => !i.skipped).map(item => ({ request: r, item })));
+      const totalUnits = activeItems.reduce((sum, row) => sum + row.item.quantityRequested, 0);
+      const productMap = new Map<string, { name: string; sku: string; units: number; requests: Set<string> }>();
+      const requesterMap = new Map<string, { name: string; units: number; requests: number }>();
+
+      for (const row of activeItems) {
+        const key = row.item.sku || row.item.stockItemName;
+        const product = productMap.get(key) ?? { name: row.item.stockItemName, sku: row.item.sku, units: 0, requests: new Set<string>() };
+        product.units += row.item.quantityRequested;
+        product.requests.add(row.request.id);
+        productMap.set(key, product);
+      }
+
+      for (const request of storeRequests) {
+        const name = request.requestedBy || 'Unknown';
+        const current = requesterMap.get(name) ?? { name, units: 0, requests: 0 };
+        current.requests += 1;
+        current.units += request.items.filter(i => !i.skipped).reduce((sum, item) => sum + item.quantityRequested, 0);
+        requesterMap.set(name, current);
+      }
+
+      const openAgeing = storeRequests
+        .filter(r => r.status !== 'Delivered')
+        .map(r => ({
+          id: r.id,
+          orderNumber: r.orderNumber,
+          status: r.status,
+          days: daysSince(r.date),
+          units: r.items.filter(i => !i.skipped).reduce((sum, item) => sum + item.quantityRequested, 0),
+        }))
+        .sort((a, b) => b.days - a.days)
+        .slice(0, 4);
+
+      return {
+        store,
+        requests: storeRequests.length,
+        totalUnits,
+        averageUnits: storeRequests.length ? Math.round(totalUnits / storeRequests.length) : 0,
+        topProducts: Array.from(productMap.values())
+          .map(product => ({ ...product, requests: product.requests.size }))
+          .sort((a, b) => b.units - a.units || a.name.localeCompare(b.name))
+          .slice(0, 8),
+        topRequesters: Array.from(requesterMap.values())
+          .sort((a, b) => b.units - a.units || b.requests - a.requests)
+          .slice(0, 4),
+        openAgeing,
+      };
+    });
+  }, [insightsSource]);
+
+  const insightTotals = useMemo(() => {
+    const totalRequests = insightStores.reduce((sum, store) => sum + store.requests, 0);
+    const totalUnits = insightStores.reduce((sum, store) => sum + store.totalUnits, 0);
+    return { totalRequests, totalUnits, averageUnits: totalRequests ? Math.round(totalUnits / totalRequests) : 0 };
+  }, [insightStores]);
+
+  const insightTakeaways = useMemo(() => {
+    const storeByUnits = [...insightStores].sort((a, b) => b.totalUnits - a.totalUnits);
+    const busiest = storeByUnits[0];
+    const quieter = storeByUnits[1];
+    const oldestOpen = insightStores
+      .flatMap(store => store.openAgeing.map(open => ({ ...open, store: store.store })))
+      .sort((a, b) => b.days - a.days)[0];
+    const topProductMap = new Map<string, { name: string; sku: string; units: number }>();
+
+    for (const store of insightStores) {
+      for (const product of store.topProducts) {
+        const key = product.sku || product.name;
+        const current = topProductMap.get(key) ?? { name: product.name, sku: product.sku, units: 0 };
+        current.units += product.units;
+        topProductMap.set(key, current);
+      }
+    }
+
+    const topProduct = Array.from(topProductMap.values()).sort((a, b) => b.units - a.units)[0];
+    const avgRatio = busiest && quieter && quieter.averageUnits > 0
+      ? (busiest.averageUnits / quieter.averageUnits).toFixed(1)
+      : '';
+
+    return {
+      busiest,
+      quieter,
+      busiestShare: busiest && insightTotals.totalUnits ? Math.round((busiest.totalUnits / insightTotals.totalUnits) * 100) : 0,
+      avgRatio,
+      oldestOpen,
+      topProduct,
+    };
+  }, [insightStores, insightTotals.totalUnits]);
+
+  const stockBySku = useMemo(() => {
+    const map = new Map<string, StockItem>();
+    for (const item of stockItems) {
+      if (item.sku) map.set(normaliseSku(item.sku), item);
+    }
+    return map;
+  }, [stockItems]);
+
+  const smartImport = useMemo(() => parseSlackRequest(smartImportText, stockBySku), [smartImportText, stockBySku]);
+
   // ── New item management ────────────────────────────────────────────────────
   function addItem() {
     setNewItems(prev => [...prev, {
@@ -227,6 +441,26 @@ function ReplenishmentPageInner() {
     });
   }
 
+  function applySmartImport(mode: 'append' | 'replace') {
+    const rows = smartImport.lines.flatMap(line => line.rows);
+    if (!rows.length) {
+      setFormError('No matched SKU lines found to import.');
+      return;
+    }
+    setNewItems(prev => mode === 'replace' ? rows : [...prev, ...rows]);
+    setFormError('');
+    success(
+      mode === 'replace' ? 'Request items replaced' : 'Slack request imported',
+      `${rows.length} replenishment line${rows.length !== 1 ? 's' : ''} added from ${smartImport.lines.length} matched SKU${smartImport.lines.length !== 1 ? 's' : ''}.`
+    );
+  }
+
+  function handleSlackDrop(e: React.DragEvent<HTMLTextAreaElement>) {
+    e.preventDefault();
+    const text = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('text');
+    if (text) setSmartImportText(text);
+  }
+
   // ── Submit new request ──────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!newItems.length) { setFormError('Add at least one item.'); return; }
@@ -244,6 +478,7 @@ function ReplenishmentPageInner() {
       setRequests(prev => [json.data, ...prev]);
       setShowModal(false);
       setNewItems([]);
+      setSmartImportText('');
       setIncludeEOL(false);
       setForm({ store: 'Adelaide Popup', orderNumber: '', requestedBy: '', date: new Date().toISOString().slice(0, 10), notes: '' });
       success('Request created', `Replenishment request for ${form.store} logged.`);
@@ -329,6 +564,24 @@ function ReplenishmentPageInner() {
       {/* Filter tabs + date range */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+          <button
+            onClick={() => setView('list')}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+              view === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            List
+          </button>
+          <button
+            onClick={() => setView('insights')}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+              view === 'insights' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <BarChart3 size={14} /> Insights
+          </button>
+        </div>
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {(['All', 'Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
@@ -355,14 +608,176 @@ function ReplenishmentPageInner() {
       </div>
 
       {/* Filter count */}
-      {!loading && (filter !== 'All' || filterFrom || filterTo) && (
+      {!loading && view === 'list' && (filter !== 'All' || filterFrom || filterTo) && (
         <p className="text-xs text-slate-400 -mt-2">
           Showing <span className="font-semibold text-slate-600">{displayed.length}</span> of <span className="font-semibold text-slate-600">{requests.length}</span> requests
         </p>
       )}
 
+      {view === 'insights' && !loading && (
+        <div className="space-y-4">
+          <div className="card p-5">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Key takeaways</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Use this to understand where popup replenishment demand is coming from and what needs follow-up.</p>
+              </div>
+              {(filterFrom || filterTo) && (
+                <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                  Date filtered
+                </span>
+              )}
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-lg bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Demand split</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {insightTakeaways.busiest
+                    ? `${insightTakeaways.busiest.store} is ${insightTakeaways.busiestShare}% of units`
+                    : 'No replenishment demand yet'}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">Higher share means that popup is driving most stock movement.</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Request size</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {insightTakeaways.busiest && insightTakeaways.quieter && insightTakeaways.avgRatio
+                    ? `${insightTakeaways.busiest.store} requests are ${insightTakeaways.avgRatio}x larger`
+                    : `${insightTotals.averageUnits} units per request`}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">Larger averages mean fewer, bulkier restocks.</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Most requested</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 truncate">
+                  {insightTakeaways.topProduct ? insightTakeaways.topProduct.name : 'No product demand yet'}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {insightTakeaways.topProduct ? `${insightTakeaways.topProduct.units} units requested overall.` : 'Products will appear once requests are logged.'}
+                </p>
+              </div>
+              <div className={`rounded-lg px-3 py-3 ${insightTakeaways.oldestOpen?.days && insightTakeaways.oldestOpen.days >= 3 ? 'bg-amber-50' : 'bg-slate-50'}`}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Needs follow-up</p>
+                <p className={`mt-1 text-sm font-semibold ${insightTakeaways.oldestOpen?.days && insightTakeaways.oldestOpen.days >= 3 ? 'text-amber-800' : 'text-slate-900'}`}>
+                  {insightTakeaways.oldestOpen
+                    ? `${insightTakeaways.oldestOpen.store}: ${insightTakeaways.oldestOpen.days}d open`
+                    : 'No open requests'}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">Older open requests may need dispatch, tracking, or delivery follow-up.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="card p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Requests</p>
+              <p className="mt-2 text-2xl font-bold font-mono text-slate-900">{insightTotals.totalRequests}</p>
+              <p className="mt-1 text-xs text-slate-400">How many replenishment orders were created.</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Units Requested</p>
+              <p className="mt-2 text-2xl font-bold font-mono text-slate-900">{insightTotals.totalUnits}</p>
+              <p className="mt-1 text-xs text-slate-400">Total product units requested by popups.</p>
+            </div>
+            <div className="card p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Average Request Size</p>
+              <p className="mt-2 text-2xl font-bold font-mono text-slate-900">{insightTotals.averageUnits}</p>
+              <p className="mt-1 text-xs text-slate-400">Higher means fewer but larger restocks.</p>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-4">
+            {insightStores.map(store => (
+              <div key={store.store} className="card overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-900">{store.store}</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">{store.requests} requests · {store.totalUnits} units · {store.averageUnits} avg/request</p>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    store.store === 'Adelaide Popup' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'
+                  }`}>
+                    {store.totalUnits} units
+                  </span>
+                </div>
+
+                <div className="p-5 space-y-5">
+                  <section>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Most Requested Products</h3>
+                      <span className="text-[11px] text-slate-400">higher units = more popup demand</span>
+                    </div>
+                    {store.topProducts.length === 0 ? (
+                      <p className="text-sm text-slate-400 py-4">No product demand yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {store.topProducts.map(product => {
+                          const pct = store.totalUnits ? Math.round((product.units / store.totalUnits) * 100) : 0;
+                          return (
+                            <div key={`${store.store}-${product.sku || product.name}`}>
+                              <div className="flex items-center justify-between gap-3 text-sm">
+                                <div className="min-w-0">
+                                  <p className="font-medium text-slate-800 truncate">{product.name}</p>
+                                  <p className="text-[11px] text-slate-400 font-mono truncate">{product.sku || 'No SKU'} · {product.requests} request{product.requests !== 1 ? 's' : ''}</p>
+                                </div>
+                                <span className="font-bold font-mono text-slate-900">{product.units}</span>
+                              </div>
+                              <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                                <div className={`h-full rounded-full ${store.store === 'Adelaide Popup' ? 'bg-emerald-400' : 'bg-sky-400'}`} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <section>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Top Requesters</h3>
+                      <div className="space-y-2">
+                        {store.topRequesters.length === 0 ? (
+                          <p className="text-sm text-slate-400">No requester data.</p>
+                        ) : store.topRequesters.map(requester => (
+                          <div key={`${store.store}-${requester.name}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-700 truncate">{requester.name}</p>
+                              <p className="text-[11px] text-slate-400">{requester.requests} request{requester.requests !== 1 ? 's' : ''}</p>
+                            </div>
+                            <span className="text-sm font-bold font-mono text-slate-800">{requester.units}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Needs Follow-up</h3>
+                      <div className="space-y-2">
+                        {store.openAgeing.length === 0 ? (
+                          <p className="text-sm text-slate-400">No open requests.</p>
+                        ) : store.openAgeing.map(open => (
+                          <Link key={open.id} href={`/replenishment/${open.id}`} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 hover:bg-slate-100 transition-colors">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-700 truncate">{open.orderNumber || open.status}</p>
+                              <p className="text-[11px] text-slate-400">{open.status} · {open.units} units</p>
+                            </div>
+                            <span className={`text-xs font-semibold ${open.days >= 7 ? 'text-red-600' : open.days >= 3 ? 'text-amber-600' : 'text-slate-500'}`}>
+                              {open.days}d
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Table */}
-      {loading ? (
+      {view === 'list' && (loading ? (
         <TableSkeleton rows={5} cols={5} />
       ) : displayed.length === 0 ? (
         <div className="card overflow-hidden">
@@ -454,15 +869,15 @@ function ReplenishmentPageInner() {
           </table>
           </div>
         </div>
-      )}
+      ))}
 
       {/* ── New Request Modal ───────────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-start justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h2 className="font-semibold text-slate-900">New Replenishment Request</h2>
-              <button onClick={() => { setShowModal(false); setIncludeEOL(false); }} className="text-slate-400 hover:text-slate-600 p-1 text-lg leading-none">×</button>
+              <button onClick={() => { setShowModal(false); setIncludeEOL(false); setSmartImportText(''); }} className="text-slate-400 hover:text-slate-600 p-1 text-lg leading-none">×</button>
             </div>
 
             <div className="p-6 space-y-5">
@@ -490,6 +905,106 @@ function ReplenishmentPageInner() {
                   <label className="form-label">Date</label>
                   <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className="form-input" />
                 </div>
+              </div>
+
+              {/* Smart import */}
+              <div className="rounded-xl border border-brand-100 bg-brand-50/40 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <ClipboardList size={15} className="text-brand-600" />
+                      <p className="text-sm font-semibold text-slate-900">Smart import from Slack</p>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Paste or drop the Slack replenishment message. The portal matches SKUs, uses Stock Room first, then puts any shortfall on 3PL.
+                    </p>
+                  </div>
+                  {smartImportText.trim() && (
+                    <button onClick={() => setSmartImportText('')} className="text-xs font-medium text-slate-400 hover:text-slate-600">
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  value={smartImportText}
+                  onChange={e => setSmartImportText(e.target.value)}
+                  onDrop={handleSlackDrop}
+                  onDragOver={e => e.preventDefault()}
+                  rows={4}
+                  className="mt-3 form-input resize-y bg-white"
+                  placeholder="Paste Slack request here, e.g. PPU2-PNK · send 4 (on hand: 2)"
+                />
+                {smartImportText.trim() && (
+                  <div className="mt-3 space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-lg bg-white px-3 py-2 text-center">
+                        <p className="text-lg font-bold text-slate-900">{smartImport.lines.length}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Matched SKUs</p>
+                      </div>
+                      <div className="rounded-lg bg-white px-3 py-2 text-center">
+                        <p className="text-lg font-bold text-emerald-700">{smartImport.storeroomUnits}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Stock Room</p>
+                      </div>
+                      <div className="rounded-lg bg-white px-3 py-2 text-center">
+                        <p className="text-lg font-bold text-sky-700">{smartImport.tplUnits}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">3PL</p>
+                      </div>
+                    </div>
+
+                    {smartImport.lines.length > 0 && (
+                      <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                        {smartImport.lines.slice(0, 12).map(line => (
+                          <div key={`${line.sku}-${line.requested}`} className="flex items-center justify-between gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0">
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-slate-800">{line.stock?.name ?? line.sku}</p>
+                              <p className="font-mono text-[11px] text-slate-400">
+                                {line.sku} · requested {line.requested}
+                                {line.slackOnHand != null ? ` · Slack on hand ${line.slackOnHand}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex flex-shrink-0 items-center gap-1 text-[11px] font-semibold">
+                              {line.rows.map(row => (
+                                <span
+                                  key={`${line.sku}-${row.source}`}
+                                  className={`rounded-full px-2 py-0.5 ${
+                                    row.source === 'Storeroom' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'
+                                  }`}
+                                >
+                                  {row.source} {row.quantityRequested}
+                                </span>
+                              ))}
+                              {line.warning && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">{line.warning}</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {smartImport.unmatched.length > 0 && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                        <p className="text-xs font-semibold text-amber-800">{smartImport.unmatched.length} SKU{smartImport.unmatched.length !== 1 ? 's' : ''} could not be matched</p>
+                        <p className="mt-1 text-[11px] text-amber-700">
+                          {smartImport.unmatched.slice(0, 4).map(row => `${row.sku} (${row.requested})`).join(', ')}
+                          {smartImport.unmatched.length > 4 ? '…' : ''}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[11px] text-slate-500">
+                        {smartImport.splitCount > 0 ? `${smartImport.splitCount} SKU${smartImport.splitCount !== 1 ? 's' : ''} split between Stock Room and 3PL.` : 'No split needed for matched lines.'}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => applySmartImport('replace')} disabled={smartImport.lines.length === 0} className="btn-secondary text-xs disabled:opacity-40">
+                          Replace Items
+                        </button>
+                        <button onClick={() => applySmartImport('append')} disabled={smartImport.lines.length === 0} className="btn-primary text-xs disabled:opacity-40">
+                          Add Matched Items
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Items */}
@@ -605,7 +1120,7 @@ function ReplenishmentPageInner() {
             </div>
 
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
-              <button onClick={() => { setShowModal(false); setIncludeEOL(false); }} className="btn-secondary">Cancel</button>
+              <button onClick={() => { setShowModal(false); setIncludeEOL(false); setSmartImportText(''); }} className="btn-secondary">Cancel</button>
               <button onClick={handleSubmit} disabled={saving} className="btn-primary">
                 {saving ? 'Saving…' : 'Create Request'}
               </button>
