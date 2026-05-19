@@ -455,6 +455,24 @@ export interface CorporateOrder {
 }
 
 // =========================================================
+// 3PL RESTOCK TRACKER
+// =========================================================
+export type RestockStatus = 'Out of Stock' | 'Backordered' | 'On Order' | 'Back in Stock';
+
+export interface RestockItem {
+  id: string;
+  productName: string;
+  sku: string;
+  status: RestockStatus;
+  expectedRestockDate: string | null;
+  supplier: string;
+  notes: string;
+  resolved: boolean;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+// =========================================================
 // RETAIL CUSTOMERS
 // =========================================================
 export interface RetailCustomer {
