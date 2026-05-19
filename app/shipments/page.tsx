@@ -854,6 +854,7 @@ export default function ShipmentsPage() {
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Shipment</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">ETA</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Products</th>
                   <th className="text-right px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Units</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tracking</th>
                   <th className="px-5 py-3 w-20" />
@@ -941,14 +942,30 @@ export default function ShipmentsPage() {
                           ) : <span className="text-slate-400 text-xs">TBC</span>}
                         </td>
 
+                        {/* Products */}
+                        <td className="px-5 py-3.5 max-w-[220px]">
+                          {s.items.length > 0 ? (
+                            <div className="space-y-1">
+                              {s.items.slice(0, 3).map((item, idx) => (
+                                <div key={idx} className="flex items-center justify-between gap-2">
+                                  <span className={`text-xs truncate ${isDelivered ? 'text-slate-400' : 'text-slate-700'}`}>{item.productName}</span>
+                                  <span className={`text-xs font-semibold tabular-nums flex-shrink-0 ${isDelivered ? 'text-slate-400' : 'text-slate-600'}`}>×{item.quantity.toLocaleString()}</span>
+                                </div>
+                              ))}
+                              {s.items.length > 3 && (
+                                <p className="text-[11px] text-slate-400">+{s.items.length - 3} more</p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </td>
+
                         {/* Units */}
                         <td className="px-5 py-3.5 text-right">
                           <span className={`text-lg font-bold ${isDelivered ? 'text-slate-400' : units > 0 ? 'text-slate-800' : 'text-slate-300'}`}>
                             {units > 0 ? units.toLocaleString() : '—'}
                           </span>
-                          {s.items.length > 0 && (
-                            <p className="text-[11px] text-slate-400 mt-0.5">{s.items.length} product{s.items.length !== 1 ? 's' : ''}</p>
-                          )}
                         </td>
 
                         {/* Tracking */}
@@ -977,7 +994,7 @@ export default function ShipmentsPage() {
                       {/* Expanded product rows */}
                       {isExpanded && (
                         <tr key={`${s.id}-expanded`} className="bg-slate-50/60 border-b border-slate-100">
-                          <td colSpan={7} className="px-5 py-4">
+                          <td colSpan={8} className="px-5 py-4">
                             <div className="ml-8 space-y-3">
                               {/* Meta badges */}
                               <div className="flex flex-wrap gap-2">
