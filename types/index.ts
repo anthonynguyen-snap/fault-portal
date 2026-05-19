@@ -457,7 +457,7 @@ export interface CorporateOrder {
 // =========================================================
 // 3PL RESTOCK TRACKER
 // =========================================================
-export type RestockStatus = 'Out of Stock' | 'Backordered' | 'On Order' | 'Back in Stock';
+export type RestockStatus = 'Out of Stock' | 'Backordered' | 'On Order' | 'New Release' | 'Back in Stock';
 
 export interface RestockItem {
   id: string;

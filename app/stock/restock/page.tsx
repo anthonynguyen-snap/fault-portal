@@ -2,24 +2,26 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   PackageOpen, Plus, X, CheckCircle2, Clock, Truck, AlertTriangle,
-  Pencil, Trash2, ChevronDown, RefreshCw, CheckCheck,
+  Pencil, Trash2, ChevronDown, RefreshCw, CheckCheck, Sparkles,
 } from 'lucide-react';
 import { RestockItem, RestockStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 
-const STATUSES: RestockStatus[] = ['Out of Stock', 'Backordered', 'On Order', 'Back in Stock'];
+const STATUSES: RestockStatus[] = ['Out of Stock', 'Backordered', 'On Order', 'New Release', 'Back in Stock'];
 
 const STATUS_STYLES: Record<RestockStatus, string> = {
-  'Out of Stock':   'bg-red-100 text-red-700',
-  'Backordered':    'bg-amber-100 text-amber-700',
-  'On Order':       'bg-blue-100 text-blue-700',
-  'Back in Stock':  'bg-emerald-100 text-emerald-700',
+  'Out of Stock':  'bg-red-100 text-red-700',
+  'Backordered':   'bg-amber-100 text-amber-700',
+  'On Order':      'bg-blue-100 text-blue-700',
+  'New Release':   'bg-purple-100 text-purple-700',
+  'Back in Stock': 'bg-emerald-100 text-emerald-700',
 };
 
 const STATUS_ICONS: Record<RestockStatus, React.ReactNode> = {
   'Out of Stock':  <AlertTriangle size={11} />,
   'Backordered':   <Clock size={11} />,
   'On Order':      <Truck size={11} />,
+  'New Release':   <Sparkles size={11} />,
   'Back in Stock': <CheckCircle2 size={11} />,
 };
 
@@ -208,10 +210,11 @@ export default function RestockTrackerPage() {
     return activeItems.filter(i => i.status === filterStatus);
   }, [activeItems, filterStatus]);
 
-  const outCount     = useMemo(() => activeItems.filter(i => i.status === 'Out of Stock').length, [activeItems]);
-  const backordCount = useMemo(() => activeItems.filter(i => i.status === 'Backordered').length, [activeItems]);
-  const onOrderCount = useMemo(() => activeItems.filter(i => i.status === 'On Order').length, [activeItems]);
-  const backInCount  = useMemo(() => activeItems.filter(i => i.status === 'Back in Stock').length, [activeItems]);
+  const outCount        = useMemo(() => activeItems.filter(i => i.status === 'Out of Stock').length, [activeItems]);
+  const backordCount    = useMemo(() => activeItems.filter(i => i.status === 'Backordered').length, [activeItems]);
+  const onOrderCount    = useMemo(() => activeItems.filter(i => i.status === 'On Order').length, [activeItems]);
+  const newReleaseCount = useMemo(() => activeItems.filter(i => i.status === 'New Release').length, [activeItems]);
+  const backInCount     = useMemo(() => activeItems.filter(i => i.status === 'Back in Stock').length, [activeItems]);
 
   // Form helpers
   function setField<K extends keyof RestockItem>(key: K, val: RestockItem[K] | null) {
@@ -299,7 +302,7 @@ export default function RestockTrackerPage() {
             <PackageOpen size={22} className="text-brand-600" />
             Restock Tracker
           </h1>
-          <p className="page-subtitle">Track 3PL products that are out of stock or backordered</p>
+          <p className="page-subtitle">Track out-of-stock, backordered, and new release products at the 3PL</p>
         </div>
         <div className="flex items-center gap-2">
           {saveOk && (
@@ -323,12 +326,13 @@ export default function RestockTrackerPage() {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          { label: 'Out of Stock',  count: outCount,     style: 'border-red-200 bg-red-50',     text: 'text-red-600' },
-          { label: 'Backordered',   count: backordCount, style: 'border-amber-200 bg-amber-50',  text: 'text-amber-600' },
-          { label: 'On Order',      count: onOrderCount, style: 'border-blue-200 bg-blue-50',    text: 'text-blue-600' },
-          { label: 'Back in Stock', count: backInCount,  style: 'border-emerald-200 bg-emerald-50', text: 'text-emerald-600' },
+          { label: 'Out of Stock',  count: outCount,        style: 'border-red-200 bg-red-50',        text: 'text-red-600' },
+          { label: 'Backordered',   count: backordCount,    style: 'border-amber-200 bg-amber-50',    text: 'text-amber-600' },
+          { label: 'On Order',      count: onOrderCount,    style: 'border-blue-200 bg-blue-50',      text: 'text-blue-600' },
+          { label: 'New Release',   count: newReleaseCount, style: 'border-purple-200 bg-purple-50',  text: 'text-purple-600' },
+          { label: 'Back in Stock', count: backInCount,     style: 'border-emerald-200 bg-emerald-50', text: 'text-emerald-600' },
         ].map(({ label, count, style, text }) => (
           <button
             key={label}
