@@ -3,9 +3,10 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   Ship, Plane, Plus, X, ChevronDown, ChevronUp, RefreshCw,
   Pencil, Trash2, Package, Clock, CheckCircle2, AlertTriangle,
-  Anchor, MapPin, Hash, CalendarDays, FileText,
+  Anchor, MapPin, Hash, FileText, Download, CheckSquare, Square,
 } from 'lucide-react';
 import { Shipment, ShipmentItem, ShipmentStatus, ShipmentTransport } from '@/types';
+import type { ImportedShipment } from '@/app/api/shipments/import-sheet/route';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -125,6 +126,13 @@ export default function ShipmentsPage() {
 
   // Filter
   const [filterStatus, setFilterStatus] = useState<ShipmentStatus | 'All'>('All');
+
+  // Sheet import
+  const [importing, setImporting]               = useState(false);
+  const [importPreview, setImportPreview]       = useState<ImportedShipment[] | null>(null);
+  const [importSelected, setImportSelected]     = useState<Set<number>>(new Set());
+  const [importError, setImportError]           = useState('');
+  const [importSaving, setImportSaving]         = useState(false);
 
   async function load() {
     setLoading(true);
@@ -249,6 +257,69 @@ export default function ShipmentsPage() {
     if (!confirm('Delete this shipment?')) return;
     setShipments(prev => prev.filter(s => s.id !== id));
     await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
+  }
+
+  // ── Sheet import ─────────────────────────────────────────────────────────────
+  async function fetchSheetPreview() {
+    setImporting(true);
+    setImportError('');
+    setImportPreview(null);
+    try {
+      const res  = await fetch('/api/shipments/import-sheet');
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      const preview: ImportedShipment[] = json.data ?? [];
+      // Pre-select only new shipments (not already in DB)
+      const existing = new Set(shipments.map(s => s.shipmentNumber));
+      const selected = new Set(
+        preview.map((_, i) => i).filter(i => !existing.has(preview[i].shipmentNumber))
+      );
+      setImportPreview(preview);
+      setImportSelected(selected);
+    } catch (e: any) {
+      setImportError(e.message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function confirmImport() {
+    if (!importPreview) return;
+    setImportSaving(true);
+    try {
+      const toImport = importPreview.filter((_, i) => importSelected.has(i));
+      for (const s of toImport) {
+        const res  = await fetch('/api/shipments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(s),
+        });
+        const json = await res.json();
+        if (json.data) setShipments(prev => [json.data, ...prev]);
+      }
+      setImportPreview(null);
+    } catch (e: any) {
+      setImportError(e.message);
+    } finally {
+      setImportSaving(false);
+    }
+  }
+
+  function toggleImportSelect(idx: number) {
+    setImportSelected(prev => {
+      const s = new Set(prev);
+      s.has(idx) ? s.delete(idx) : s.add(idx);
+      return s;
+    });
+  }
+
+  function toggleImportAll() {
+    if (!importPreview) return;
+    if (importSelected.size === importPreview.length) {
+      setImportSelected(new Set());
+    } else {
+      setImportSelected(new Set(importPreview.map((_, i) => i)));
+    }
   }
 
   function toggleExpand(id: string) {
@@ -523,13 +594,22 @@ export default function ShipmentsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="btn-secondary"><RefreshCw size={14} /> Refresh</button>
+          <button
+            onClick={fetchSheetPreview}
+            disabled={importing}
+            className="btn-secondary gap-1.5"
+            title="Read from Google Sheet"
+          >
+            <Download size={14} className="text-emerald-600" />
+            {importing ? 'Reading…' : 'Import from Sheet'}
+          </button>
           <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Shipment</button>
         </div>
       </div>
 
-      {error && (
+      {(error || importError) && (
         <div className="card p-4 border-red-200 bg-red-50">
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-red-700">{error || importError}</p>
         </div>
       )}
 
@@ -810,6 +890,114 @@ export default function ShipmentsPage() {
       >
         {FormContent}
       </SlideOver>
+
+      {/* Import preview modal */}
+      {importPreview && (
+        <>
+          <div className="fixed inset-0 bg-slate-900/50 z-40" onClick={() => setImportPreview(null)} />
+          <div className="fixed inset-x-4 top-8 bottom-8 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[760px] bg-white rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                  <Download size={16} className="text-emerald-600" /> Import from Google Sheet
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {importPreview.length} shipment{importPreview.length !== 1 ? 's' : ''} found ·{' '}
+                  <span className="text-brand-600 font-medium">{importSelected.size} selected</span>
+                  {' '}— new shipments pre-selected
+                </p>
+              </div>
+              <button onClick={() => setImportPreview(null)} className="btn-ghost p-1.5"><X size={18} /></button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+                  <tr>
+                    <th className="px-4 py-3 w-10">
+                      <button onClick={toggleImportAll} className="flex items-center justify-center text-slate-400 hover:text-brand-600">
+                        {importSelected.size === importPreview.length
+                          ? <CheckSquare size={15} className="text-brand-600" />
+                          : <Square size={15} />}
+                      </button>
+                    </th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Shipment</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">ETA</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Units</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Products</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.map((s, idx) => {
+                    const isSelected   = importSelected.has(idx);
+                    const alreadyInDb  = shipments.some(db => db.shipmentNumber === s.shipmentNumber);
+                    const totalUnits   = s.items.reduce((sum, i) => sum + i.quantity, 0);
+                    return (
+                      <tr
+                        key={idx}
+                        onClick={() => toggleImportSelect(idx)}
+                        className={`border-b border-slate-50 cursor-pointer transition-colors ${
+                          isSelected ? 'bg-brand-50/40' : 'hover:bg-slate-50'
+                        } ${alreadyInDb ? 'opacity-50' : ''}`}
+                      >
+                        <td className="px-4 py-3 text-center">
+                          {isSelected
+                            ? <CheckSquare size={15} className="text-brand-600 mx-auto" />
+                            : <Square size={15} className="text-slate-300 mx-auto" />}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            {s.transportType === 'Sea' ? <Ship size={13} className="text-blue-400" /> : <Plane size={13} className="text-purple-400" />}
+                            <span className="font-semibold text-slate-800">#{s.shipmentNumber}</span>
+                            {alreadyInDb && <span className="text-[10px] text-slate-400 font-medium ml-1">already imported</span>}
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{s.location}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {s.eta ? new Date(s.eta + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                          {totalUnits > 0 ? totalUnits.toLocaleString() : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          {s.items.length > 0
+                            ? s.items.slice(0, 2).map(i => i.productName).join(', ') + (s.items.length > 2 ? ` +${s.items.length - 2} more` : '')
+                            : <span className="text-slate-300">No products detected</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`badge ${STATUS_STYLES[s.status as ShipmentStatus] ?? 'bg-slate-100 text-slate-600'}`}>
+                            {s.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-200 flex-shrink-0">
+              <p className="text-xs text-slate-500">
+                Importing will add selected shipments. Existing shipments won&apos;t be duplicated.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setImportPreview(null)} className="btn-secondary px-4">Cancel</button>
+                <button
+                  onClick={confirmImport}
+                  disabled={importSelected.size === 0 || importSaving}
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {importSaving ? 'Importing…' : `Import ${importSelected.size} Shipment${importSelected.size !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
