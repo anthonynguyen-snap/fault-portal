@@ -455,6 +455,41 @@ export interface CorporateOrder {
 }
 
 // =========================================================
+// INCOMING SHIPMENTS
+// =========================================================
+export type ShipmentStatus = 'Pending' | 'In Transit' | 'At Port' | 'Delivered' | 'Delayed';
+export type ShipmentTransport = 'Sea' | 'Air';
+
+export interface ShipmentItem {
+  id: string;
+  shipmentId: string;
+  productName: string;
+  sku: string;
+  quantity: number;
+  notes: string;
+}
+
+export interface Shipment {
+  id: string;
+  shipmentNumber: string;
+  location: string;
+  transportType: ShipmentTransport;
+  provider: string;
+  trackingNumber: string;
+  eta: string | null;
+  status: ShipmentStatus;
+  costUsd: number;
+  costAud: number;
+  cartons: string;
+  weightKg: string;
+  branchTransferNumber: string;
+  asnNumber: string;
+  notes: string;
+  items: ShipmentItem[];
+  createdAt: string;
+}
+
+// =========================================================
 // 3PL RESTOCK TRACKER
 // =========================================================
 export type RestockStatus = 'Out of Stock' | 'Backordered' | 'On Order' | 'New Release' | 'Back in Stock';

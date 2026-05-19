@@ -25,6 +25,7 @@ import {
   BookOpen,
   X,
   PackageOpen,
+  Ship,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
@@ -157,9 +158,10 @@ const navGroups: NavGroup[] = [
   {
     label: 'Inventory',
     items: [
-      { label: 'Stock Room',      href: '/stock',          icon: Package,     adminOnly: true },
-      { label: 'Restock Tracker', href: '/stock/restock',  icon: PackageOpen, adminOnly: true },
-      { label: 'Replenishment',   href: '/replenishment',  icon: Truck,       adminOnly: true },
+      { label: 'Stock Room',          href: '/stock',          icon: Package,     adminOnly: true },
+      { label: 'Incoming Shipments', href: '/shipments',     icon: Ship,        adminOnly: true },
+      { label: 'Restock Tracker',    href: '/stock/restock', icon: PackageOpen, adminOnly: true },
+      { label: 'Replenishment',      href: '/replenishment', icon: Truck,       adminOnly: true },
       { label: 'Promotions',    href: '/promotions',    icon: Tag },
     ],
   },
