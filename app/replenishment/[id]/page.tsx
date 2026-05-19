@@ -61,6 +61,7 @@ export default function ReplenishmentDetailPage() {
   // Inline tracking update for 3PL card (post-dispatch)
   const [editTplTracking, setEditTplTracking]   = useState(false);
   const [tplTrackingInput, setTplTrackingInput] = useState('');
+  const [tplDateInput, setTplDateInput]         = useState(new Date().toISOString().slice(0, 10));
   const [savingTracking, setSavingTracking]     = useState(false);
 
   // Legacy single dispatch (kept for fallback)
@@ -111,6 +112,8 @@ export default function ReplenishmentDetailPage() {
       setItemSkipped(skippedMap);
       setTracking(req.trackingNumber ?? '');
       setDispatchDate(req.dispatchDate ?? new Date().toISOString().slice(0, 10));
+      setTplTrackingInput(req.tplTracking ?? '');
+      setTplDateInput(req.tplDispatchDate ?? new Date().toISOString().slice(0, 10));
       setEditStatus(req.status as ReplenishmentStatus);
       setEditOrderNum(req.orderNumber ?? '');
       // Parse notes as append-only log (backward compat with plain text)
@@ -220,14 +223,18 @@ export default function ReplenishmentDetailPage() {
       const res = await fetch(`/api/replenishment/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tplTracking: tplTrackingInput }),
+        body: JSON.stringify({
+          tplTracking: tplTrackingInput.trim(),
+          tplDispatchDate: tplDateInput || null,
+        }),
       });
-      if (!res.ok) throw new Error();
-      success('Tracking saved');
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'Could not save tracking');
+      success('Tracking saved', '3PL dispatch details updated.');
       await load();
       setEditTplTracking(false);
-    } catch {
-      toastError('Failed to save tracking');
+    } catch (err: unknown) {
+      toastError('Failed to save tracking', err instanceof Error ? err.message : String(err));
     } finally { setSavingTracking(false); }
   }
 
@@ -447,7 +454,33 @@ export default function ReplenishmentDetailPage() {
                 {request.tplDispatched ? (
                   <>
                     <p className="text-xs text-sky-600 mt-0.5">Date: {request.tplDispatchDate}</p>
-                    {request.tplTracking ? (
+                    {editTplTracking ? (
+                      <div className="mt-2 space-y-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                          <input
+                            autoFocus
+                            value={tplTrackingInput}
+                            onChange={e => setTplTrackingInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveTplTracking(); if (e.key === 'Escape') setEditTplTracking(false); }}
+                            placeholder="Tracking ref"
+                            className="text-xs font-mono border border-sky-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                          />
+                          <input
+                            type="date"
+                            value={tplDateInput}
+                            onChange={e => setTplDateInput(e.target.value)}
+                            className="text-xs border border-sky-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-sky-400"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={saveTplTracking} disabled={savingTracking}
+                            className="text-xs bg-sky-600 hover:bg-sky-700 text-white px-2.5 py-1.5 rounded transition-colors disabled:opacity-40">
+                            {savingTracking ? 'Saving...' : 'Save'}
+                          </button>
+                          <button onClick={() => setEditTplTracking(false)} className="text-xs text-slate-400 hover:text-slate-600">Cancel</button>
+                        </div>
+                      </div>
+                    ) : request.tplTracking ? (
                       <div className="flex items-center gap-1.5 mt-1">
                         <a
                           href={`https://auspost.com.au/mypost/track/#/details/${request.tplTracking}`}
@@ -457,29 +490,21 @@ export default function ReplenishmentDetailPage() {
                           {request.tplTracking} <ExternalLink size={10} />
                         </a>
                         <button
-                          onClick={() => { setTplTrackingInput(request.tplTracking); setEditTplTracking(true); }}
+                          onClick={() => {
+                            setTplTrackingInput(request.tplTracking ?? '');
+                            setTplDateInput(request.tplDispatchDate ?? new Date().toISOString().slice(0, 10));
+                            setEditTplTracking(true);
+                          }}
                           className="text-[10px] text-sky-400 hover:text-sky-600 underline transition-colors"
                         >edit</button>
                       </div>
-                    ) : editTplTracking ? (
-                      <div className="flex items-center gap-1.5 mt-1.5">
-                        <input
-                          autoFocus
-                          value={tplTrackingInput}
-                          onChange={e => setTplTrackingInput(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter') saveTplTracking(); if (e.key === 'Escape') setEditTplTracking(false); }}
-                          placeholder="Enter tracking ref…"
-                          className="text-xs font-mono border border-sky-300 rounded px-2 py-1 w-40 focus:outline-none focus:ring-1 focus:ring-sky-400"
-                        />
-                        <button onClick={saveTplTracking} disabled={savingTracking || !tplTrackingInput}
-                          className="text-xs bg-sky-600 hover:bg-sky-700 text-white px-2 py-1 rounded transition-colors disabled:opacity-40">
-                          {savingTracking ? '…' : 'Save'}
-                        </button>
-                        <button onClick={() => setEditTplTracking(false)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
-                      </div>
                     ) : (
                       <button
-                        onClick={() => { setTplTrackingInput(''); setEditTplTracking(true); }}
+                        onClick={() => {
+                          setTplTrackingInput('');
+                          setTplDateInput(request.tplDispatchDate ?? new Date().toISOString().slice(0, 10));
+                          setEditTplTracking(true);
+                        }}
                         className="mt-1 flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium transition-colors"
                       >
                         <AlertTriangle size={11} /> Add tracking number

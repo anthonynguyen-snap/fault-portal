@@ -73,6 +73,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.orderNumber   !== undefined) headerUpdates.order_number   = body.orderNumber;
     if (body.trackingNumber !== undefined) headerUpdates.tracking_number = body.trackingNumber;
     if (body.tplTracking   !== undefined) headerUpdates.tpl_tracking   = body.tplTracking;
+    if (body.tplDispatchDate !== undefined) headerUpdates.tpl_dispatch_date = body.tplDispatchDate;
+    if (body.storeroomTracking !== undefined) headerUpdates.storeroom_tracking = body.storeroomTracking;
+    if (body.storeroomDispatchDate !== undefined) headerUpdates.storeroom_dispatch_date = body.storeroomDispatchDate;
     if (body.dispatchDate  !== undefined) headerUpdates.dispatch_date  = body.dispatchDate;
     if (body.notes         !== undefined) headerUpdates.notes          = body.notes;
     if (body.requestedBy   !== undefined) headerUpdates.requested_by   = body.requestedBy;

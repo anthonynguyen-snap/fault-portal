@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v7.3',
+    label: 'Replenishment Tracking Edits',
+    date: '2026-05-19',
+    isLatest: true,
+    summary: 'Dispatched replenishment tracking details can now be corrected from the order detail page.',
+    changes: [
+      { category: 'Replenishment', text: 'Fixed the 3PL dispatch card edit action so existing tracking numbers switch into an editable form instead of staying as a link.' },
+      { category: 'Replenishment', text: '3PL tracking reference and dispatch date can now both be corrected after dispatch.' },
+      { category: 'UI/UX', text: 'The inline edit state now has clear Save and Cancel controls for fixing dispatch details quickly.' },
+    ],
+  },
+  {
     version: 'v7.2',
     label: 'Slack Replenishment Import',
     date: '2026-05-18',
-    isLatest: true,
+    isLatest: false,
     summary: 'Replenishment requests can now be imported from pasted Slack request text and split between Stock Room and 3PL automatically.',
     changes: [
       { category: 'Replenishment', text: 'Added Smart import from Slack to the New Replenishment Request modal for parsing SKU send quantities from pasted or dropped Slack text.' },
