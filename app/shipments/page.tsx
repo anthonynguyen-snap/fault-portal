@@ -1,13 +1,159 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   Ship, Plane, Plus, X, ChevronDown, ChevronUp, RefreshCw,
   Pencil, Trash2, Package, Clock, CheckCircle2, AlertTriangle,
-  Anchor, MapPin, Hash, FileText, Download, CheckSquare, Square,
+  Anchor, MapPin, Hash, FileText, UploadCloud, CheckSquare, Square,
 } from 'lucide-react';
 import { Shipment, ShipmentItem, ShipmentStatus, ShipmentTransport } from '@/types';
-import type { ImportedShipment } from '@/app/api/shipments/import-sheet/route';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+
+// ── CSV parsing (client-side) ──────────────────────────────────────────────────
+export interface ImportedShipmentItem {
+  productName: string; sku: string; quantity: number; notes: string;
+}
+export interface ImportedShipment {
+  shipmentNumber: string; location: string; transportType: 'Sea' | 'Air';
+  provider: string; trackingNumber: string; eta: string | null; status: string;
+  costUsd: number; costAud: number; cartons: string; weightKg: string;
+  branchTransferNumber: string; asnNumber: string; notes: string;
+  items: ImportedShipmentItem[];
+}
+
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const cols: string[] = [];
+    let inQuote = false, cur = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (ch === ',' && !inQuote) { cols.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    cols.push(cur.trim());
+    rows.push(cols);
+  }
+  return rows;
+}
+
+function parseSheetDate(raw: string): string | null {
+  if (!raw) return null;
+  const s = raw.trim();
+  const longM = s.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/);
+  if (longM) {
+    const m: Record<string, string> = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' };
+    const mo = m[longM[2].toLowerCase().slice(0,3)];
+    if (mo) return `${longM[3]}-${mo}-${longM[1].padStart(2,'0')}`;
+  }
+  const slashM = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (slashM) return `${slashM[3]}-${slashM[2].padStart(2,'0')}-${slashM[1].padStart(2,'0')}`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return null;
+}
+
+function parseCost(raw: string): number {
+  return parseFloat(raw.replace(/[^0-9.]/g, '')) || 0;
+}
+
+function mapShipStatus(raw: string): string {
+  const s = raw.toUpperCase().trim();
+  if (s.includes('PORT') || s.includes('CUSTOMS')) return 'At Port';
+  if (s.includes('DELIVER')) return 'Delivered';
+  if (s.includes('DELAY')) return 'Delayed';
+  if (s.includes('PENDING')) return 'Pending';
+  return 'In Transit'; // IN PROGRESS → In Transit
+}
+
+const ROW_LABELS: Record<string, string> = {
+  location:'Location', transport:'Air/Sea', provider:'Provider',
+  tracking:'Tracking', eta:'ETA', status:'Status', notes:'Notes',
+  costUsd:'Cost (USD)', costAud:'Cost (AUD)', cartons:'Cartons',
+  weight:'Weight', trf:'Branch Transfer', asn:'ASN',
+};
+
+function parseShipments(csv: string): ImportedShipment[] {
+  const rows = parseCSV(csv);
+  if (!rows.length) return [];
+
+  // Find header row with SHIPMENT #
+  let headerRowIdx = -1;
+  for (let r = 0; r < Math.min(rows.length, 15); r++) {
+    if (rows[r].some(c => /SHIPMENT\s*#/i.test(c))) { headerRowIdx = r; break; }
+  }
+  if (headerRowIdx === -1) return [];
+
+  // Find shipment columns
+  const headerRow = rows[headerRowIdx];
+  const shipCols: Array<{ col: number; number: string }> = [];
+  for (let c = 0; c < headerRow.length; c++) {
+    const m = headerRow[c].match(/SHIPMENT\s*#\s*(\d+)/i);
+    if (m) shipCols.push({ col: c, number: m[1] });
+  }
+  if (!shipCols.length) return [];
+
+  // Build label → row index map
+  const labelRowMap: Record<string, number> = {};
+  for (let r = headerRowIdx + 1; r < rows.length; r++) {
+    const label = (rows[r][0] || rows[r][1] || '').trim();
+    if (!label) continue;
+    for (const [key, pattern] of Object.entries(ROW_LABELS)) {
+      if (label.toLowerCase().includes(pattern.toLowerCase()) && !(key in labelRowMap)) {
+        labelRowMap[key] = r;
+      }
+    }
+  }
+
+  // Find Main Sellers section
+  let mainSellersRow = -1;
+  for (let r = headerRowIdx + 1; r < rows.length; r++) {
+    const label = (rows[r][0] || rows[r][1] || '').trim().toLowerCase();
+    if (label.includes('main seller') || label.includes('main product')) { mainSellersRow = r; break; }
+  }
+
+  // Collect product rows
+  const productRows: Array<{ rowIdx: number; name: string }> = [];
+  if (mainSellersRow !== -1) {
+    for (let r = mainSellersRow + 1; r < rows.length; r++) {
+      const name = (rows[r][0] || rows[r][1] || '').trim();
+      if (!name) continue;
+      productRows.push({ rowIdx: r, name });
+    }
+  }
+
+  const getCell = (key: string, col: number) =>
+    labelRowMap[key] !== undefined ? (rows[labelRowMap[key]]?.[col] ?? '') : '';
+
+  return shipCols.map(({ col, number }) => {
+    const rawT = getCell('transport', col).trim().toUpperCase();
+    const items: ImportedShipmentItem[] = productRows
+      .map(({ rowIdx, name }) => {
+        const qty = parseInt((rows[rowIdx]?.[col] ?? '').replace(/[^0-9]/g, ''), 10) || 0;
+        return qty > 0 ? { productName: name, sku: '', quantity: qty, notes: '' } : null;
+      })
+      .filter((x): x is ImportedShipmentItem => x !== null);
+    return {
+      shipmentNumber: number,
+      location: getCell('location', col),
+      transportType: rawT.includes('AIR') ? 'Air' : 'Sea',
+      provider: getCell('provider', col),
+      trackingNumber: getCell('tracking', col),
+      eta: parseSheetDate(getCell('eta', col)),
+      status: mapShipStatus(getCell('status', col)),
+      costUsd: parseCost(getCell('costUsd', col)),
+      costAud: parseCost(getCell('costAud', col)),
+      cartons: getCell('cartons', col),
+      weightKg: getCell('weight', col),
+      branchTransferNumber: getCell('trf', col),
+      asnNumber: getCell('asn', col),
+      notes: getCell('notes', col),
+      items,
+    };
+  });
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUSES: ShipmentStatus[] = ['Pending', 'In Transit', 'At Port', 'Delivered', 'Delayed'];
@@ -127,12 +273,13 @@ export default function ShipmentsPage() {
   // Filter
   const [filterStatus, setFilterStatus] = useState<ShipmentStatus | 'All'>('All');
 
-  // Sheet import
-  const [importing, setImporting]               = useState(false);
+  // CSV import
+  const [isDragOver, setIsDragOver]             = useState(false);
   const [importPreview, setImportPreview]       = useState<ImportedShipment[] | null>(null);
   const [importSelected, setImportSelected]     = useState<Set<number>>(new Set());
   const [importError, setImportError]           = useState('');
   const [importSaving, setImportSaving]         = useState(false);
+  const fileInputRef                            = useRef<HTMLInputElement>(null);
 
   async function load() {
     setLoading(true);
@@ -259,28 +406,42 @@ export default function ShipmentsPage() {
     await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
   }
 
-  // ── Sheet import ─────────────────────────────────────────────────────────────
-  async function fetchSheetPreview() {
-    setImporting(true);
+  // ── CSV import ───────────────────────────────────────────────────────────────
+  const handleCSV = useCallback((text: string) => {
     setImportError('');
-    setImportPreview(null);
-    try {
-      const res  = await fetch('/api/shipments/import-sheet');
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
-      const preview: ImportedShipment[] = json.data ?? [];
-      // Pre-select only new shipments (not already in DB)
-      const existing = new Set(shipments.map(s => s.shipmentNumber));
-      const selected = new Set(
-        preview.map((_, i) => i).filter(i => !existing.has(preview[i].shipmentNumber))
-      );
-      setImportPreview(preview);
-      setImportSelected(selected);
-    } catch (e: any) {
-      setImportError(e.message);
-    } finally {
-      setImporting(false);
+    const preview = parseShipments(text);
+    if (!preview.length) {
+      setImportError('No shipments found in this CSV. Make sure you exported the correct tab from Google Sheets.');
+      return;
     }
+    const existing = new Set(shipments.map(s => s.shipmentNumber));
+    setImportPreview(preview);
+    setImportSelected(new Set(
+      preview.map((_, i) => i).filter(i => !existing.has(preview[i].shipmentNumber))
+    ));
+  }, [shipments]);
+
+  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => handleCSV(ev.target?.result as string);
+    reader.readAsText(file);
+    e.target.value = ''; // reset so same file can be re-selected
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.csv')) {
+      setImportError('Please drop a .csv file (File → Download → CSV in Google Sheets).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => handleCSV(ev.target?.result as string);
+    reader.readAsText(file);
   }
 
   async function confirmImport() {
@@ -581,7 +742,12 @@ export default function ShipmentsPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div
+      className={`max-w-5xl mx-auto space-y-6 transition-all ${isDragOver ? 'ring-2 ring-brand-400 ring-inset rounded-2xl' : ''}`}
+      onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={handleDrop}
+    >
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
@@ -595,14 +761,14 @@ export default function ShipmentsPage() {
         <div className="flex items-center gap-2">
           <button onClick={load} className="btn-secondary"><RefreshCw size={14} /> Refresh</button>
           <button
-            onClick={fetchSheetPreview}
-            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
             className="btn-secondary gap-1.5"
-            title="Read from Google Sheet"
+            title="Import from CSV export of Google Sheet"
           >
-            <Download size={14} className="text-emerald-600" />
-            {importing ? 'Reading…' : 'Import from Sheet'}
+            <UploadCloud size={14} className="text-emerald-600" />
+            Import CSV
           </button>
+          <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileInput} />
           <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Shipment</button>
         </div>
       </div>
@@ -657,14 +823,25 @@ export default function ShipmentsPage() {
           <TableSkeleton rows={4} cols={6} />
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center">
-            <Ship size={32} className="text-slate-300 mx-auto mb-3" />
-            <p className="text-sm font-medium text-slate-600">
-              {shipments.length === 0 ? 'No shipments yet' : 'No shipments match this filter'}
-            </p>
-            {shipments.length === 0 && (
+            {shipments.length === 0 ? (
               <>
-                <p className="text-xs text-slate-400 mt-1 mb-4">Add your first incoming shipment</p>
-                <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Shipment</button>
+                <UploadCloud size={36} className="text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-600">Drop your CSV here to import</p>
+                <p className="text-xs text-slate-400 mt-1 mb-4">
+                  In Google Sheets: <span className="font-medium text-slate-500">File → Download → Comma Separated Values (.csv)</span>
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <button onClick={() => fileInputRef.current?.click()} className="btn-secondary gap-1.5">
+                    <UploadCloud size={14} className="text-emerald-600" /> Browse for CSV
+                  </button>
+                  <span className="text-slate-300 text-xs">or</span>
+                  <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Manually</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Ship size={32} className="text-slate-300 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-600">No shipments match this filter</p>
               </>
             )}
           </div>
@@ -900,7 +1077,7 @@ export default function ShipmentsPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 flex-shrink-0">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                  <Download size={16} className="text-emerald-600" /> Import from Google Sheet
+                  <UploadCloud size={16} className="text-emerald-600" /> Import from Google Sheet
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {importPreview.length} shipment{importPreview.length !== 1 ? 's' : ''} found ·{' '}
