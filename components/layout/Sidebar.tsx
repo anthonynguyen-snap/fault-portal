@@ -267,7 +267,7 @@ export function Sidebar() {
         'lg:relative lg:translate-x-0',
         'fixed inset-y-0 left-0',
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-        collapsed ? 'w-14' : 'w-56',
+        collapsed ? 'w-14 overflow-visible' : 'w-56 overflow-hidden',
       )}>
 
         {/* Logo */}
@@ -302,7 +302,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className={cn('flex-1 py-3 overflow-y-auto overflow-x-hidden', collapsed ? 'px-1.5' : 'px-2')}>
+        <nav className={cn('flex-1 py-3 overflow-y-auto', collapsed ? 'px-1.5 overflow-x-visible' : 'px-2 overflow-x-hidden')}>
 
           {/* Home */}
           <div className="relative group mb-2">
