@@ -425,16 +425,24 @@ export function Sidebar() {
           </div>
         </nav>
 
-        {/* Collapse toggle — desktop only */}
-        <div className="hidden lg:flex justify-end px-2 pb-1">
-          <button
-            onClick={toggleCollapsed}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="flex items-center justify-center w-6 h-6 rounded-md text-slate-600 hover:text-slate-300 hover:bg-slate-800 transition-colors"
-          >
-            {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-          </button>
-        </div>
+        {/* Collapse toggle — desktop only, floating on the right edge */}
+        <button
+          onClick={toggleCollapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="
+            hidden lg:flex
+            absolute -right-3 top-1/2 -translate-y-1/2
+            w-6 h-6 rounded-full
+            bg-slate-700 hover:bg-slate-600
+            border border-slate-600 hover:border-slate-500
+            items-center justify-center
+            text-slate-300 hover:text-white
+            shadow-md transition-all duration-150
+            z-10
+          "
+        >
+          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        </button>
 
         {/* Footer */}
         <div className={cn('border-t border-slate-800', collapsed ? 'px-1.5 py-3' : 'px-3 py-3')}>
