@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v7.5',
+    label: 'Return Logged By Fix',
+    date: '2026-05-20',
+    isLatest: true,
+    summary: 'Return requests now reliably record the logged-in staff member and let missing names be repaired from the edit drawer.',
+    changes: [
+      { category: 'Returns', text: 'Log Return Request now fills Logged By from the active portal login even if the user profile finishes loading after the drawer opens.' },
+      { category: 'Returns', text: 'Editing a return request with a missing Logged By value now backfills the current staff member for non-admin users, while admins can still select the correct staff member.' },
+      { category: 'Security', text: 'The returns API now falls back to the signed-in session name when a request is saved without a Logged By value.' },
+    ],
+  },
+  {
     version: 'v7.4',
     label: 'Login Session Refresh',
     date: '2026-05-20',
-    isLatest: true,
+    isLatest: false,
     summary: 'Portal login now refreshes the active session immediately so names and admin access appear without a manual browser refresh.',
     changes: [
       { category: 'Security', text: 'The auth provider now re-checks the current session after navigation so the sidebar picks up the logged-in user and role reliably.' },

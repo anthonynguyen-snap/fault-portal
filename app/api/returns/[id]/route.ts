@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { Return, ReturnItem } from '@/types';
 import { logActivity } from '@/lib/activity';
+import { verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -104,6 +105,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Separate items updates from header updates
     const { items, ...headerUpdates } = body;
+    if (
+      Object.prototype.hasOwnProperty.call(headerUpdates, 'processedBy') &&
+      !String(headerUpdates.processedBy ?? '').trim()
+    ) {
+      const session = await verifySession();
+      if (session?.name) headerUpdates.processedBy = session.name;
+    }
     const snakeUpdates = toSnake(headerUpdates);
 
     // Update header fields

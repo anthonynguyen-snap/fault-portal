@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 import { Return, ReturnItem } from '@/types';
 import { logActivity } from '@/lib/activity';
+import { verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -140,6 +141,8 @@ export async function POST(req: NextRequest) {
       stage, trackingNumber, linkedRequestId,
       starshipitOrderNumber,
     } = body;
+    const session = await verifySession();
+    const loggedBy = String(processedBy || session?.name || '');
 
     if (!orderNumber || !customerName || !items?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -168,7 +171,7 @@ export async function POST(req: NextRequest) {
         follow_up_notes:  followUpNotes || '',
         notes:            notes || '',
         status:           stage === 'requested' ? 'Received' : (needsFollowUp ? 'Processed' : 'Closed'),
-        processed_by:     processedBy || '',
+        processed_by:     loggedBy,
         conversation_link: conversationLink || '',
       })
       .select()
@@ -197,7 +200,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     void logActivity({
-      actor:       processedBy ?? '',
+      actor:       loggedBy,
       action:      'return.logged',
       entityType:  'Return',
       entityId:    ret.id,

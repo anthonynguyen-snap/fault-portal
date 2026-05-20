@@ -7,7 +7,7 @@ import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
   Truck, AlertCircle, CheckCircle2, Trash2, Pencil, User,
-  DollarSign,
+  DollarSign, ExternalLink,
 } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -35,6 +35,8 @@ function daysSince(dateStr: string): number {
   const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
   return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
 }
+
+const STARSHIPIT_RETURN_LABEL_URL = 'https://admin.shopify.com/store/snapwireless/apps/starship/Templates/Admin4/Orders.aspx?ShopifyApp=true&disablenewui=true';
 
 // ── Badges ─────────────────────────────────────────────────────────────────────
 function conditionBadge(c: ReturnCondition) {
@@ -115,6 +117,7 @@ function LogRequestSlideOver({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
+  const effectiveSubmittedBy = form.submittedBy.trim() || currentUser?.name || '';
 
   useEffect(() => {
     fetch('/api/staff')
@@ -137,16 +140,15 @@ function LogRequestSlideOver({
                                  ? editing.items.map(i => ({ name: i.product }))
                                  : [{ name: '' }],
         notes:                 editing.notes,
-        submittedBy:           editing.processedBy,
+        submittedBy:           editing.processedBy || (!isAdmin ? currentUser?.name ?? '' : ''),
       });
     } else {
       const blank = blankRequest();
-      // Auto-fill submittedBy for staff
-      if (!isAdmin && currentUser?.name) blank.submittedBy = currentUser.name;
+      blank.submittedBy = currentUser?.name ?? '';
       setForm(blank);
     }
     setError('');
-  }, [open, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, editing, currentUser?.name, isAdmin]);
 
   // Duplicate detection — skip when editing (the match IS the record being edited)
   const duplicate = useMemo(() => {
@@ -176,7 +178,7 @@ function LogRequestSlideOver({
         trackingNumber:        form.trackingNumber.trim(),
         starshipitOrderNumber: form.starshipitOrderNumber.trim(),
         notes:                 form.notes.trim(),
-        processedBy:           form.submittedBy.trim(),
+        processedBy:           effectiveSubmittedBy,
         items:                 productItems,
       };
 
@@ -247,6 +249,25 @@ function LogRequestSlideOver({
             <label className="form-label">Inbound Tracking Number <span className="text-slate-400 font-normal">(optional)</span></label>
             <input value={form.trackingNumber} onChange={e => setForm(f => ({ ...f, trackingNumber: e.target.value }))} placeholder="e.g. 1Z999AA10123456784" className="form-input font-mono" />
           </div>
+          <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800">Create prepaid return label</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  Open Starshipit, create the return label, then paste the Starshipit order number below for our records.
+                </p>
+              </div>
+              <a
+                href={STARSHIPIT_RETURN_LABEL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md bg-white px-3 py-2 text-xs font-semibold text-sky-700 shadow-sm ring-1 ring-sky-200 transition-colors hover:bg-sky-100"
+              >
+                Open
+                <ExternalLink size={13} />
+              </a>
+            </div>
+          </div>
           <div>
             <label className="form-label">Starshipit Order Number <span className="text-slate-400 font-normal">(prepaid return label)</span></label>
             <input value={form.starshipitOrderNumber} onChange={e => setForm(f => ({ ...f, starshipitOrderNumber: e.target.value }))} placeholder="e.g. SS-123456" className="form-input font-mono" />
@@ -302,7 +323,7 @@ function LogRequestSlideOver({
               </select>
             ) : (
               <div className="form-input bg-slate-50 text-slate-700 cursor-default select-none">
-                {form.submittedBy || '—'}
+                {effectiveSubmittedBy || 'Loading…'}
               </div>
             )}
           </div>
