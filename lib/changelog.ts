@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v7.9',
+    label: 'Shipments & Sidebar',
+    date: '2026-05-20',
+    isLatest: true,
+    summary: 'Incoming Shipments tracker with Google Sheets CSV import, 3PL Restock Tracker, and a collapsible icon-only sidebar.',
+    changes: [
+      { category: 'Inventory', text: 'Incoming Shipments page — track all active shipments with status, ETA, transport type, provider, tracking number, costs, cartons, weight, and branch transfer details.' },
+      { category: 'Inventory', text: 'Product line items — each shipment shows the products and quantities arriving inline in the table so you can see what\'s coming without expanding the row.' },
+      { category: 'Inventory', text: 'Google Sheets CSV import — export your Demand Planning & Supply Chain sheet as a CSV and drag it onto the page (or click Import CSV) to preview and import shipments in one step.' },
+      { category: 'Inventory', text: '3PL Restock Tracker — a dedicated page for tracking out-of-stock 3PL products with status (Out of Stock, Backordered, On Order, New Release, Back in Stock), expected restock dates, and supplier notes.' },
+      { category: 'UI/UX', text: 'Collapsible sidebar — a toggle button collapses the sidebar to icon-only mode for more screen space. Labels reappear as tooltips on hover. Preference is saved and restored between sessions.' },
+    ],
+  },
+  {
     version: 'v7.8',
     label: 'Portal Audit Fixes',
     date: '2026-05-20',
-    isLatest: true,
+    isLatest: false,
     summary: 'Portal audit improvements tighten API access, add data quality checks, and polish high-risk inventory actions.',
     changes: [
       { category: 'Security', text: 'Staff API access is now blocked from admin-only backend routes, not just hidden in the sidebar.' },
