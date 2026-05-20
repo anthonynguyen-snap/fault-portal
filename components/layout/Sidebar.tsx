@@ -159,8 +159,8 @@ const navGroups: NavGroup[] = [
     label: 'Inventory',
     items: [
       { label: 'Stock Room',          href: '/stock',          icon: Package,     adminOnly: true },
-      { label: 'Incoming Shipments', href: '/shipments',     icon: Ship,        adminOnly: true },
-      { label: 'Restock Tracker',    href: '/stock/restock', icon: PackageOpen, adminOnly: true },
+      { label: 'Incoming Shipments', href: '/shipments',     icon: Ship },
+      { label: 'Restock Tracker',    href: '/stock/restock', icon: PackageOpen },
       { label: 'Replenishment',      href: '/replenishment', icon: Truck,       adminOnly: true },
       { label: 'Promotions',    href: '/promotions',    icon: Tag },
     ],

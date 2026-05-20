@@ -9,10 +9,10 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'fallback-secret-change-in-
 const ADMIN_ONLY_PATHS = [
   '/reports',
   '/corporate',
-  '/stock',
   '/replenishment',
   '/admin',
 ];
+const ADMIN_ONLY_EXACT_PATHS = ['/stock'];
 
 // Public paths that don't require auth
 const PUBLIC_PATHS = ['/login'];
@@ -21,7 +21,7 @@ function getSecretKey() {
   return new TextEncoder().encode(SESSION_SECRET);
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Always inject x-pathname so the layout knows which page it's rendering
@@ -72,7 +72,9 @@ export async function middleware(request: NextRequest) {
 
   // Role-based access: staff cannot access admin-only paths
   if (payload.role === 'staff') {
-    const isAdminOnly = ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    const isAdminOnly =
+      ADMIN_ONLY_EXACT_PATHS.includes(pathname) ||
+      ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
     if (isAdminOnly) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v7.6',
+    label: 'Team Inventory Visibility',
+    date: '2026-05-20',
+    isLatest: true,
+    summary: 'Team members can now see Incoming Shipments and Restock Tracker without needing full admin inventory access.',
+    changes: [
+      { category: 'Inventory', text: 'Incoming Shipments now appears in the Inventory navigation for team members.' },
+      { category: 'Inventory', text: 'Restock Tracker now appears in the Inventory navigation for team members while Stock Room remains admin-only.' },
+      { category: 'Security', text: 'Route access now allows /stock/restock for team members without opening the main Stock Room page.' },
+    ],
+  },
+  {
     version: 'v7.5',
     label: 'Return Logged By Fix',
     date: '2026-05-20',
-    isLatest: true,
+    isLatest: false,
     summary: 'Return requests now reliably record the logged-in staff member and let missing names be repaired from the edit drawer.',
     changes: [
       { category: 'Returns', text: 'Log Return Request now fills Logged By from the active portal login even if the user profile finishes loading after the drawer opens.' },
