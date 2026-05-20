@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v7.4',
+    label: 'Login Session Refresh',
+    date: '2026-05-20',
+    isLatest: true,
+    summary: 'Portal login now refreshes the active session immediately so names and admin access appear without a manual browser refresh.',
+    changes: [
+      { category: 'Security', text: 'The auth provider now re-checks the current session after navigation so the sidebar picks up the logged-in user and role reliably.' },
+      { category: 'UI/UX', text: 'Signing in now performs a clean handoff into the portal, preventing the sidebar from staying on Loading or showing staff-only navigation for admins.' },
+    ],
+  },
+  {
     version: 'v7.3',
     label: 'Replenishment Tracking Edits',
     date: '2026-05-19',
-    isLatest: true,
+    isLatest: false,
     summary: 'Dispatched replenishment tracking details can now be corrected from the order detail page.',
     changes: [
       { category: 'Replenishment', text: 'Fixed the 3PL dispatch card edit action so existing tracking numbers switch into an editable form instead of staying as a link.' },

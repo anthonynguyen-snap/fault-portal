@@ -39,8 +39,8 @@ export default function LoginPage() {
         return;
       }
 
-      router.push(from);
       router.refresh();
+      window.location.href = from;
     } catch {
       setError('Something went wrong. Please try again.');
       setLoading(false);

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 
 interface User {
   id: string;
@@ -24,16 +25,28 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const pathname = usePathname();
 
   useEffect(() => {
-    fetch('/api/auth/me')
+    let cancelled = false;
+    setLoading(true);
+    fetch('/api/auth/me', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
+        if (cancelled) return;
         setUser(data?.user ?? null);
       })
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        if (!cancelled) setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
