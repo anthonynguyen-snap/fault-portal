@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v7.7',
+    label: 'Team View Preview',
+    date: '2026-05-20',
+    isLatest: true,
+    summary: 'Admins can now preview the portal as a team member to check the dashboard and available tabs.',
+    changes: [
+      { category: 'UI/UX', text: 'Admins now have a View as team toggle in the sidebar footer.' },
+      { category: 'Dashboard', text: 'Team view preview switches the dashboard to the team-member layout without changing the admin account permissions.' },
+      { category: 'Security', text: 'The preview only changes local UI visibility; actual admin access remains unchanged and can be restored instantly.' },
+    ],
+  },
+  {
     version: 'v7.6',
     label: 'Team Inventory Visibility',
     date: '2026-05-20',
-    isLatest: true,
+    isLatest: false,
     summary: 'Team members can now see Incoming Shipments and Restock Tracker without needing full admin inventory access.',
     changes: [
       { category: 'Inventory', text: 'Incoming Shipments now appears in the Inventory navigation for team members.' },

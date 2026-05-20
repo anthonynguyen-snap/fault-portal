@@ -26,6 +26,7 @@ import {
   X,
   PackageOpen,
   Ship,
+  Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
@@ -187,8 +188,9 @@ const navGroups: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
-  const { user, logout } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const { user, effectiveRole, viewingAsTeam, setViewingAsTeam, logout } = useAuth();
+  const isAdmin = effectiveRole === 'admin';
+  const canPreviewTeam = user?.role === 'admin';
 
   useEffect(() => { close(); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -328,6 +330,31 @@ export function Sidebar() {
 
         {/* Footer */}
         <div className="px-3 py-3 border-t border-slate-800">
+          {canPreviewTeam && (
+            <button
+              type="button"
+              onClick={() => setViewingAsTeam(!viewingAsTeam)}
+              className={cn(
+                'mb-3 flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-semibold transition-colors',
+                viewingAsTeam
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15'
+                  : 'border-slate-700 bg-slate-800/50 text-slate-300 hover:bg-slate-800 hover:text-white'
+              )}
+              title={viewingAsTeam ? 'Return to admin navigation' : 'Preview team member navigation'}
+            >
+              <Eye size={13} className="flex-shrink-0" />
+              <span className="flex-1 truncate">{viewingAsTeam ? 'Viewing team view' : 'View as team'}</span>
+              <span className={cn(
+                'h-4 w-7 rounded-full border p-0.5 transition-colors',
+                viewingAsTeam ? 'border-amber-400 bg-amber-400/30' : 'border-slate-600 bg-slate-900'
+              )}>
+                <span className={cn(
+                  'block h-2.5 w-2.5 rounded-full transition-transform',
+                  viewingAsTeam ? 'translate-x-3 bg-amber-200' : 'bg-slate-500'
+                )} />
+              </span>
+            </button>
+          )}
           <div className="flex items-center gap-2.5">
             <Link
               href="/account/password"

@@ -12,20 +12,37 @@ interface User {
 
 interface AuthContextValue {
   user: User | null;
+  effectiveRole: 'admin' | 'staff' | null;
+  viewingAsTeam: boolean;
+  setViewingAsTeam: (value: boolean) => void;
   loading: boolean;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
   user: null,
+  effectiveRole: null,
+  viewingAsTeam: false,
+  setViewingAsTeam: () => {},
   loading: true,
   logout: async () => {},
 });
 
+const TEAM_VIEW_KEY = 'portal_view_as_team';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [viewingAsTeam, setViewingAsTeamState] = useState(false);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+
+  useEffect(() => {
+    try {
+      setViewingAsTeamState(localStorage.getItem(TEAM_VIEW_KEY) === '1');
+    } catch {
+      setViewingAsTeamState(false);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         if (cancelled) return;
         setUser(data?.user ?? null);
+        if (data?.user?.role !== 'admin') setViewingAsTeamState(false);
       })
       .catch(() => {
         if (!cancelled) setUser(null);
@@ -53,8 +71,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = '/login';
   }
 
+  function setViewingAsTeam(value: boolean) {
+    setViewingAsTeamState(value);
+    try {
+      if (value) localStorage.setItem(TEAM_VIEW_KEY, '1');
+      else localStorage.removeItem(TEAM_VIEW_KEY);
+    } catch {
+      // Ignore browser storage issues; the toggle still works for this render.
+    }
+  }
+
+  const effectiveRole = user?.role === 'admin' && viewingAsTeam ? 'staff' : user?.role ?? null;
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, effectiveRole, viewingAsTeam: user?.role === 'admin' && viewingAsTeam, setViewingAsTeam, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

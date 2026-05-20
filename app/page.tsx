@@ -200,8 +200,8 @@ function SectionHeader({
 
 // ── Main Dashboard Page ────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const { effectiveRole, viewingAsTeam, setViewingAsTeam } = useAuth();
+  const isAdmin = effectiveRole === 'admin';
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [allReturns, setAllReturns] = useState<Return[]>([]);
@@ -349,6 +349,22 @@ export default function DashboardPage() {
           <Link href="/cases/new" className="btn-primary">+ Submit Fault</Link>
         </div>
       </div>
+
+      {viewingAsTeam && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div>
+            <p className="font-semibold">Viewing as team member</p>
+            <p className="text-xs text-amber-700">Dashboard sections and sidebar tabs are previewing the team view. Your admin access has not changed.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setViewingAsTeam(false)}
+            className="ml-auto rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100"
+          >
+            Return to admin view
+          </button>
+        </div>
+      )}
 
       {/* ── Action Required Banner ─────────────────────────────────────────── */}
       {followUpLevel && (
