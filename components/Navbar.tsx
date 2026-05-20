@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 
@@ -35,9 +36,11 @@ export function Navbar() {
             {session.user?.name?.split(" ")[0]}
           </span>
           {session.user?.image && (
-            <img
+            <Image
               src={session.user.image}
               alt={session.user.name ?? ""}
+              width={32}
+              height={32}
               className="h-8 w-8 rounded-full border border-gray-200"
             />
           )}

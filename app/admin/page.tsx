@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
+import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
 
 // Generic CRUD panel used for all three entity types
 type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'health' | 'changelog';
@@ -124,6 +125,7 @@ export default function AdminPage() {
 // ─── Products Panel ────────────────────────────────────────────────────────────
 
 function ProductsPanel() {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -194,7 +196,13 @@ function ProductsPanel() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    const ok = await confirm({
+      title: 'Delete product?',
+      message: `Delete "${name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
     await load();
   }
@@ -208,6 +216,7 @@ function ProductsPanel() {
       onNew={openNew}
       newLabel="Add Product"
     >
+      {confirmDialog}
       <table className="data-table">
         <thead>
           <tr>
@@ -280,6 +289,7 @@ function ProductsPanel() {
 // ─── Manufacturers Panel ───────────────────────────────────────────────────────
 
 function ManufacturersPanel() {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [mfrs, setMfrs] = useState<Manufacturer[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -327,13 +337,20 @@ function ManufacturersPanel() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete manufacturer?',
+      message: `Delete "${name}"?`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await fetch(`/api/manufacturers?id=${id}`, { method: 'DELETE' });
     await load();
   }
 
   return (
     <CrudPanel title="Manufacturers" description="Manufacturer contact details for claim communications." loading={loading} success={success} onNew={openNew} newLabel="Add Manufacturer">
+      {confirmDialog}
       <table className="data-table">
         <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Notes</th><th className="w-24">Actions</th></tr></thead>
         <tbody>
@@ -375,6 +392,7 @@ function ManufacturersPanel() {
 // ─── Fault Types Panel ─────────────────────────────────────────────────────────
 
 function FaultTypesPanel() {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [fts, setFts] = useState<FaultType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -417,13 +435,20 @@ function FaultTypesPanel() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete fault type?',
+      message: `Delete "${name}"?`,
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await fetch(`/api/fault-types?id=${id}`, { method: 'DELETE' });
     await load();
   }
 
   return (
     <CrudPanel title="Fault Types" description="These appear as options in the fault submission form." loading={loading} success={success} onNew={openNew} newLabel="Add Fault Type">
+      {confirmDialog}
       <table className="data-table">
         <thead><tr><th>Fault Type</th><th>Description</th><th className="w-24">Actions</th></tr></thead>
         <tbody>
@@ -461,6 +486,7 @@ function FaultTypesPanel() {
 // ─── Staff Panel ───────────────────────────────────────────────────────────────
 
 function StaffPanel() {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -501,13 +527,20 @@ function StaffPanel() {
   }
 
   async function handleDelete(id: string, name: string) {
-    if (!confirm(`Remove "${name}" from the team list?`)) return;
+    const ok = await confirm({
+      title: 'Remove staff member?',
+      message: `Remove "${name}" from the team list?`,
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
     await fetch(`/api/staff?id=${id}`, { method: 'DELETE' });
     await load();
   }
 
   return (
     <div className="space-y-4">
+      {confirmDialog}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-slate-900">Staff Members</h2>

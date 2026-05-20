@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
 const COOKIE_NAME = 'snap_session';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'fallback-secret-change-in-production';
+const SESSION_SECRET = process.env.SESSION_SECRET;
 
 // Pages that staff (non-admin) cannot access
 const ADMIN_ONLY_PATHS = [
@@ -14,11 +14,61 @@ const ADMIN_ONLY_PATHS = [
 ];
 const ADMIN_ONLY_EXACT_PATHS = ['/stock'];
 
+const ADMIN_ONLY_API_PREFIXES = [
+  '/api/admin',
+  '/api/config',
+  '/api/corporate',
+  '/api/replenishment',
+  '/api/reports',
+  '/api/claims',
+  '/api/retail-customers',
+  '/api/retail-orders',
+  '/api/staff',
+  '/api/stock/items',
+  '/api/stock/movements',
+  '/api/stock/scan-sessions',
+  '/api/data-quality',
+];
+
+const ADMIN_MUTATION_API_PREFIXES = [
+  '/api/products',
+  '/api/manufacturers',
+  '/api/fault-types',
+  '/api/promotions',
+  '/api/shipments',
+  '/api/stock/restock',
+  '/api/roster/agents',
+  '/api/roster/config',
+  '/api/roster/overrides',
+  '/api/roster/ph-coverage',
+];
+
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
 // Public paths that don't require auth
 const PUBLIC_PATHS = ['/login'];
 
 function getSecretKey() {
+  if (!SESSION_SECRET) {
+    throw new Error('SESSION_SECRET environment variable is not set');
+  }
   return new TextEncoder().encode(SESSION_SECRET);
+}
+
+function pathMatchesPrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(prefix + '/');
+}
+
+function isStaffBlockedApiRequest(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isAdminOnly = ADMIN_ONLY_API_PREFIXES.some((prefix) => pathMatchesPrefix(pathname, prefix));
+  if (isAdminOnly) return true;
+
+  const isAdminMutation =
+    MUTATION_METHODS.has(request.method) &&
+    ADMIN_MUTATION_API_PREFIXES.some((prefix) => pathMatchesPrefix(pathname, prefix));
+
+  return isAdminMutation;
 }
 
 export async function proxy(request: NextRequest) {
@@ -57,7 +107,11 @@ export async function proxy(request: NextRequest) {
   try {
     const { payload: p } = await jwtVerify(token, getSecretKey());
     payload = p as typeof payload;
-  } catch {
+  } catch (error) {
+    const isMissingSecret = error instanceof Error && error.message.includes('SESSION_SECRET');
+    if (isMissingSecret) {
+      return NextResponse.json({ error: 'Portal session configuration is missing' }, { status: 500 });
+    }
     // Invalid/expired token
     if (pathname.startsWith('/api/')) {
       const response = NextResponse.json({ error: 'Session expired' }, { status: 401 });
@@ -72,9 +126,10 @@ export async function proxy(request: NextRequest) {
 
   // Role-based access: staff cannot access admin-only paths
   if (payload.role === 'staff') {
-    const isAdminOnly =
-      ADMIN_ONLY_EXACT_PATHS.includes(pathname) ||
-      ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    const isAdminOnly = pathname.startsWith('/api/')
+      ? isStaffBlockedApiRequest(request)
+      : ADMIN_ONLY_EXACT_PATHS.includes(pathname) ||
+        ADMIN_ONLY_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));
     if (isAdminOnly) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

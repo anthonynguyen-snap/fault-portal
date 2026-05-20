@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { Shipment, ShipmentItem, ShipmentStatus, ShipmentTransport } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
 
 // ── CSV parsing (client-side) ──────────────────────────────────────────────────
 export interface ImportedShipmentItem {
@@ -257,6 +259,9 @@ function SlideOver({ open, onClose, title, children }: {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
+  const { effectiveRole } = useAuth();
+  const canEdit = effectiveRole === 'admin';
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -298,12 +303,14 @@ export default function ShipmentsPage() {
   useEffect(() => { load(); }, []);
 
   function openAdd() {
+    if (!canEdit) return;
     setForm(blankShipment());
     setEditingId(null);
     setPanel('add');
   }
 
   function openEdit(s: Shipment) {
+    if (!canEdit) return;
     setEditingId(s.id);
     setForm({
       shipmentNumber:       s.shipmentNumber,
@@ -355,6 +362,7 @@ export default function ShipmentsPage() {
 
   // ── Submit ───────────────────────────────────────────────────────────────────
   async function submit() {
+    if (!canEdit) return;
     if (!form.shipmentNumber?.trim()) return;
     setSaving(true);
     try {
@@ -392,6 +400,7 @@ export default function ShipmentsPage() {
   }
 
   async function quickStatus(id: string, status: ShipmentStatus) {
+    if (!canEdit) return;
     setShipments(prev => prev.map(s => s.id === id ? { ...s, status } : s));
     await fetch(`/api/shipments/${id}`, {
       method: 'PATCH',
@@ -401,13 +410,21 @@ export default function ShipmentsPage() {
   }
 
   async function deleteShipment(id: string) {
-    if (!confirm('Delete this shipment?')) return;
+    if (!canEdit) return;
+    const ok = await confirm({
+      title: 'Delete shipment?',
+      message: 'This removes the shipment and its item list from the portal.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setShipments(prev => prev.filter(s => s.id !== id));
     await fetch(`/api/shipments/${id}`, { method: 'DELETE' });
   }
 
   // ── CSV import ───────────────────────────────────────────────────────────────
   const handleCSV = useCallback((text: string) => {
+    if (!canEdit) return;
     setImportError('');
     const preview = parseShipments(text);
     if (!preview.length) {
@@ -419,7 +436,7 @@ export default function ShipmentsPage() {
     setImportSelected(new Set(
       preview.map((_, i) => i).filter(i => !existing.has(preview[i].shipmentNumber))
     ));
-  }, [shipments]);
+  }, [canEdit, shipments]);
 
   function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -433,6 +450,7 @@ export default function ShipmentsPage() {
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setIsDragOver(false);
+    if (!canEdit) return;
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     if (!file.name.endsWith('.csv')) {
@@ -445,6 +463,7 @@ export default function ShipmentsPage() {
   }
 
   async function confirmImport() {
+    if (!canEdit) return;
     if (!importPreview) return;
     setImportSaving(true);
     try {
@@ -744,10 +763,11 @@ export default function ShipmentsPage() {
   return (
     <div
       className={`max-w-5xl mx-auto space-y-6 transition-all ${isDragOver ? 'ring-2 ring-brand-400 ring-inset rounded-2xl' : ''}`}
-      onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+      onDragOver={e => { e.preventDefault(); if (canEdit) setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={handleDrop}
     >
+      {confirmDialog}
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
@@ -760,18 +780,26 @@ export default function ShipmentsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="btn-secondary"><RefreshCw size={14} /> Refresh</button>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-secondary gap-1.5"
-            title="Import from CSV export of Google Sheet"
-          >
-            <UploadCloud size={14} className="text-emerald-600" />
-            Import CSV
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-secondary gap-1.5"
+              title="Import from CSV export of Google Sheet"
+            >
+              <UploadCloud size={14} className="text-emerald-600" />
+              Import CSV
+            </button>
+          )}
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileInput} />
-          <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Shipment</button>
+          {canEdit && <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Shipment</button>}
         </div>
       </div>
+
+      {!canEdit && (
+        <div className="card px-4 py-3 border-blue-200 bg-blue-50 text-sm text-blue-800">
+          Team view is read-only. Ask an admin to import, edit, or mark incoming shipments.
+        </div>
+      )}
 
       {(error || importError) && (
         <div className="card p-4 border-red-200 bg-red-50">
@@ -830,13 +858,15 @@ export default function ShipmentsPage() {
                 <p className="text-xs text-slate-400 mt-1 mb-4">
                   In Google Sheets: <span className="font-medium text-slate-500">File → Download → Comma Separated Values (.csv)</span>
                 </p>
-                <div className="flex items-center justify-center gap-2">
-                  <button onClick={() => fileInputRef.current?.click()} className="btn-secondary gap-1.5">
-                    <UploadCloud size={14} className="text-emerald-600" /> Browse for CSV
-                  </button>
-                  <span className="text-slate-300 text-xs">or</span>
-                  <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Manually</button>
-                </div>
+                {canEdit && (
+                  <div className="flex items-center justify-center gap-2">
+                    <button onClick={() => fileInputRef.current?.click()} className="btn-secondary gap-1.5">
+                      <UploadCloud size={14} className="text-emerald-600" /> Browse for CSV
+                    </button>
+                    <span className="text-slate-300 text-xs">or</span>
+                    <button onClick={openAdd} className="btn-primary"><Plus size={14} /> Add Manually</button>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -905,12 +935,12 @@ export default function ShipmentsPage() {
                         {/* Status */}
                         <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                           <div className="relative group/status">
-                            <span className={`badge flex items-center gap-1 cursor-pointer select-none ${STATUS_STYLES[s.status]}`}>
+                            <span className={`badge flex items-center gap-1 select-none ${canEdit ? 'cursor-pointer' : ''} ${STATUS_STYLES[s.status]}`}>
                               {STATUS_ICONS[s.status]}
                               {s.status}
-                              <ChevronDown size={10} className="opacity-60" />
+                              {canEdit && <ChevronDown size={10} className="opacity-60" />}
                             </span>
-                            <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover/status:block">
+                            {canEdit && <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover/status:block">
                               <div className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden min-w-[140px]">
                                 {STATUSES.map(st => (
                                   <button
@@ -922,7 +952,7 @@ export default function ShipmentsPage() {
                                   </button>
                                 ))}
                               </div>
-                            </div>
+                            </div>}
                           </div>
                         </td>
 
@@ -980,14 +1010,14 @@ export default function ShipmentsPage() {
 
                         {/* Actions */}
                         <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          {canEdit && <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                             <button onClick={() => openEdit(s)} className="btn-ghost p-1.5" title="Edit">
                               <Pencil size={13} className="text-slate-400" />
                             </button>
                             <button onClick={() => deleteShipment(s.id)} className="btn-ghost p-1.5" title="Delete">
                               <Trash2 size={13} className="text-slate-400 hover:text-red-500" />
                             </button>
-                          </div>
+                          </div>}
                         </td>
                       </tr>
 

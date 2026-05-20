@@ -419,6 +419,8 @@ export default function DashboardPage() {
       {/* ── Today's Team ─────────────────────────────────────────────────────── */}
       <TodaysTeam />
 
+      {isAdmin && <DataQualityCard />}
+
       {/* ── Today's Activity (Commslayer) ────────────────────────────────────── */}
       <div className="card p-4">
         <div className="flex items-center justify-between mb-3">
@@ -966,6 +968,103 @@ function ReplenishmentSummaryRow() {
           <p className="text-xs text-slate-400 mt-1">Tracking alerts</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Data Quality Card ────────────────────────────────────────────────────────
+type DataQualityIssue = {
+  id: string;
+  label: string;
+  count: number;
+  href: string;
+  tone: 'red' | 'amber' | 'blue';
+  detail: string;
+};
+
+function DataQualityCard() {
+  const [issues, setIssues] = useState<DataQualityIssue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/data-quality', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.error) throw new Error(json.error);
+        setIssues(json.data ?? []);
+      })
+      .catch(err => setError(err.message || 'Could not check data quality'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const activeIssues = issues.filter(issue => issue.count > 0);
+  const total = activeIssues.reduce((sum, issue) => sum + issue.count, 0);
+  const visible = activeIssues.slice(0, 5);
+
+  if (loading) {
+    return (
+      <div className="card p-4">
+        <div className="h-5 w-36 rounded bg-slate-100 animate-pulse mb-3" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {[0, 1, 2, 3].map(i => <div key={i} className="h-14 rounded-xl bg-slate-100 animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="card p-4 border-amber-200 bg-amber-50/50">
+        <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+          <AlertTriangle size={15} /> Data quality check unavailable
+        </div>
+        <p className="mt-1 text-xs text-amber-700">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`card p-4 ${total > 0 ? 'border-amber-200 bg-amber-50/20' : 'border-emerald-200 bg-emerald-50/20'}`}>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {total > 0
+            ? <AlertTriangle size={15} className="text-amber-500" />
+            : <CheckCircle size={15} className="text-emerald-600" />}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">Data Quality</h3>
+            <p className="text-xs text-slate-500">
+              {total > 0 ? `${total} item${total !== 1 ? 's' : ''} worth checking` : 'No obvious cleanup items found'}
+            </p>
+          </div>
+        </div>
+        <Link href="/admin?tab=health" className="text-xs font-medium text-brand-600 hover:underline">
+          Health
+        </Link>
+      </div>
+      {visible.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          {visible.map(issue => (
+            <Link
+              key={issue.id}
+              href={issue.href}
+              title={issue.detail}
+              className={`rounded-xl border px-3 py-2 transition-colors hover:bg-white ${
+                issue.tone === 'red'
+                  ? 'border-red-200 bg-red-50 text-red-800'
+                  : 'border-amber-200 bg-white/70 text-amber-800'
+              }`}
+            >
+              <p className="text-xl font-bold font-mono leading-tight">{issue.count}</p>
+              <p className="text-xs font-semibold leading-tight">{issue.label}</p>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-xl border border-emerald-100 bg-white/70 px-3 py-2 text-sm text-emerald-800">
+          Clean enough to trust at a glance.
+        </div>
+      )}
     </div>
   );
 }

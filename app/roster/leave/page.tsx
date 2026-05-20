@@ -304,7 +304,7 @@ export default function LeavePage() {
         };
       });
     return rows.length ? rows : null;
-  }, [records, agents]);
+  }, [records, agents, payouts]);
 
   // Upcoming PH Regular Holidays within 14 days
   const upcomingPHHolidays = useMemo(() => {

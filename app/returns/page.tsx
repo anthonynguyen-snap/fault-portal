@@ -576,7 +576,7 @@ export default function ReturnsPage() {
     };
   }, [processed, weekStart, weekEnd]);
 
-  const teamFiltered = (list: Return[]) => {
+  const teamFiltered = useCallback((list: Return[]) => {
     let out = list;
     if (mineOnly) {
       const query = (user?.name ?? '').toLowerCase().trim();
@@ -587,9 +587,12 @@ export default function ReturnsPage() {
     }
     if (teamSearch.trim()) out = out.filter(r => r.assignedTo.toLowerCase().includes(teamSearch.toLowerCase()));
     return out;
-  };
+  }, [mineOnly, teamSearch, user?.name]);
 
-  const pendingFollowUp = teamFiltered(processed).filter(r => r.followUpStatus === 'Pending');
+  const pendingFollowUp = useMemo(
+    () => teamFiltered(processed).filter(r => r.followUpStatus === 'Pending'),
+    [processed, teamFiltered]
+  );
   const currentMonthRefundTotal = processed
     .filter(r => {
       const d = new Date(r.date.includes('T') ? r.date : `${r.date}T00:00:00`);
@@ -643,7 +646,7 @@ export default function ReturnsPage() {
       if (av > bv) return sortDir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [filter, weekReturns, teamSearch, processed, sortKey, sortDir]);
+  }, [filter, weekReturns, pendingFollowUp, teamFiltered, sortKey, sortDir]);
 
   const counts = {
     all:        teamFiltered(weekReturns).length,

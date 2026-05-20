@@ -164,7 +164,6 @@ export async function createResumableUploadSession(
   caseId: string,
 ): Promise<string> {
   const auth = getAuth();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = await auth.getClient() as any;
   const tokenRes = await client.getAccessToken();
   const accessToken: string = tokenRes.token;
@@ -231,7 +230,6 @@ export async function uploadChunkToDrive(
 ): Promise<{ status: 'incomplete' | 'complete'; id: string | null; range: string }> {
   // Get a fresh Google access token
   const auth = getAuth();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const client = await auth.getClient() as any;
   const tokenRes = await client.getAccessToken();
   const accessToken: string = tokenRes.token;
@@ -268,7 +266,6 @@ export async function uploadChunkToDrive(
         res.on('end', () => resolve({
           statusCode: res.statusCode ?? 0,
           body: data,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           resHeaders: res.headers as any,
         }));
       },

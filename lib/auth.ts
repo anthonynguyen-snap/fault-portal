@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 
 const COOKIE_NAME = 'snap_session';
+const SESSION_TIME_ZONE = 'Australia/Adelaide';
 
 function getSecretKey() {
   const secret = process.env.SESSION_SECRET;
@@ -22,26 +23,54 @@ export interface SessionPayload {
   shiftLogId?: string;
 }
 
-/** Create a JWT and set it as an httpOnly cookie expiring at midnight AEST. */
+function getZonedParts(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-AU', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const value = (type: string) => Number(parts.find(part => part.type === type)?.value ?? 0);
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+    hour: value('hour') % 24,
+    minute: value('minute'),
+    second: value('second'),
+  };
+}
+
+function getTimeZoneOffsetMs(date: Date, timeZone: string) {
+  const parts = getZonedParts(date, timeZone);
+  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return asUtc - date.getTime();
+}
+
+function zonedMidnightUtc(year: number, month: number, day: number, timeZone: string) {
+  let utcTime = Date.UTC(year, month, day, 0, 0, 0, 0);
+  for (let i = 0; i < 2; i++) {
+    const offset = getTimeZoneOffsetMs(new Date(utcTime), timeZone);
+    utcTime = Date.UTC(year, month, day, 0, 0, 0, 0) - offset;
+  }
+  return new Date(utcTime);
+}
+
+/** Create a JWT and set it as an httpOnly cookie expiring at local Adelaide midnight. */
 export async function createSession(payload: SessionPayload): Promise<void> {
-  // Expire at midnight AEST (UTC+10) — same as current day end
   const now = new Date();
-  // Midnight tonight in local AEST: advance to next midnight UTC+10
-  const aestOffset = 10 * 60 * 60 * 1000; // 10 hours in ms
-  const aestNow = new Date(now.getTime() + aestOffset);
-  const midnightAest = new Date(
-    Date.UTC(
-      aestNow.getUTCFullYear(),
-      aestNow.getUTCMonth(),
-      aestNow.getUTCDate() + 1,
-      0, 0, 0, 0
-    ) - aestOffset
-  );
+  const localNow = getZonedParts(now, SESSION_TIME_ZONE);
+  const expiresAt = zonedMidnightUtc(localNow.year, localNow.month - 1, localNow.day + 1, SESSION_TIME_ZONE);
 
   const token = await new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(Math.floor(midnightAest.getTime() / 1000))
+    .setExpirationTime(Math.floor(expiresAt.getTime() / 1000))
     .sign(getSecretKey());
 
   const cookieStore = await cookies();
@@ -49,7 +78,7 @@ export async function createSession(payload: SessionPayload): Promise<void> {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    expires: midnightAest,
+    expires: expiresAt,
     path: '/',
   });
 }

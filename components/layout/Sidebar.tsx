@@ -188,7 +188,7 @@ const navGroups: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
-  const { user, effectiveRole, viewingAsTeam, setViewingAsTeam, logout } = useAuth();
+  const { user, effectiveRole, viewingAsTeam, setViewingAsTeam, loading, logout } = useAuth();
   const isAdmin = effectiveRole === 'admin';
   const canPreviewTeam = user?.role === 'admin';
 
@@ -364,7 +364,9 @@ export function Sidebar() {
               <span className="text-[10px] font-bold text-white">{initials}</span>
             </Link>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-slate-300 truncate">{user?.name || 'Loading…'}</p>
+              <p className="text-xs font-medium text-slate-300 truncate">
+                {loading ? 'Checking session…' : user?.name || 'Not signed in'}
+              </p>
               <Link href="/account/password" className="text-[10px] text-slate-500 hover:text-slate-400 transition-colors">
                 Change password
               </Link>

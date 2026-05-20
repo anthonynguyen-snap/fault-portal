@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Promotion, PromoRun, PROMO_STORES, PROMO_DISCOUNT_TYPES } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
 
 // ── Slide-over ────────────────────────────────────────────────────────────────
 function SlideOver({ open, onClose, title, children }: {
@@ -273,6 +274,7 @@ function ReactivateForm({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function PromotionsPage() {
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [promos, setPromos]         = useState<Promotion[]>([]);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
@@ -400,7 +402,13 @@ export default function PromotionsPage() {
   }
 
   async function deletePromo(id: string) {
-    if (!confirm('Delete this promotion?')) return;
+    const ok = await confirm({
+      title: 'Delete promotion?',
+      message: 'This permanently removes the promotion from the portal.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await fetch(`/api/promotions/${id}`, { method: 'DELETE' });
       setPromos(prev => prev.filter(p => p.id !== id));
@@ -424,6 +432,7 @@ export default function PromotionsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {confirmDialog}
 
       {/* Header */}
       <div className="page-header">

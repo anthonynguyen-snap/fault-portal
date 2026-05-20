@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { RestockItem, RestockStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
 
 const STATUSES: RestockStatus[] = ['Out of Stock', 'Backordered', 'On Order', 'New Release', 'Back in Stock'];
 
@@ -67,6 +69,9 @@ function SlideOver({ open, onClose, title, children }: {
 }
 
 export default function RestockTrackerPage() {
+  const { effectiveRole } = useAuth();
+  const canEdit = effectiveRole === 'admin';
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [items, setItems]     = useState<RestockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
@@ -99,12 +104,14 @@ export default function RestockTrackerPage() {
   useEffect(() => { load(); }, []);
 
   function openAdd() {
+    if (!canEdit) return;
     setForm(blankItem());
     setEditItem(null);
     setPanel('add');
   }
 
   function openEdit(item: RestockItem) {
+    if (!canEdit) return;
     setEditItem(item);
     setForm({
       productName:         item.productName,
@@ -124,6 +131,7 @@ export default function RestockTrackerPage() {
   }
 
   async function submitAdd() {
+    if (!canEdit) return;
     if (!form.productName?.trim()) return;
     setSaving(true);
     try {
@@ -145,6 +153,7 @@ export default function RestockTrackerPage() {
   }
 
   async function submitEdit() {
+    if (!canEdit) return;
     if (!editingItem || !form.productName?.trim()) return;
     setSaving(true);
     try {
@@ -166,6 +175,7 @@ export default function RestockTrackerPage() {
   }
 
   async function markResolved(item: RestockItem) {
+    if (!canEdit) return;
     const next = !item.resolved;
     // Optimistic update
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, resolved: next } : i));
@@ -182,6 +192,7 @@ export default function RestockTrackerPage() {
   }
 
   async function updateStatus(item: RestockItem, status: RestockStatus) {
+    if (!canEdit) return;
     setItems(prev => prev.map(i => i.id === item.id ? { ...i, status } : i));
     await fetch(`/api/stock/restock/${item.id}`, {
       method: 'PATCH',
@@ -191,7 +202,14 @@ export default function RestockTrackerPage() {
   }
 
   async function deleteItem(id: string) {
-    if (!confirm('Remove this item from the restock tracker?')) return;
+    if (!canEdit) return;
+    const ok = await confirm({
+      title: 'Remove restock item?',
+      message: 'This removes the item from the tracker. It will not change any stock quantities.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setItems(prev => prev.filter(i => i.id !== id));
     await fetch(`/api/stock/restock/${id}`, { method: 'DELETE' });
   }
@@ -294,6 +312,7 @@ export default function RestockTrackerPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {confirmDialog}
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
@@ -313,11 +332,19 @@ export default function RestockTrackerPage() {
           <button onClick={load} className="btn-secondary">
             <RefreshCw size={14} /> Refresh
           </button>
-          <button onClick={openAdd} className="btn-primary">
-            <Plus size={14} /> Add Item
-          </button>
+          {canEdit && (
+            <button onClick={openAdd} className="btn-primary">
+              <Plus size={14} /> Add Item
+            </button>
+          )}
         </div>
       </div>
+
+      {!canEdit && (
+        <div className="card px-4 py-3 border-blue-200 bg-blue-50 text-sm text-blue-800">
+          Team view is read-only. Ask an admin to update dates, statuses, or tracked items.
+        </div>
+      )}
 
       {error && (
         <div className="card p-4 border-red-200 bg-red-50">
@@ -375,9 +402,11 @@ export default function RestockTrackerPage() {
             {activeItems.length === 0 && (
               <>
                 <p className="text-xs text-slate-400 mt-1 mb-4">Add a product that&apos;s currently out of stock at the 3PL</p>
-                <button onClick={openAdd} className="btn-primary">
-                  <Plus size={14} /> Add Item
-                </button>
+                {canEdit && (
+                  <button onClick={openAdd} className="btn-primary">
+                    <Plus size={14} /> Add Item
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -407,13 +436,13 @@ export default function RestockTrackerPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="relative group/status">
-                          <span className={`badge flex items-center gap-1 cursor-pointer select-none ${STATUS_STYLES[item.status]}`}>
+                          <span className={`badge flex items-center gap-1 select-none ${canEdit ? 'cursor-pointer' : ''} ${STATUS_STYLES[item.status]}`}>
                             {STATUS_ICONS[item.status]}
                             {item.status}
-                            <ChevronDown size={10} className="opacity-60" />
+                            {canEdit && <ChevronDown size={10} className="opacity-60" />}
                           </span>
                           {/* Status dropdown */}
-                          <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover/status:block">
+                          {canEdit && <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover/status:block">
                             <div className="bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden min-w-[160px]">
                               {STATUSES.map(s => (
                                 <button
@@ -425,7 +454,7 @@ export default function RestockTrackerPage() {
                                 </button>
                               ))}
                             </div>
-                          </div>
+                          </div>}
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
@@ -455,7 +484,7 @@ export default function RestockTrackerPage() {
                         )}
                       </td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        {canEdit && <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => markResolved(item)}
                             title="Mark as resolved"
@@ -477,7 +506,7 @@ export default function RestockTrackerPage() {
                           >
                             <Trash2 size={13} className="text-slate-400 hover:text-red-500" />
                           </button>
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   );
@@ -519,7 +548,7 @@ export default function RestockTrackerPage() {
                       <td className="px-5 py-3 text-xs text-slate-400">{item.supplier || '—'}</td>
                       <td className="px-5 py-3 text-xs text-slate-400 max-w-[200px] line-clamp-1">{item.notes || '—'}</td>
                       <td className="px-5 py-3">
-                        <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        {canEdit && <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => markResolved(item)}
                             title="Unmark as resolved"
@@ -530,7 +559,7 @@ export default function RestockTrackerPage() {
                           <button onClick={() => deleteItem(item.id)} className="btn-ghost p-1.5">
                             <Trash2 size={13} className="text-slate-300 hover:text-red-500" />
                           </button>
-                        </div>
+                        </div>}
                       </td>
                     </tr>
                   ))}

@@ -33,10 +33,25 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v7.8',
+    label: 'Portal Audit Fixes',
+    date: '2026-05-20',
+    isLatest: true,
+    summary: 'Portal audit improvements tighten API access, add data quality checks, and polish high-risk inventory actions.',
+    changes: [
+      { category: 'Security', text: 'Staff API access is now blocked from admin-only backend routes, not just hidden in the sidebar.' },
+      { category: 'Dashboard', text: 'Admins now get a Data Quality card highlighting missing return, refund, shipment, restock, and promotion cleanup items.' },
+      { category: 'Inventory', text: 'Incoming Shipments and Restock Tracker are read-only for team members while admins keep edit, import, and delete controls.' },
+      { category: 'UI/UX', text: 'Stock Room, promotions, and admin delete actions now use portal-styled confirmation dialogs instead of browser popups.' },
+      { category: 'Security', text: 'Daily sessions now expire at local Adelaide midnight and the portal requires SESSION_SECRET to be configured.' },
+      { category: 'Admin', text: 'Linting now runs through ESLint so future code quality checks work again.' },
+    ],
+  },
+  {
     version: 'v7.7',
     label: 'Team View Preview',
     date: '2026-05-20',
-    isLatest: true,
+    isLatest: false,
     summary: 'Admins can now preview the portal as a team member to check the dashboard and available tabs.',
     changes: [
       { category: 'UI/UX', text: 'Admins now have a View as team toggle in the sidebar footer.' },

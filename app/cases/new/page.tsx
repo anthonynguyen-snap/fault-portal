@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Upload, X, CheckCircle, AlertCircle, ChevronLeft, PlusCircle,
-  File, Image, Video, Zap, LayoutList, ChevronDown, ChevronUp,
+  File, Image as ImageIcon, Video, Zap, LayoutList, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Product, FaultType } from '@/types';
@@ -29,7 +29,7 @@ interface FormData {
 }
 
 function getFileIcon(type: string) {
-  if (type.startsWith('image/')) return <Image size={20} className="text-blue-500" />;
+  if (type.startsWith('image/')) return <ImageIcon size={20} className="text-blue-500" />;
   if (type.startsWith('video/')) return <Video size={20} className="text-purple-500" />;
   return <File size={20} className="text-slate-500" />;
 }
