@@ -141,19 +141,17 @@ function ChangelogNewBadge({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-// Tooltip that appears to the right of icon when sidebar is collapsed
-function Tooltip({ label }: { label: string }) {
+// Fixed-position tooltip rendered at root level to escape overflow clipping
+function SidebarTooltip({ label, y }: { label: string; y: number }) {
   return (
-    <span className="
-      pointer-events-none absolute left-full ml-2 z-50
-      whitespace-nowrap rounded-md bg-slate-800 px-2.5 py-1.5
-      text-xs font-medium text-white shadow-lg
-      opacity-0 group-hover:opacity-100
-      transition-opacity duration-150
-      border border-slate-700
-    ">
-      {label}
-    </span>
+    <div
+      className="fixed z-[200] pointer-events-none"
+      style={{ top: y, left: 64, transform: 'translateY(-50%)' }}
+    >
+      <span className="whitespace-nowrap rounded-md bg-slate-800 border border-slate-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg">
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -227,6 +225,7 @@ export function Sidebar() {
   const canPreviewTeam = user?.role === 'admin';
 
   const [collapsed, setCollapsed] = useState(false);
+  const [tooltip, setTooltip] = useState<{ label: string; y: number } | null>(null);
 
   // Load persisted state
   useEffect(() => {
@@ -234,6 +233,13 @@ export function Sidebar() {
       setCollapsed(localStorage.getItem(COLLAPSED_KEY) === 'true');
     } catch { /* no-op */ }
   }, []);
+
+  function showTooltip(e: React.MouseEvent<HTMLElement>, label: string) {
+    if (!collapsed) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltip({ label, y: rect.top + rect.height / 2 });
+  }
+  function hideTooltip() { setTooltip(null); }
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -305,9 +311,11 @@ export function Sidebar() {
         <nav className={cn('flex-1 py-3 overflow-y-auto', collapsed ? 'px-1.5 overflow-x-visible' : 'px-2 overflow-x-hidden')}>
 
           {/* Home */}
-          <div className="relative group mb-2">
+          <div className="mb-2">
             <Link
               href="/"
+              onMouseEnter={e => showTooltip(e, 'Home')}
+              onMouseLeave={hideTooltip}
               className={cn(
                 'flex items-center rounded-lg text-sm transition-all',
                 collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
@@ -316,10 +324,9 @@ export function Sidebar() {
                   : 'font-medium text-slate-400 hover:bg-slate-800 hover:text-white'
               )}
             >
-              <Home size={15} className={cn('flex-shrink-0', isActive('/') ? 'text-brand-300' : 'group-hover:text-white')} />
+              <Home size={15} className={cn('flex-shrink-0', isActive('/') ? 'text-brand-300' : '')} />
               {!collapsed && <span className="flex-1">Home</span>}
             </Link>
-            {collapsed && <Tooltip label="Home" />}
           </div>
 
           {/* Quick Actions */}
@@ -328,17 +335,17 @@ export function Sidebar() {
               {quickActions.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.href} className="relative group">
-                    <Link
-                      href={item.href}
-                      className="flex justify-center items-center py-2 rounded-md transition-all text-brand-400 hover:bg-slate-700/60 hover:text-brand-200"
-                    >
-                      <div className="w-5 h-5 rounded bg-brand-900/60 flex items-center justify-center">
-                        <Icon size={11} className="text-brand-400" />
-                      </div>
-                    </Link>
-                    <Tooltip label={item.label} />
-                  </div>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onMouseEnter={e => showTooltip(e, item.label)}
+                    onMouseLeave={hideTooltip}
+                    className="flex justify-center items-center py-2 rounded-md transition-all text-brand-400 hover:bg-slate-700/60 hover:text-brand-200"
+                  >
+                    <div className="w-5 h-5 rounded bg-brand-900/60 flex items-center justify-center">
+                      <Icon size={11} className="text-brand-400" />
+                    </div>
+                  </Link>
                 );
               })}
             </div>
@@ -389,9 +396,11 @@ export function Sidebar() {
                       const active = isActive(item.href);
 
                       return (
-                        <div key={item.href} className="relative group">
+                        <div key={item.href} className="relative">
                           <Link
                             href={item.href}
+                            onMouseEnter={e => showTooltip(e, item.label)}
+                            onMouseLeave={hideTooltip}
                             className={cn(
                               'flex items-center rounded-lg text-sm transition-all',
                               collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
@@ -402,7 +411,7 @@ export function Sidebar() {
                           >
                             <Icon
                               size={15}
-                              className={cn('flex-shrink-0', active ? 'text-brand-300' : 'group-hover:text-white')}
+                              className={cn('flex-shrink-0', active ? 'text-brand-300' : '')}
                             />
                             {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                             {!collapsed && item.href === '/returns'       && <ReturnAlertBadge collapsed={false} />}
@@ -414,7 +423,6 @@ export function Sidebar() {
                             {collapsed  && item.href === '/replenishment' && <ReplenishmentAlertBadge collapsed={true} />}
                             {collapsed  && item.href === '/admin'         && <ChangelogNewBadge collapsed={true} />}
                           </Link>
-                          {collapsed && <Tooltip label={item.label} />}
                         </div>
                       );
                     })}
@@ -475,37 +483,34 @@ export function Sidebar() {
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               {canPreviewTeam && (
-                <div className="relative group">
-                  <button
-                    onClick={() => setViewingAsTeam(!viewingAsTeam)}
-                    className={cn(
-                      'w-7 h-7 rounded-full flex items-center justify-center transition-colors',
-                      viewingAsTeam ? 'bg-amber-500/20 text-amber-300' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
-                    )}
-                  >
-                    <Eye size={13} />
-                  </button>
-                  <Tooltip label={viewingAsTeam ? 'Viewing team view' : 'View as team'} />
-                </div>
-              )}
-              <div className="relative group">
-                <Link
-                  href="/account/password"
-                  className="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center hover:bg-indigo-600 transition-colors"
-                >
-                  <span className="text-[10px] font-bold text-white">{initials}</span>
-                </Link>
-                <Tooltip label={loading ? 'Loading…' : user?.name || 'Account'} />
-              </div>
-              <div className="relative group">
                 <button
-                  onClick={logout}
-                  className="text-slate-600 hover:text-slate-300 transition-colors p-1 rounded hover:bg-slate-800"
+                  onClick={() => setViewingAsTeam(!viewingAsTeam)}
+                  onMouseEnter={e => showTooltip(e, viewingAsTeam ? 'Viewing team view' : 'View as team')}
+                  onMouseLeave={hideTooltip}
+                  className={cn(
+                    'w-7 h-7 rounded-full flex items-center justify-center transition-colors',
+                    viewingAsTeam ? 'bg-amber-500/20 text-amber-300' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  )}
                 >
-                  <LogOut size={14} />
+                  <Eye size={13} />
                 </button>
-                <Tooltip label="Sign out" />
-              </div>
+              )}
+              <Link
+                href="/account/password"
+                onMouseEnter={e => showTooltip(e, loading ? 'Loading…' : user?.name || 'Account')}
+                onMouseLeave={hideTooltip}
+                className="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center hover:bg-indigo-600 transition-colors"
+              >
+                <span className="text-[10px] font-bold text-white">{initials}</span>
+              </Link>
+              <button
+                onClick={logout}
+                onMouseEnter={e => showTooltip(e, 'Sign out')}
+                onMouseLeave={hideTooltip}
+                className="text-slate-600 hover:text-slate-300 transition-colors p-1 rounded hover:bg-slate-800"
+              >
+                <LogOut size={14} />
+              </button>
             </div>
           ) : (
             <div className="flex items-center gap-2.5">
@@ -534,6 +539,9 @@ export function Sidebar() {
             </div>
           )}
         </div>
+
+        {/* Fixed tooltip rendered outside overflow context */}
+        {collapsed && tooltip && <SidebarTooltip label={tooltip.label} y={tooltip.y} />}
 
       </aside>
     </>
