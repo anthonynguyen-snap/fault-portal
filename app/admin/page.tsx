@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   Plus,
@@ -7,7 +8,9 @@ import {
   Trash2,
   X,
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
+  CheckCircle2,
   Package,
   Building2,
   Tag,
@@ -1544,6 +1547,75 @@ const HEALTH_STYLES: Record<IntegrationStatus, { label: string; card: string; pi
   },
 };
 
+type DataQualityIssue = {
+  id: string;
+  label: string;
+  count: number;
+  href: string;
+  tone: 'red' | 'amber' | 'blue';
+  detail: string;
+};
+
+function DataQualitySection() {
+  const [issues, setIssues] = useState<DataQualityIssue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/data-quality', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(json => {
+        if (json.error) throw new Error(json.error);
+        setIssues(json.data ?? []);
+      })
+      .catch(err => setError(err.message || 'Could not check data quality'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const activeIssues = issues.filter(i => i.count > 0);
+  const total = activeIssues.reduce((sum, i) => sum + i.count, 0);
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center gap-2 mb-3">
+        {total > 0
+          ? <AlertTriangle size={15} className="text-amber-500" />
+          : <CheckCircle2 size={15} className="text-emerald-500" />}
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">Data Quality</h3>
+          <p className="text-xs text-slate-500">
+            {loading ? 'Checking…' : error ? error : total > 0 ? `${total} item${total !== 1 ? 's' : ''} worth cleaning up` : 'No obvious cleanup items found'}
+          </p>
+        </div>
+      </div>
+      {!loading && !error && activeIssues.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {activeIssues.map(issue => (
+            <Link
+              key={issue.id}
+              href={issue.href}
+              title={issue.detail}
+              className={`rounded-xl border px-3 py-2 transition-colors hover:bg-white ${
+                issue.tone === 'red'
+                  ? 'border-red-200 bg-red-50 text-red-800'
+                  : 'border-amber-200 bg-white/70 text-amber-800'
+              }`}
+            >
+              <p className="text-xl font-bold font-mono leading-tight">{issue.count}</p>
+              <p className="text-xs font-semibold leading-tight">{issue.label}</p>
+            </Link>
+          ))}
+        </div>
+      )}
+      {!loading && !error && activeIssues.length === 0 && (
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2 text-sm text-emerald-800">
+          Clean enough to trust at a glance.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IntegrationHealthPanel() {
   const [health, setHealth] = useState<IntegrationHealth | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1570,6 +1642,8 @@ function IntegrationHealthPanel() {
 
   return (
     <div className="max-w-4xl space-y-5">
+      <DataQualitySection />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Integration Health</h2>
