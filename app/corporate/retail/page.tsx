@@ -64,6 +64,10 @@ function fmtShort(d: string) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
+function dateInputValue(d: string) {
+  if (!d) return '';
+  return d.includes('T') ? d.slice(0, 10) : d;
+}
 function StatusBadge({ status }: { status: RetailOrderStatus }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.Pending;
   return (
@@ -798,6 +802,7 @@ export default function RetailOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<RetailOrderStatus | ''>('');
   const [selectedOrder, setSelectedOrder] = useState<RetailOrder | null | undefined>(undefined);
   const [selectedCustomer, setSelectedCustomer] = useState<RetailCustomer | null | undefined>(undefined);
+  const [quickSaving, setQuickSaving] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     document.title = 'Retail Orders · SNAP Portal';
@@ -851,6 +856,31 @@ export default function RetailOrdersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ invoiceSent: next }),
     });
+  }
+
+  async function quickUpdateOrder(order: RetailOrder, patch: Partial<RetailOrder>) {
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, ...patch } : o));
+    setQuickSaving(prev => ({ ...prev, [order.id]: true }));
+    try {
+      const res = await fetch(`/api/retail-orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const json = await res.json();
+      if (json.data) {
+        setOrders(prev => prev.map(o => o.id === order.id ? json.data : o));
+        if (selectedOrder?.id === order.id) setSelectedOrder(json.data);
+      }
+    } finally {
+      setQuickSaving(prev => ({ ...prev, [order.id]: false }));
+    }
+  }
+
+  function saveInlineField(order: RetailOrder, field: keyof RetailOrder, value: string) {
+    const current = String(order[field] ?? '');
+    if (value === current) return;
+    quickUpdateOrder(order, { [field]: value } as Partial<RetailOrder>);
   }
 
   function handleOrderSaved(order: RetailOrder) {
@@ -987,7 +1017,16 @@ export default function RetailOrdersPage() {
                             {hasDisc && <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Discrepancy</span>}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5"><StatusBadge status={order.status} /></td>
+                        <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                          <select
+                            value={order.status}
+                            onChange={e => quickUpdateOrder(order, { status: e.target.value as RetailOrderStatus })}
+                            disabled={quickSaving[order.id]}
+                            className={`rounded-full border-0 px-2 py-1 text-xs font-medium outline-none ring-1 ring-transparent transition focus:ring-brand-300 disabled:opacity-60 ${STATUS_CONFIG[order.status]?.colour ?? STATUS_CONFIG.Pending.colour}`}
+                          >
+                            {ALL_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
+                          </select>
+                        </td>
                         <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
                             <a
@@ -1012,17 +1051,40 @@ export default function RetailOrdersPage() {
                             </button>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5">
-                          {order.trackingNumber ? (
-                            <div><p className="font-mono text-xs text-slate-700">{order.trackingNumber}</p>{order.carrier && <p className="text-xs text-slate-400">{order.carrier}</p>}</div>
-                          ) : <span className="text-slate-300 text-xs">—</span>}
+                        <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                          <div className="space-y-1">
+                            <input
+                              key={`${order.id}-tracking-${order.trackingNumber}`}
+                              defaultValue={order.trackingNumber}
+                              onBlur={e => saveInlineField(order, 'trackingNumber', e.target.value.trim())}
+                              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                              className="w-36 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-mono text-slate-700 outline-none transition focus:border-brand-400 focus:ring-1 focus:ring-brand-300"
+                              placeholder="Tracking #"
+                            />
+                            <input
+                              key={`${order.id}-carrier-${order.carrier}`}
+                              defaultValue={order.carrier}
+                              onBlur={e => saveInlineField(order, 'carrier', e.target.value.trim())}
+                              onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                              className="w-36 rounded-md border border-transparent bg-slate-50 px-2 py-1 text-xs text-slate-500 outline-none transition focus:border-brand-300 focus:bg-white focus:ring-1 focus:ring-brand-200"
+                              placeholder="Carrier"
+                            />
+                          </div>
                         </td>
-                        <td className="px-5 py-3.5">
-                          {order.deliveredDate
-                            ? <div><p className="text-xs font-medium text-green-600">{fmtShort(order.deliveredDate)}</p><p className="text-[10px] text-slate-400">Delivered</p></div>
-                            : order.estimatedDelivery
-                              ? <div><p className="text-xs font-medium text-slate-700">{fmtShort(order.estimatedDelivery)}</p><p className="text-[10px] text-slate-400">Est. delivery</p></div>
-                              : <span className="text-slate-300 text-xs">—</span>}
+                        <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
+                          <div className="space-y-1">
+                            <input
+                              key={`${order.id}-estimated-${order.estimatedDelivery}`}
+                              type="date"
+                              defaultValue={dateInputValue(order.estimatedDelivery)}
+                              onBlur={e => saveInlineField(order, 'estimatedDelivery', e.target.value)}
+                              className="w-36 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none transition focus:border-brand-400 focus:ring-1 focus:ring-brand-300"
+                              title="Estimated delivery"
+                            />
+                            <p className="text-[10px] text-slate-400">
+                              {quickSaving[order.id] ? 'Saving…' : order.deliveredDate ? `Delivered ${fmtShort(order.deliveredDate)}` : 'Est. delivery'}
+                            </p>
+                          </div>
                         </td>
                         <td className="px-3 py-3.5"><ChevronRight size={14} className="text-slate-300" /></td>
                       </tr>

@@ -1,7 +1,5 @@
 import { NextRequest } from 'next/server';
 
-export const runtime = 'edge';
-
 // Proxy a single chunk to Google Drive resumable upload.
 // The full Google Drive upload URL is passed as a base64-encoded header
 // (X-Upload-B64) so no URL encoding/decoding can corrupt it.

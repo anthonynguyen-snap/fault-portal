@@ -110,10 +110,6 @@
   .data-table tbody tr:hover td:first-child {
     box-shadow: inset 3px 0 0 #1591b3;
   }
-  /* Selected row (e.g. batch-select in Cases) */
-  .data-table tbody tr.bg-brand-50 td {
-    background-color: #eaf8fd !important;
-  }
   /* Numeric column — right-aligned monospaced */
   .data-table td.num,
   .data-table th.num {
@@ -136,19 +132,6 @@
     @apply text-sm text-slate-500 mt-0.5;
   }
 }
-
-/* Brand colour utility overrides — force baby blue #94D8EE palette */
-.bg-brand-600, [class*="bg-brand-600"] { background-color: #1591b3 !important; }
-.bg-brand-700, [class*="bg-brand-700"] { background-color: #107394 !important; }
-.bg-brand-50,  [class*="bg-brand-50"]  { background-color: #eaf8fd !important; }
-.bg-brand-100, [class*="bg-brand-100"] { background-color: #cceef8 !important; }
-.bg-brand-200, [class*="bg-brand-200"] { background-color: #aae4f4 !important; }
-.text-brand-600, [class*="text-brand-600"] { color: #1591b3 !important; }
-.text-brand-700, [class*="text-brand-700"] { color: #107394 !important; }
-.text-brand-300, [class*="text-brand-300"] { color: #94D8EE !important; }
-.border-brand-600, [class*="border-brand-600"] { border-color: #1591b3 !important; }
-.border-brand-200, [class*="border-brand-200"] { border-color: #aae4f4 !important; }
-.ring-brand-600 { --tw-ring-color: #1591b3 !important; }
 
 /* Sidebar active nav item — inset left accent + subtle dark tint */
 .nav-active {
