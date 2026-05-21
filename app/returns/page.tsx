@@ -37,6 +37,37 @@ function daysSince(dateStr: string): number {
 }
 
 const STARSHIPIT_RETURN_LABEL_URL = 'https://admin.shopify.com/store/snapwireless/apps/starship/Templates/Admin4/Orders.aspx?ShopifyApp=true&disablenewui=true';
+const RETURN_REASONS = [
+  'Exchange',
+  'Change of mind',
+  'Did not meet expectations',
+  'Faulty - for refund',
+  'For further inspection',
+] as const;
+type ReturnReason = typeof RETURN_REASONS[number] | '';
+const RETURN_REASON_PREFIX = 'Return reason: ';
+
+function splitReturnReason(notes: string): { reason: ReturnReason; notes: string } {
+  const trimmed = notes.trim();
+  if (!trimmed.startsWith(RETURN_REASON_PREFIX)) return { reason: '', notes };
+
+  const [firstLine, ...rest] = trimmed.split('\n');
+  const rawReason = firstLine.slice(RETURN_REASON_PREFIX.length).trim();
+  const reason = RETURN_REASONS.includes(rawReason as typeof RETURN_REASONS[number])
+    ? rawReason as typeof RETURN_REASONS[number]
+    : '';
+
+  return {
+    reason,
+    notes: rest.join('\n').trimStart(),
+  };
+}
+
+function buildReturnNotes(reason: ReturnReason, notes: string): string {
+  const cleanNotes = notes.trim();
+  if (!reason) return cleanNotes;
+  return cleanNotes ? `${RETURN_REASON_PREFIX}${reason}\n\n${cleanNotes}` : `${RETURN_REASON_PREFIX}${reason}`;
+}
 
 // ── Badges ─────────────────────────────────────────────────────────────────────
 function conditionBadge(c: ReturnCondition) {
@@ -83,6 +114,7 @@ interface RequestForm {
   conversationLink: string;
   trackingNumber: string;
   starshipitOrderNumber: string;
+  returnReason: ReturnReason;
   products: { name: string }[];
   notes: string;
   submittedBy: string;
@@ -96,6 +128,7 @@ function blankRequest(): RequestForm {
     conversationLink: '',
     trackingNumber: '',
     starshipitOrderNumber: '',
+    returnReason: '',
     products: [{ name: '' }],
     notes: '',
     submittedBy: '',
@@ -129,6 +162,7 @@ function LogRequestSlideOver({
   useEffect(() => {
     if (!open) return;
     if (editing) {
+      const parsedNotes = splitReturnReason(editing.notes);
       setForm({
         orderNumber:           editing.orderNumber,
         customerName:          editing.customerName,
@@ -136,10 +170,11 @@ function LogRequestSlideOver({
         conversationLink:      editing.conversationLink,
         trackingNumber:        editing.trackingNumber,
         starshipitOrderNumber: editing.starshipitOrderNumber ?? '',
+        returnReason:          parsedNotes.reason,
         products:              editing.items.length > 0
                                  ? editing.items.map(i => ({ name: i.product }))
                                  : [{ name: '' }],
-        notes:                 editing.notes,
+        notes:                 parsedNotes.notes,
         submittedBy:           editing.processedBy || (!isAdmin ? currentUser?.name ?? '' : ''),
       });
     } else {
@@ -177,7 +212,7 @@ function LogRequestSlideOver({
         conversationLink:      form.conversationLink.trim(),
         trackingNumber:        form.trackingNumber.trim(),
         starshipitOrderNumber: form.starshipitOrderNumber.trim(),
-        notes:                 form.notes.trim(),
+        notes:                 buildReturnNotes(form.returnReason, form.notes),
         processedBy:           effectiveSubmittedBy,
         items:                 productItems,
       };
@@ -272,6 +307,17 @@ function LogRequestSlideOver({
             <label className="form-label">Starshipit Order Number <span className="text-slate-400 font-normal">(prepaid return label)</span></label>
             <input value={form.starshipitOrderNumber} onChange={e => setForm(f => ({ ...f, starshipitOrderNumber: e.target.value }))} placeholder="e.g. SS-123456" className="form-input font-mono" />
           </div>
+          <div>
+            <label className="form-label">Reason for Return</label>
+            <select
+              value={form.returnReason}
+              onChange={e => setForm(f => ({ ...f, returnReason: e.target.value as ReturnReason }))}
+              className="form-input"
+            >
+              <option value="">Select reason...</option>
+              {RETURN_REASONS.map(reason => <option key={reason} value={reason}>{reason}</option>)}
+            </select>
+          </div>
 
           {/* Products being returned */}
           <div>
@@ -312,7 +358,7 @@ function LogRequestSlideOver({
 
           <div>
             <label className="form-label">Notes</label>
-            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any context about this return…" className="form-input resize-none" />
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any extra context, or use this when the reason is Other…" className="form-input resize-none" />
           </div>
           <div>
             <label className="form-label">Logged By</label>
