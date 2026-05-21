@@ -135,10 +135,17 @@ export default function ReplenishmentDetailPage() {
     if (!request || !editStatus) return;
     setSaving(true);
     try {
+      const itemUpdates = request.items.map(item => ({
+        id:           item.id,
+        stockItemId:  item.stockItemId,
+        quantitySent: qtySent[item.id] ?? item.quantityRequested,
+        source:       itemSource[item.id] ?? item.source,
+        skipped:      itemSkipped[item.id] ?? item.skipped ?? false,
+      }));
       const res = await fetch(`/api/replenishment/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: editStatus, orderNumber: editOrderNum, store: editStore }),
+        body: JSON.stringify({ status: editStatus, orderNumber: editOrderNum, store: editStore, itemUpdates }),
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);

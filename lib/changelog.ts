@@ -48,6 +48,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Refunds', text: 'Refund requests now include a Product / SKU being refunded field to help prevent refunding the wrong colour or variant.' },
       { category: 'Inventory', text: 'Stock Room receive and dispatch product selectors now show the SKU beside each product name to make variants easier to choose correctly.' },
       { category: 'Admin', text: 'Staff Members now has admin-only private profiles for shipping address, personal contact details, start date, contract/document link, and notes.' },
+      { category: 'Replenishment', text: 'Replenishment Save Changes now persists per-item source, sent quantity, and skipped state before dispatch.' },
     ],
   },
   {
