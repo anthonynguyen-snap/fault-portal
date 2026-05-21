@@ -23,6 +23,8 @@ import {
   History,
   Database,
   RefreshCw,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
@@ -138,7 +140,7 @@ function ProductsPanel() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
@@ -302,7 +304,7 @@ function ManufacturersPanel() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
@@ -490,20 +492,57 @@ function FaultTypesPanel() {
 
 function StaffPanel() {
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
-  const [staff, setStaff] = useState<{ id: string; name: string }[]>([]);
+  type StaffMember = { id: string; name: string };
+  type StaffProfile = {
+    id?: string;
+    staffId: string;
+    staffName: string;
+    shippingAddress: string;
+    phone: string;
+    personalEmail: string;
+    contractLink: string;
+    startDate: string;
+    notes: string;
+    updatedAt?: string;
+  };
+  const blankProfile: StaffProfile = {
+    staffId: '',
+    staffName: '',
+    shippingAddress: '',
+    phone: '',
+    personalEmail: '',
+    contractLink: '',
+    startDate: '',
+    notes: '',
+  };
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, StaffProfile>>({});
+  const [editingProfile, setEditingProfile] = useState<StaffMember | null>(null);
+  const [profileForm, setProfileForm] = useState<StaffProfile>(blankProfile);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [error, setError] = useState('');
+  const [profileError, setProfileError] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
-    const res = await fetch('/api/staff');
-    const json = await res.json();
-    setStaff(json.data || []);
+    const [staffRes, profileRes] = await Promise.all([
+      fetch('/api/staff'),
+      fetch('/api/staff/profiles'),
+    ]);
+    const staffJson = await staffRes.json();
+    const profileJson = await profileRes.json();
+    setStaff(staffJson.data || []);
+    const profileMap: Record<string, StaffProfile> = {};
+    for (const profile of (profileJson.data || []) as StaffProfile[]) {
+      profileMap[profile.staffId] = profile;
+    }
+    setProfiles(profileMap);
     setLoading(false);
   }
 
@@ -541,13 +580,47 @@ function StaffPanel() {
     await load();
   }
 
+  function openProfile(member: StaffMember) {
+    setEditingProfile(member);
+    setProfileError('');
+    setProfileForm({
+      ...blankProfile,
+      ...(profiles[member.id] || {}),
+      staffId: member.id,
+      staffName: member.name,
+    });
+  }
+
+  async function saveProfile() {
+    if (!editingProfile) return;
+    setProfileSaving(true);
+    setProfileError('');
+    try {
+      const res = await fetch('/api/staff/profiles', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileForm),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setProfiles(prev => ({ ...prev, [editingProfile.id]: json.data }));
+      setEditingProfile(null);
+      setSuccess('Staff profile saved.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err: any) {
+      setProfileError(err.message || 'Failed to save staff profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {confirmDialog}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-semibold text-slate-900">Staff Members</h2>
-          <p className="text-xs text-slate-500">Names available in the fault submission dropdown</p>
+          <p className="text-xs text-slate-500">Names, private profile details, and staff documents for admin reference</p>
         </div>
         {success && (
           <span className="flex items-center gap-1.5 text-emerald-700 text-xs font-medium">
@@ -595,27 +668,121 @@ function StaffPanel() {
             <thead>
               <tr>
                 <th>Name</th>
-                <th className="w-20">Actions</th>
+                <th>Private Details</th>
+                <th>Contract</th>
+                <th className="w-32">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {staff.map(member => (
-                <tr key={member.id}>
-                  <td className="font-medium text-slate-800">{member.name}</td>
-                  <td>
-                    <button
-                      onClick={() => handleDelete(member.id, member.name)}
-                      className="text-slate-400 hover:text-red-500 transition-colors p-1"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {staff.map(member => {
+                const profile = profiles[member.id];
+                const hasProfile = !!profile && Boolean(
+                  profile.shippingAddress ||
+                  profile.phone ||
+                  profile.personalEmail ||
+                  profile.contractLink ||
+                  profile.startDate ||
+                  profile.notes
+                );
+                return (
+                  <tr key={member.id}>
+                    <td className="font-medium text-slate-800">{member.name}</td>
+                    <td>
+                      {hasProfile ? (
+                        <div className="text-xs text-slate-500">
+                          {profile.phone && <p>{profile.phone}</p>}
+                          {profile.personalEmail && <p>{profile.personalEmail}</p>}
+                          {profile.shippingAddress && <p className="truncate max-w-xs">{profile.shippingAddress}</p>}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">No profile saved</span>
+                      )}
+                    </td>
+                    <td>
+                      {profile?.contractLink ? (
+                        <a href={profile.contractLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+                          <FileText size={12} /> Open <ExternalLink size={10} />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openProfile(member)}
+                          className="text-brand-600 hover:text-brand-800 p-1"
+                          title="Edit private profile"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(member.id, member.name)}
+                          className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                          title="Remove staff member"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      {editingProfile && (
+        <Modal
+          title={`Private Profile — ${editingProfile.name}`}
+          onClose={() => setEditingProfile(null)}
+          onSave={saveProfile}
+          saving={profileSaving}
+          error={profileError}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="form-label">Shipping Address</label>
+              <textarea
+                value={profileForm.shippingAddress}
+                onChange={e => setProfileForm(f => ({ ...f, shippingAddress: e.target.value }))}
+                rows={3}
+                className="form-input resize-none"
+                placeholder="Street, suburb, state, postcode"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="form-label">Phone</label>
+                <input value={profileForm.phone} onChange={e => setProfileForm(f => ({ ...f, phone: e.target.value }))} className="form-input" placeholder="Phone number" />
+              </div>
+              <div>
+                <label className="form-label">Start Date</label>
+                <input type="date" value={profileForm.startDate} onChange={e => setProfileForm(f => ({ ...f, startDate: e.target.value }))} className="form-input" />
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Personal Email</label>
+              <input type="email" value={profileForm.personalEmail} onChange={e => setProfileForm(f => ({ ...f, personalEmail: e.target.value }))} className="form-input" placeholder="name@example.com" />
+            </div>
+            <div>
+              <label className="form-label">Contract / Document Link</label>
+              <input type="url" value={profileForm.contractLink} onChange={e => setProfileForm(f => ({ ...f, contractLink: e.target.value }))} className="form-input" placeholder="Google Drive, Dropbox, or signed contract URL" />
+            </div>
+            <div>
+              <label className="form-label">Admin Notes</label>
+              <textarea
+                value={profileForm.notes}
+                onChange={e => setProfileForm(f => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                className="form-input resize-none"
+                placeholder="Anything private admins need to know..."
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
