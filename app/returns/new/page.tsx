@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X, CheckCircle, RotateCcw } from 'lucide-react';
+import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X, CheckCircle, RotateCcw, Search } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision } from '@/types';
 
 const CONDITIONS: ReturnCondition[] = ['Sealed', 'Open - Good Condition', 'Open - Damaged Packaging', 'Faulty'];
@@ -44,6 +44,7 @@ interface FormState {
   customerName: string;
   customerEmail: string;
   trackingNumber: string;
+  starshipitOrderNumber: string;
   items: LineItem[];
   assignedTo: string;
   processedBy: string;
@@ -64,6 +65,7 @@ function blankForm(processedBy = ''): FormState {
     customerName: '',
     customerEmail: '',
     trackingNumber: '',
+    starshipitOrderNumber: '',
     items: [blankItem()],
     assignedTo: '',
     processedBy,
@@ -82,6 +84,7 @@ export default function NewReturnPage() {
   const [error, setError]         = useState('');
   const [successOrder, setSuccessOrder] = useState<string | null>(null);
   const [openRequests, setOpenRequests] = useState<Return[]>([]);
+  const [requestSearch, setRequestSearch] = useState('');
   const [matchDismissed, setMatchDismissed] = useState(false);
   const [matchLinked, setMatchLinked] = useState<string | null>(null); // id of linked request
   const [linkedRequest, setLinkedRequest] = useState<Return | null>(null);
@@ -94,10 +97,19 @@ export default function NewReturnPage() {
     if (orderParam && !requestId) {
       setForm(prev => ({ ...prev, orderNumber: orderParam }));
     }
-    fetch('/api/returns?stage=requested')
+    fetch('/api/returns')
       .then(r => r.json())
       .then(d => {
-        const requests = d.data ?? [];
+        const allReturns: Return[] = d.data ?? [];
+        const processedOrderNums = new Set(
+          allReturns
+            .filter(r => r.stage === 'processed')
+            .map(r => r.orderNumber.toLowerCase().trim())
+        );
+        const requests = allReturns.filter(r =>
+          r.stage === 'requested' &&
+          !processedOrderNums.has(r.orderNumber.toLowerCase().trim())
+        );
         setOpenRequests(requests);
         if (requestId) {
           const req = requests.find((r: Return) => r.id === requestId);
@@ -134,12 +146,15 @@ export default function NewReturnPage() {
     setForm(prev => ({
       ...prev,
       orderNumber:      req.orderNumber,
-      customerName:     prev.customerName || req.customerName,
-      customerEmail:    prev.customerEmail || req.customerEmail,
-      trackingNumber:   prev.trackingNumber || req.trackingNumber,
-      conversationLink: prev.conversationLink || req.conversationLink,
+      customerName:     req.customerName,
+      customerEmail:    req.customerEmail,
+      trackingNumber:   req.trackingNumber,
+      starshipitOrderNumber: req.starshipitOrderNumber ?? '',
+      conversationLink: req.conversationLink,
       items: mappedItems,
+      notes: prev.notes || req.notes,
     }));
+    setRequestSearch(req.starshipitOrderNumber || req.trackingNumber || req.customerName || req.orderNumber);
     if (!req.parcelReceived || options?.fromProcessLink) {
       await fetch(`/api/returns/${req.id}`, {
         method: 'PATCH',
@@ -160,6 +175,25 @@ export default function NewReturnPage() {
     setMatchLinked(null);
     setLinkedRequest(null);
   }
+
+  const requestMatches = useMemo(() => {
+    const q = requestSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return openRequests
+      .filter(req => {
+        const fields = [
+          req.orderNumber,
+          req.customerName,
+          req.customerEmail,
+          req.trackingNumber,
+          req.starshipitOrderNumber,
+          req.conversationLink,
+          ...(req.items ?? []).map(item => item.product),
+        ];
+        return fields.some(value => String(value || '').toLowerCase().includes(q));
+      })
+      .slice(0, 6);
+  }, [openRequests, requestSearch]);
 
   function setItemField(index: number, field: keyof LineItem, value: string | number | ReturnCondition | ReturnDecision) {
     setForm(prev => {
@@ -200,6 +234,7 @@ export default function NewReturnPage() {
         ...form,
         stage: 'processed',
         trackingNumber:  form.trackingNumber.trim(),
+        starshipitOrderNumber: form.starshipitOrderNumber.trim(),
         linkedRequestId: matchLinked ?? undefined,
         items: form.items.map(item => ({
           ...item,
@@ -296,6 +331,69 @@ export default function NewReturnPage() {
           </div>
         )}
 
+        {/* Request lookup */}
+        <div className="card p-5 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700">Find Existing Return Request</h2>
+            <p className="mt-1 text-xs text-slate-500">Search customers who already received a return form, then pull their details into this process form.</p>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={requestSearch}
+              onChange={e => setRequestSearch(e.target.value)}
+              placeholder="Search name, order, Starshipit, tracking, or email..."
+              className="form-input pl-9"
+            />
+          </div>
+
+          {requestSearch.trim().length > 1 && requestMatches.length === 0 && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+              No open return request matches that search. You can still process the return manually below.
+            </div>
+          )}
+
+          {requestMatches.length > 0 && (
+            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+              {requestMatches.map(req => {
+                const isLinked = matchLinked === req.id;
+                return (
+                  <button
+                    key={req.id}
+                    type="button"
+                    onClick={() => acceptMatch(req)}
+                    className={`w-full px-3 py-3 text-left transition-colors ${isLinked ? 'bg-emerald-50' : 'bg-white hover:bg-slate-50'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-slate-900">{req.orderNumber}</span>
+                          <span className="text-sm font-medium text-slate-800">{req.customerName}</span>
+                          {isLinked && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Selected</span>}
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                          {req.starshipitOrderNumber && <span>SS: <span className="font-mono">{req.starshipitOrderNumber}</span></span>}
+                          {req.trackingNumber && <span>Tracking: <span className="font-mono">{req.trackingNumber}</span></span>}
+                          {req.customerEmail && <span className="truncate">{req.customerEmail}</span>}
+                        </div>
+                        {req.items?.length > 0 && (
+                          <p className="mt-1 truncate text-xs text-slate-500">
+                            {req.items.map(item => item.product).filter(Boolean).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                      <span className="flex-shrink-0 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                        Use
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {matchLinked && linkedRequest && (
           <div className="flex items-start gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800">
             <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
@@ -339,6 +437,10 @@ export default function NewReturnPage() {
           <div>
             <label className="form-label">Inbound Tracking Number <span className="text-slate-400 font-normal">(optional)</span></label>
             <input type="text" value={form.trackingNumber} onChange={e => set('trackingNumber', e.target.value)} placeholder="e.g. 1Z999AA10123456784" className="form-input font-mono" />
+          </div>
+          <div>
+            <label className="form-label">Starshipit Order Number <span className="text-slate-400 font-normal">(return label)</span></label>
+            <input type="text" value={form.starshipitOrderNumber} onChange={e => set('starshipitOrderNumber', e.target.value)} placeholder="e.g. SS-123456" className="form-input font-mono" />
           </div>
         </div>
 

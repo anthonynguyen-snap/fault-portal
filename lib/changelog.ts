@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v8.0',
+    label: 'Return Request Lookup',
+    date: '2026-05-21',
+    isLatest: true,
+    summary: 'Process Office Return now lets you search existing return requests before filling out the received parcel details.',
+    changes: [
+      { category: 'Returns', text: 'Process Office Return now has a Find Existing Return Request search for customers who were already sent a return form.' },
+      { category: 'Returns', text: 'Search matches order number, customer name, customer email, inbound tracking, Starshipit order number, conversation link, and returned products.' },
+      { category: 'Returns', text: 'Selecting a matched request now pulls customer details, tracking, Starshipit number, products, conversation link, and notes into the processing form.' },
+    ],
+  },
+  {
     version: 'v7.9',
     label: 'Shipments & Sidebar',
     date: '2026-05-20',
-    isLatest: true,
+    isLatest: false,
     summary: 'Incoming Shipments tracker with Google Sheets CSV import, 3PL Restock Tracker, and a collapsible icon-only sidebar.',
     changes: [
       { category: 'Inventory', text: 'Incoming Shipments page — track all active shipments with status, ETA, transport type, provider, tracking number, costs, cartons, weight, and branch transfer details.' },
