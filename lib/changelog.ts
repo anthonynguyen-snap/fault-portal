@@ -49,6 +49,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Inventory', text: 'Stock Room receive and dispatch product selectors now show the SKU beside each product name to make variants easier to choose correctly.' },
       { category: 'Admin', text: 'Staff Members now has admin-only private profiles for shipping address, personal contact details, start date, contract/document link, and notes.' },
       { category: 'Replenishment', text: 'Replenishment Save Changes now persists per-item source, sent quantity, and skipped state before dispatch.' },
+      { category: 'Replenishment', text: 'Replenishment requests now show copy-ready delivery details per store, with editable recipient, address, phone, and 3PL notes.' },
     ],
   },
   {

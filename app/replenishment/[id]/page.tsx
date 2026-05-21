@@ -4,12 +4,21 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Truck, Package, Send, CheckCircle,
   Clock, AlertTriangle, Save, ExternalLink, Plus, Pencil, Lock, Copy,
+  MapPin,
 } from 'lucide-react';
 import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem, StockItem } from '@/types';
 import { useToast } from '@/components/ui/Toast';
 
 const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'];
 const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
+
+type StoreAddress = {
+  store: string;
+  recipient: string;
+  address: string;
+  phone: string;
+  notes: string;
+};
 
 const STATUS_STYLES: Record<ReplenishmentStatus, string> = {
   'Pending':             'bg-amber-100 text-amber-700 border-amber-200',
@@ -63,6 +72,10 @@ export default function ReplenishmentDetailPage() {
   const [tplTrackingInput, setTplTrackingInput] = useState('');
   const [tplDateInput, setTplDateInput]         = useState(new Date().toISOString().slice(0, 10));
   const [savingTracking, setSavingTracking]     = useState(false);
+  const [storeAddresses, setStoreAddresses] = useState<Record<string, StoreAddress>>({});
+  const [addressForm, setAddressForm] = useState<StoreAddress>({ store: '', recipient: '', address: '', phone: '', notes: '' });
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
 
   // Legacy single dispatch (kept for fallback)
   const [showDispatch, setShowDispatch] = useState(false);
@@ -130,6 +143,23 @@ export default function ReplenishmentDetailPage() {
 
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { document.title = 'Replenishment · SNAP Portal'; }, []);
+
+  useEffect(() => {
+    fetch('/api/replenishment/store-addresses')
+      .then(r => r.json())
+      .then(json => {
+        const map: Record<string, StoreAddress> = {};
+        for (const row of (json.data ?? []) as StoreAddress[]) map[row.store] = row;
+        setStoreAddresses(map);
+      })
+      .catch(() => { /* address card can still be filled manually */ });
+  }, []);
+
+  useEffect(() => {
+    const existing = storeAddresses[editStore] ?? { store: editStore, recipient: '', address: '', phone: '', notes: '' };
+    setAddressForm(existing);
+    setEditingAddress(false);
+  }, [editStore, storeAddresses]);
 
   async function handleStatusSave() {
     if (!request || !editStatus) return;
@@ -243,6 +273,42 @@ export default function ReplenishmentDetailPage() {
     } catch (err: unknown) {
       toastError('Failed to save tracking', err instanceof Error ? err.message : String(err));
     } finally { setSavingTracking(false); }
+  }
+
+  function addressCopyText(address: StoreAddress) {
+    return [
+      address.recipient,
+      address.address,
+      address.phone ? `Phone: ${address.phone}` : '',
+      address.notes,
+    ].filter(Boolean).join('\n');
+  }
+
+  async function copyStoreAddress() {
+    const text = addressCopyText(addressForm);
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    success('Address copied', `${editStore} details copied for 3PL.`);
+  }
+
+  async function saveStoreAddress() {
+    setSavingAddress(true);
+    try {
+      const res = await fetch('/api/replenishment/store-addresses', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...addressForm, store: editStore }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setStoreAddresses(prev => ({ ...prev, [editStore]: json.data }));
+      setEditingAddress(false);
+      success('Store address saved', `${editStore} details updated.`);
+    } catch (err: unknown) {
+      toastError('Address save failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingAddress(false);
+    }
   }
 
   async function saveAddItem() {
@@ -421,6 +487,90 @@ export default function ReplenishmentDetailPage() {
             {STATUS_ORDER.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+      </div>
+
+      {/* Store address card */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <MapPin size={15} className="text-brand-600" />
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">{editStore} delivery details</h2>
+              <p className="text-xs text-slate-500">Copy this into the 3PL replenishment order.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setEditingAddress(v => !v)} className="btn-ghost text-xs py-1.5">
+              <Pencil size={12} /> {editingAddress ? 'Cancel edit' : 'Edit'}
+            </button>
+            <button
+              onClick={copyStoreAddress}
+              disabled={!addressCopyText(addressForm)}
+              className="btn-secondary text-xs py-1.5 disabled:opacity-40"
+            >
+              <Copy size={12} /> Copy
+            </button>
+          </div>
+        </div>
+        {editingAddress ? (
+          <div className="space-y-3 p-5">
+            <div>
+              <label className="form-label">Recipient / Store Name</label>
+              <input
+                value={addressForm.recipient}
+                onChange={e => setAddressForm(f => ({ ...f, recipient: e.target.value }))}
+                className="form-input"
+                placeholder="e.g. SNAP Wireless Sydney Store"
+              />
+            </div>
+            <div>
+              <label className="form-label">Shipping Address</label>
+              <textarea
+                value={addressForm.address}
+                onChange={e => setAddressForm(f => ({ ...f, address: e.target.value }))}
+                rows={3}
+                className="form-input resize-none"
+                placeholder="Street, suburb, state, postcode"
+              />
+            </div>
+            <div>
+              <label className="form-label">Phone</label>
+              <input
+                value={addressForm.phone}
+                onChange={e => setAddressForm(f => ({ ...f, phone: e.target.value }))}
+                className="form-input"
+                placeholder="Phone number for courier"
+              />
+            </div>
+            <div>
+              <label className="form-label">3PL Notes</label>
+              <textarea
+                value={addressForm.notes}
+                onChange={e => setAddressForm(f => ({ ...f, notes: e.target.value }))}
+                rows={2}
+                className="form-input resize-none"
+                placeholder="Delivery instructions, attention line, opening hours..."
+              />
+            </div>
+            <div className="flex justify-end">
+              <button onClick={saveStoreAddress} disabled={savingAddress} className="btn-primary">
+                {savingAddress ? 'Saving...' : 'Save address'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-5">
+            {addressCopyText(addressForm) ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-4 font-mono text-sm leading-6 text-slate-700 whitespace-pre-line">
+                {addressCopyText(addressForm)}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                No address saved for {editStore} yet. Click Edit to add it once, then it will appear whenever this store is selected.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Split dispatch info cards */}
