@@ -195,6 +195,21 @@ export default function NewReturnPage() {
       .slice(0, 6);
   }, [openRequests, requestSearch]);
 
+  const refundSummary = useMemo(() => {
+    const refundableItems = form.items
+      .filter(item => REFUND_DECISIONS.has(item.decision))
+      .map(item => ({
+        product: item.product.trim() || 'Unnamed item',
+        amount: netRefund(item),
+      }))
+      .filter(item => item.amount > 0);
+
+    return {
+      items: refundableItems,
+      total: refundableItems.reduce((sum, item) => sum + item.amount, 0),
+    };
+  }, [form.items]);
+
   function setItemField(index: number, field: keyof LineItem, value: string | number | ReturnCondition | ReturnDecision) {
     setForm(prev => {
       const items = [...prev.items];
@@ -557,6 +572,30 @@ export default function NewReturnPage() {
             className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600 transition-colors">
             <PlusCircle size={15} /> Add Another Item
           </button>
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">Total to refund</p>
+                <p className="mt-1 text-xs text-emerald-700">
+                  Based on refund decisions, label fees, and restocking deductions entered above.
+                </p>
+              </div>
+              <p className="font-mono text-2xl font-bold text-emerald-700">
+                ${refundSummary.total.toFixed(2)}
+              </p>
+            </div>
+            {refundSummary.items.length > 0 && (
+              <div className="mt-3 space-y-1 border-t border-emerald-200 pt-3">
+                {refundSummary.items.map((item, index) => (
+                  <div key={`${item.product}-${index}`} className="flex justify-between gap-3 text-xs text-emerald-800">
+                    <span className="truncate">{item.product}</span>
+                    <span className="font-mono">${item.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Team */}
@@ -614,7 +653,11 @@ export default function NewReturnPage() {
           </div>
         )}
 
-        <div className="sticky bottom-0 z-20 -mx-3 flex gap-3 border-t border-slate-200 bg-slate-50/95 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="sticky bottom-0 z-20 -mx-3 flex flex-wrap items-center gap-3 border-t border-slate-200 bg-slate-50/95 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
+          <div className="mr-auto min-w-[150px] rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total to refund</p>
+            <p className="font-mono text-lg font-bold text-emerald-700">${refundSummary.total.toFixed(2)}</p>
+          </div>
           <Link href="/returns" className="btn-secondary flex-1 text-center">Cancel</Link>
           <button type="submit" disabled={submitting} className="btn-primary flex-1">
             {submitting ? 'Saving…' : 'Save Processed Return'}

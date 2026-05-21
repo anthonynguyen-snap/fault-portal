@@ -42,6 +42,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Returns', text: 'Process Office Return now has a Find Existing Return Request search for customers who were already sent a return form.' },
       { category: 'Returns', text: 'Search matches order number, customer name, customer email, inbound tracking, Starshipit order number, conversation link, and returned products.' },
       { category: 'Returns', text: 'Selecting a matched request now pulls customer details, tracking, Starshipit number, products, conversation link, and notes into the processing form.' },
+      { category: 'Returns', text: 'Process Office Return now shows a live Total to refund summary before saving, including label fee and restocking fee deductions.' },
     ],
   },
   {
