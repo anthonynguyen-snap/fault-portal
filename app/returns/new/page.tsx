@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X, CheckCircle, RotateCcw, Search } from 'lucide-react';
+import { ChevronLeft, PlusCircle, Trash2, CheckCircle2, X, CheckCircle, RotateCcw, Search, ExternalLink } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision } from '@/types';
 
 const CONDITIONS: ReturnCondition[] = ['Sealed', 'Open - Good Condition', 'Open - Damaged Packaging', 'Faulty'];
@@ -11,6 +11,7 @@ const DECISIONS: ReturnDecision[]   = ['Full Refund', 'Exchange', 'Refund + Rest
 const REFUND_DECISIONS = new Set(['Full Refund', 'Refund + Restocking Fee', 'Refund - Return Label Fee']);
 const PROCESSED_BY_KEY = 'returns_processed_by';
 const LABEL_FEE = 9.50;
+const SHOPIFY_ORDER_SEARCH_URL = 'https://admin.shopify.com/store/snapwireless/orders?query=';
 
 interface LineItem {
   product: string;
@@ -36,6 +37,11 @@ function restockingFeeAmount(item: LineItem): number {
   const gross = parseFloat(item.refundAmount) || 0;
   const pct = parseFloat(item.restockingPct) || 0;
   return Math.max(0, gross * pct / 100);
+}
+
+function shopifyOrderHref(orderNumber: string): string {
+  const normalized = orderNumber.replace(/^#/, '').trim();
+  return normalized ? `${SHOPIFY_ORDER_SEARCH_URL}${encodeURIComponent(normalized)}` : '';
 }
 
 interface FormState {
@@ -88,6 +94,7 @@ export default function NewReturnPage() {
   const [matchDismissed, setMatchDismissed] = useState(false);
   const [matchLinked, setMatchLinked] = useState<string | null>(null); // id of linked request
   const [linkedRequest, setLinkedRequest] = useState<Return | null>(null);
+  const shopifyHref = shopifyOrderHref(form.orderNumber);
 
   useEffect(() => {
     const saved = localStorage.getItem(PROCESSED_BY_KEY) || '';
@@ -432,7 +439,22 @@ export default function NewReturnPage() {
             </div>
             <div>
               <label className="form-label">Order Number <span className="text-red-400">*</span></label>
-              <input type="text" value={form.orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="e.g. #12345" className="form-input" required />
+              <div className="flex gap-2">
+                <input type="text" value={form.orderNumber} onChange={e => setOrderNumber(e.target.value)} placeholder="e.g. #12345" className="form-input min-w-0 flex-1" required />
+                {shopifyHref && (
+                  <a
+                    href={shopifyHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary flex-shrink-0 px-3"
+                    title="Open order in Shopify"
+                    aria-label="Open order in Shopify"
+                  >
+                    Shopify
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -447,7 +469,22 @@ export default function NewReturnPage() {
           </div>
           <div>
             <label className="form-label">Conversation Link</label>
-            <input type="url" value={form.conversationLink} onChange={e => set('conversationLink', e.target.value)} placeholder="https://..." className="form-input" />
+            <div className="flex gap-2">
+              <input type="url" value={form.conversationLink} onChange={e => set('conversationLink', e.target.value)} placeholder="https://..." className="form-input min-w-0 flex-1" />
+              {form.conversationLink.trim() && (
+                <a
+                  href={form.conversationLink.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary flex-shrink-0 px-3"
+                  title="Open conversation in Commslayer"
+                  aria-label="Open conversation in Commslayer"
+                >
+                  Commslayer
+                  <ExternalLink size={14} />
+                </a>
+              )}
+            </div>
           </div>
           <div>
             <label className="form-label">Inbound Tracking Number <span className="text-slate-400 font-normal">(optional)</span></label>
