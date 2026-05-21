@@ -78,6 +78,26 @@ function fmt(amount: number, currency = 'AUD') {
   return new Intl.NumberFormat(c.locale, { style: 'currency', currency: c.code }).format(amount);
 }
 
+const REFUND_SKU_PREFIX = 'Refund SKU: ';
+
+function splitRefundSku(notes: string): { productSku: string; notes: string } {
+  const trimmed = notes.trim();
+  if (!trimmed.startsWith(REFUND_SKU_PREFIX)) return { productSku: '', notes };
+
+  const [firstLine, ...rest] = trimmed.split('\n');
+  return {
+    productSku: firstLine.slice(REFUND_SKU_PREFIX.length).trim(),
+    notes: rest.join('\n').trimStart(),
+  };
+}
+
+function buildRefundNotes(productSku: string, notes: string): string {
+  const cleanSku = productSku.trim();
+  const cleanNotes = notes.trim();
+  if (!cleanSku) return cleanNotes;
+  return cleanNotes ? `${REFUND_SKU_PREFIX}${cleanSku}\n\n${cleanNotes}` : `${REFUND_SKU_PREFIX}${cleanSku}`;
+}
+
 function AgePill({ createdAt }: { createdAt: string }) {
   const days = daysSince(createdAt);
   if (days < 1) return <span className="text-xs text-slate-400">Today</span>;
@@ -125,7 +145,7 @@ function RefundsInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm]           = useState({
     orderNumber: '', customerName: '', amount: '', currency: 'AUD' as CurrencyCode,
-    reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: '',
+    productSku: '', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: '',
   });
   const [formError, setFormError] = useState('');
   const [deductLabelFee, setDeductLabelFee] = useState(true);
@@ -242,7 +262,7 @@ function RefundsInner() {
   function resetForm() {
     // Auto-fill submittedBy for staff; leave blank for admin to pick
     const autoName = !isAdmin && user?.name ? user.name : '';
-    setForm({ orderNumber: '', customerName: '', amount: '', currency: 'AUD', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: autoName });
+    setForm({ orderNumber: '', customerName: '', amount: '', currency: 'AUD', productSku: '', reason: '', notes: '', shopifyLink: '', commsLink: '', submittedBy: autoName });
     setFormError('');
     setDeductLabelFee(true);
   }
@@ -250,13 +270,15 @@ function RefundsInner() {
   function closeForm() { setShowForm(false); setEditingId(null); resetForm(); }
 
   function openEdit(req: RefundRequest) {
+    const parsedNotes = splitRefundSku(req.notes);
     setForm({
       orderNumber:  req.orderNumber,
       customerName: req.customerName,
       amount:       req.amount > 0 ? String(req.amount) : '',
       currency:     (req.currency as CurrencyCode) ?? detectCurrency(req.orderNumber),
+      productSku:   parsedNotes.productSku,
       reason:       req.reason,
-      notes:        req.notes,
+      notes:        parsedNotes.notes,
       shopifyLink:  req.shopifyLink,
       commsLink:    req.commsLink,
       submittedBy:  req.submittedBy,
@@ -286,7 +308,7 @@ function RefundsInner() {
       amount:       finalAmount,
       currency:     form.currency,
       reason:       form.reason,
-      notes:        form.notes.trim(),
+      notes:        buildRefundNotes(form.productSku, form.notes),
       shopifyLink:  form.shopifyLink.trim(),
       commsLink:    form.commsLink.trim(),
       submittedBy:  resolvedSubmittedBy,
@@ -642,6 +664,7 @@ function RefundsInner() {
             {displayed.map(req => {
               const isExpanded = expanded === req.id;
               const isPending  = req.status === 'Pending';
+              const parsedNotes = splitRefundSku(req.notes);
               return (
                 <div key={req.id}>
                   {/* Main row */}
@@ -687,13 +710,18 @@ function RefundsInner() {
                       </div>
                       <div className="flex items-center gap-3 mt-1 flex-wrap">
                         <span className="text-xs text-slate-500">{req.reason}</span>
+                        {parsedNotes.productSku && (
+                          <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700 ring-1 ring-slate-200">
+                            {parsedNotes.productSku}
+                          </span>
+                        )}
                         {req.submittedBy && (
                           <span className="text-xs text-slate-400">by {req.submittedBy}</span>
                         )}
                         <AgePill createdAt={req.createdAt} />
                       </div>
-                      {req.notes && (
-                        <p className="text-xs text-slate-500 mt-1 italic">{req.notes}</p>
+                      {parsedNotes.notes && (
+                        <p className="text-xs text-slate-500 mt-1 italic">{parsedNotes.notes}</p>
                       )}
                       {/* Links */}
                       {(req.shopifyLink || req.commsLink) && (
@@ -897,6 +925,19 @@ function RefundsInner() {
             )}
           </div>
 
+          {/* Product / SKU */}
+          <div>
+            <label className="form-label">Product / SKU being refunded</label>
+            <input
+              type="text"
+              value={form.productSku}
+              onChange={e => setForm(f => ({ ...f, productSku: e.target.value }))}
+              placeholder="e.g. PPU2-BLU or PowerPack Universal 2 - Blue"
+              className="form-input"
+            />
+            <p className="mt-1 text-xs text-slate-400">Helps Anthony check the exact variant before processing.</p>
+          </div>
+
           {/* Reason */}
           <div>
             <label className="form-label">Reason <span className="text-red-400">*</span></label>
@@ -1001,17 +1042,26 @@ function RefundsInner() {
       >
         {processing && (
           <div className="space-y-5">
-            {/* Summary */}
-            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-800">{processing.customerName}</span>
-                <span className="text-xl font-bold text-slate-900">{fmt(processing.amount, processing.currency)}</span>
-              </div>
-              <p className="text-xs text-slate-500">Order #{processing.orderNumber}</p>
-              <p className="text-xs text-slate-500">{processing.reason}</p>
-              {processing.notes && <p className="text-xs text-slate-400 italic">{processing.notes}</p>}
-              {processing.submittedBy && <p className="text-xs text-slate-400">Submitted by {processing.submittedBy}</p>}
-            </div>
+            {(() => {
+              const parsedNotes = splitRefundSku(processing.notes);
+              return (
+                <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-800">{processing.customerName}</span>
+                    <span className="text-xl font-bold text-slate-900">{fmt(processing.amount, processing.currency)}</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Order #{processing.orderNumber}</p>
+                  <p className="text-xs text-slate-500">{processing.reason}</p>
+                  {parsedNotes.productSku && (
+                    <p className="inline-flex items-center rounded-md bg-white px-2 py-1 font-mono text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
+                      {parsedNotes.productSku}
+                    </p>
+                  )}
+                  {parsedNotes.notes && <p className="text-xs text-slate-400 italic">{parsedNotes.notes}</p>}
+                  {processing.submittedBy && <p className="text-xs text-slate-400">Submitted by {processing.submittedBy}</p>}
+                </div>
+              );
+            })()}
 
             {/* Quick links */}
             {(processing.shopifyLink || processing.commsLink) && (

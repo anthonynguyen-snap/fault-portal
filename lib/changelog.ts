@@ -45,6 +45,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Returns', text: 'Process Office Return now shows a live Total to refund summary before saving, including label fee and restocking fee deductions.' },
       { category: 'Returns', text: 'Process Office Return now has quick links to open the Commslayer conversation and search the Shopify order directly from the form.' },
       { category: 'Returns', text: 'Log Return Request now includes a Reason for Return dropdown while keeping Notes available for other context.' },
+      { category: 'Refunds', text: 'Refund requests now include a Product / SKU being refunded field to help prevent refunding the wrong colour or variant.' },
     ],
   },
   {
