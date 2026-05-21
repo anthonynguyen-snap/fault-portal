@@ -156,6 +156,10 @@ type SavedScanSession = {
   events: ScanEvent[];
 };
 
+function stockOptionLabel(item: StockItem): string {
+  return item.sku ? `${item.sku} — ${item.name}` : item.name;
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function StockPage() {
   const [items, setItems]           = useState<StockItem[]>([]);
@@ -2860,7 +2864,7 @@ export default function StockPage() {
                   >
                     <option value="">Select product…</option>
                     {items.map(item => (
-                      <option key={item.id} value={item.id}>{item.name}</option>
+                      <option key={item.id} value={item.id}>{stockOptionLabel(item)}</option>
                     ))}
                   </select>
                   <input
