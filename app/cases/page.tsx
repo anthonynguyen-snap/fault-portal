@@ -642,7 +642,7 @@ export default function CasesPage() {
                       <td className="whitespace-nowrap text-xs text-slate-500 font-mono">{formatDate(c.date)}</td>
                       <td><CopyOrderNumber value={c.orderNumber} /></td>
                       <td className="font-medium" title={c.customerName}>{truncate(c.customerName, 22)}</td>
-                      <td className="text-slate-500 text-sm" title={c.product}>{truncate(c.product, 22)}</td>
+                      <td title={c.product}><span className="text-slate-700 text-sm">{truncate(c.product, 24)}</span>{c.manufacturerNumber && (<p className="text-[11px] text-slate-400 mt-0.5 font-mono">{c.manufacturerNumber}</p>)}</td>
                       <td>
                         <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>
                           {c.faultType}
