@@ -7,7 +7,7 @@ import {
   Download, CheckSquare, Square, X, RefreshCw,
   Copy, Check, User, ChevronRight as ChevronRightSm,
 } from 'lucide-react';
-import { FaultCase, ClaimStatus } from '@/types';
+import { FaultCase, ClaimStatus, FaultType } from '@/types';
 import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge, STATUS_STYLES } from '@/lib/utils';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -116,6 +116,7 @@ export default function CasesPage() {
   const [total, setTotal]         = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
+  const [faultTypes, setFaultTypes]       = useState<string[]>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
 
@@ -124,6 +125,7 @@ export default function CasesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
+  const [faultTypeFilter, setFaultTypeFilter]       = useState('');
   const [fromDate, setFromDate]   = useState('');
   const [toDate, setToDate]       = useState('');
   const [mineOnly, setMineOnly]   = useState(false);
@@ -151,13 +153,20 @@ export default function CasesPage() {
     searchTimer.current = setTimeout(() => { setSearch(val); setPage(1); }, 300);
   }
 
-  // Load manufacturers once on mount
+  // Load manufacturers + fault types once on mount
   useEffect(() => {
     fetch('/api/manufacturers')
       .then(r => r.json())
       .then(json => {
         const names: string[] = (json.data ?? []).map((m: { name: string }) => m.name).sort();
         setManufacturers(names);
+      })
+      .catch(() => {});
+    fetch('/api/fault-types')
+      .then(r => r.json())
+      .then(json => {
+        const names: string[] = (json.data ?? []).map((ft: FaultType) => ft.name).sort();
+        setFaultTypes(names);
       })
       .catch(() => {});
   }, []);
@@ -170,6 +179,7 @@ export default function CasesPage() {
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
+    if (faultTypeFilter)     params.set('faultType', faultTypeFilter);
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
     if (mineOnly && user?.name) params.set('submittedBy', user.name);
@@ -188,7 +198,7 @@ export default function CasesPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, manufacturerFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
+  }, [search, statusFilter, manufacturerFilter, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -279,6 +289,7 @@ export default function CasesPage() {
     setSearch('');
     setStatusFilter('');
     setManufacturerFilter('');
+    setFaultTypeFilter('');
     setFromDate('');
     setToDate('');
     setMineOnly(false);
@@ -295,13 +306,14 @@ export default function CasesPage() {
     if (!showFilters) setShowFilters(true);
   }
 
-  const isFiltered = !!(search || statusFilter || manufacturerFilter || fromDate || toDate || mineOnly);
+  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter || fromDate || toDate || mineOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
+    if (faultTypeFilter)     params.set('faultType', faultTypeFilter);
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
     if (mineOnly && user?.name) params.set('submittedBy', user.name);
@@ -312,10 +324,10 @@ export default function CasesPage() {
     const json = await fetch(`/api/cases?${params}`).then(r => r.json());
     const allFiltered: FaultCase[] = json.data ?? [];
 
-    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Fault Type','Status','Cost','Evidence Link'];
+    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Fault Type','Fault Notes','Status','Cost','Evidence Link'];
     const rows = allFiltered.map(c => [
       c.id, c.date, c.orderNumber, c.customerName, c.product,
-      c.manufacturerName, c.faultType, c.claimStatus, c.unitCostUSD,
+      c.manufacturerName, c.faultType, c.faultNotes || '', c.claimStatus, c.unitCostUSD,
       c.evidenceLink,
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
@@ -391,7 +403,7 @@ export default function CasesPage() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by order number, customer, product…"
+              placeholder="Search by order number, customer, product, fault type or notes…"
               value={searchInput}
               onChange={e => handleSearchInput(e.target.value)}
               className="form-input pl-9"
@@ -409,7 +421,7 @@ export default function CasesPage() {
             className={`btn-secondary gap-2 flex-shrink-0 ${showFilters ? 'bg-slate-100 border-slate-300' : ''}`}
           >
             <Filter size={14} /> Filters
-            {(statusFilter || manufacturerFilter || fromDate || toDate) && (
+            {(statusFilter || manufacturerFilter || faultTypeFilter || fromDate || toDate) && (
               <span className="w-2 h-2 bg-brand-600 rounded-full" />
             )}
           </button>
@@ -447,12 +459,19 @@ export default function CasesPage() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               <div>
                 <label className="form-label text-xs">Status</label>
                 <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="form-input text-xs">
                   <option value="">All Statuses</option>
                   {CLAIM_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label text-xs">Fault Type</label>
+                <select value={faultTypeFilter} onChange={e => { setFaultTypeFilter(e.target.value); setPage(1); }} className="form-input text-xs">
+                  <option value="">All Fault Types</option>
+                  {faultTypes.map(ft => <option key={ft} value={ft}>{ft}</option>)}
                 </select>
               </div>
               <div>
@@ -552,7 +571,7 @@ export default function CasesPage() {
                         <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>
                           {c.faultType}
                         </span>
-                        {c.faultType === 'Other' && c.faultNotes && (
+                        {c.faultNotes && (
                           <p className="text-xs text-slate-400 mt-1 max-w-[160px] truncate" title={c.faultNotes}>
                             {c.faultNotes}
                           </p>

@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     const search      = searchParams.get('search')?.toLowerCase();
     const manufacturer= searchParams.get('manufacturer');
     const status      = searchParams.get('status');
+    const faultType   = searchParams.get('faultType');
     const from        = searchParams.get('from');
     const to          = searchParams.get('to');
     const submittedBy = searchParams.get('submittedBy')?.toLowerCase();
@@ -20,11 +21,18 @@ export async function GET(req: NextRequest) {
 
     if (search) {
       filtered = filtered.filter(c =>
-        c.orderNumber.toLowerCase().includes(search)   ||
-        c.customerName.toLowerCase().includes(search)  ||
-        c.product.toLowerCase().includes(search)       ||
+        c.orderNumber.toLowerCase().includes(search)      ||
+        c.customerName.toLowerCase().includes(search)     ||
+        c.product.toLowerCase().includes(search)          ||
         c.manufacturerName.toLowerCase().includes(search) ||
-        c.faultType.toLowerCase().includes(search)
+        c.faultType.toLowerCase().includes(search)        ||
+        (c.faultNotes || '').toLowerCase().includes(search)
+      );
+    }
+
+    if (faultType) {
+      filtered = filtered.filter(c =>
+        c.faultType.toLowerCase() === faultType.toLowerCase()
       );
     }
 
@@ -91,7 +99,7 @@ export async function POST(req: NextRequest) {
     for (const field of required) {
       if (!body[field]) {
         return NextResponse.json(
-          { error: `Missing required field: ${field}` },
+          { error: 'Missing required field: ' + field },
           { status: 400 }
         );
       }
@@ -99,7 +107,7 @@ export async function POST(req: NextRequest) {
 
     // Validate unitCostUSD bounds
     const unitCost = parseFloat(body.unitCostUSD) || 0;
-    if (unitCost < 0 || unitCost > 99_999) {
+    if (unitCost < 0 || unitCost > 99999) {
       return NextResponse.json({ error: 'unitCostUSD must be between 0 and 99,999' }, { status: 400 });
     }
 
