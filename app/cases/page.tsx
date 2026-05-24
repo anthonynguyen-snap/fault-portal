@@ -108,6 +108,81 @@ function InlineStatusBadge({
   );
 }
 
+// -- Fault Type multi-select checkbox dropdown
+function FaultTypeMultiSelect({
+  options,
+  selected,
+  onChange,
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (vals: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  function toggle(val: string) {
+    onChange(
+      selected.includes(val)
+        ? selected.filter(s => s !== val)
+        : [...selected, val]
+    );
+  }
+
+  const label =
+    selected.length === 0 ? 'All Fault Types' :
+    selected.length === 1 ? selected[0] :
+    selected.length + ' fault types';
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`form-input text-xs w-full flex items-center justify-between gap-1 text-left ${selected.length > 0 ? 'border-brand-400 bg-brand-50 text-brand-700' : 'text-slate-500'}`}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown size={12} className="flex-shrink-0 text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-lg z-40 overflow-hidden">
+          {selected.length > 0 && (
+            <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+              <span className="text-xs text-slate-500">{selected.length} selected</span>
+              <button onClick={() => onChange([])} className="text-xs text-red-500 hover:text-red-600 font-medium">Clear all</button>
+            </div>
+          )}
+          <div className="max-h-56 overflow-y-auto py-1">
+            {options.map(opt => (
+              <label key={opt} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(opt)}
+                  onChange={() => toggle(opt)}
+                  className="w-3.5 h-3.5 rounded border-slate-300 accent-[#1591b3] flex-shrink-0"
+                />
+                <span className={`text-xs truncate ${selected.includes(opt) ? 'text-brand-700 font-medium' : 'text-slate-700'}`}>
+                  {opt}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CasesPage() {
   const { user } = useAuth();
 
@@ -125,7 +200,7 @@ export default function CasesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
-  const [faultTypeFilter, setFaultTypeFilter]       = useState('');
+  const [faultTypeFilter, setFaultTypeFilter]       = useState<string[]>([]);
   const [fromDate, setFromDate]   = useState('');
   const [toDate, setToDate]       = useState('');
   const [mineOnly, setMineOnly]   = useState(false);
@@ -179,7 +254,7 @@ export default function CasesPage() {
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
-    if (faultTypeFilter)     params.set('faultType', faultTypeFilter);
+    faultTypeFilter.forEach(ft => params.append('faultType', ft));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
     if (mineOnly && user?.name) params.set('submittedBy', user.name);
@@ -289,7 +364,7 @@ export default function CasesPage() {
     setSearch('');
     setStatusFilter('');
     setManufacturerFilter('');
-    setFaultTypeFilter('');
+    setFaultTypeFilter([]);
     setFromDate('');
     setToDate('');
     setMineOnly(false);
@@ -306,14 +381,14 @@ export default function CasesPage() {
     if (!showFilters) setShowFilters(true);
   }
 
-  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter || fromDate || toDate || mineOnly);
+  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
-    if (faultTypeFilter)     params.set('faultType', faultTypeFilter);
+    faultTypeFilter.forEach(ft => params.append('faultType', ft));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
     if (mineOnly && user?.name) params.set('submittedBy', user.name);
@@ -421,7 +496,7 @@ export default function CasesPage() {
             className={`btn-secondary gap-2 flex-shrink-0 ${showFilters ? 'bg-slate-100 border-slate-300' : ''}`}
           >
             <Filter size={14} /> Filters
-            {(statusFilter || manufacturerFilter || faultTypeFilter || fromDate || toDate) && (
+            {(statusFilter || manufacturerFilter || faultTypeFilter.length > 0 || fromDate || toDate) && (
               <span className="w-2 h-2 bg-brand-600 rounded-full" />
             )}
           </button>
@@ -469,10 +544,11 @@ export default function CasesPage() {
               </div>
               <div>
                 <label className="form-label text-xs">Fault Type</label>
-                <select value={faultTypeFilter} onChange={e => { setFaultTypeFilter(e.target.value); setPage(1); }} className="form-input text-xs">
-                  <option value="">All Fault Types</option>
-                  {faultTypes.map(ft => <option key={ft} value={ft}>{ft}</option>)}
-                </select>
+                <FaultTypeMultiSelect
+                  options={faultTypes}
+                  selected={faultTypeFilter}
+                  onChange={vals => { setFaultTypeFilter(vals); setPage(1); }}
+                />
               </div>
               <div>
                 <label className="form-label text-xs">Manufacturer</label>

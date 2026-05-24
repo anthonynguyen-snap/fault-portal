@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const search      = searchParams.get('search')?.toLowerCase();
     const manufacturer= searchParams.get('manufacturer');
     const status      = searchParams.get('status');
-    const faultType   = searchParams.get('faultType');
+    const faultTypes  = searchParams.getAll('faultType');
     const from        = searchParams.get('from');
     const to          = searchParams.get('to');
     const submittedBy = searchParams.get('submittedBy')?.toLowerCase();
@@ -30,10 +30,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    if (faultType) {
-      filtered = filtered.filter(c =>
-        c.faultType.toLowerCase() === faultType.toLowerCase()
-      );
+    if (faultTypes.length > 0) {
+      const lower = faultTypes.map(f => f.toLowerCase());
+      filtered = filtered.filter(c => lower.includes(c.faultType.toLowerCase()));
     }
 
     if (manufacturer) {
