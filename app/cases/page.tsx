@@ -104,16 +104,6 @@ function InlineStatusBadge({
           ))}
         </div>
       )}
-      {noteTooltip && (
-        <div
-          className="fixed z-[200] pointer-events-none"
-          style={{ top: noteTooltip.y, left: noteTooltip.x, transform: "translateY(-100%)" }}
-        >
-          <div className="bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-[280px] whitespace-normal leading-relaxed mb-1.5">
-            {noteTooltip.text}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -655,7 +645,7 @@ export default function CasesPage() {
                       <td className="font-medium" title={c.customerName}>{truncate(c.customerName, 22)}</td>
                       <td title={c.product}><span className="text-slate-700 text-sm">{truncate(c.product, 24)}</span>{c.manufacturerNumber && (<p className="text-[11px] text-slate-400 mt-0.5 font-mono">{c.manufacturerNumber}</p>)}</td>
                       <td
-                        onMouseEnter={c.faultNotes ? (e: React.MouseEvent<HTMLTableCellElement>) => { const r = e.currentTarget.getBoundingClientRect(); setNoteTooltip({ text: c.faultNotes!, x: r.left, y: r.top - 8 }); } : undefined}
+                        onMouseEnter={c.faultNotes ? e => { const r = (e.currentTarget as HTMLTableCellElement).getBoundingClientRect(); setNoteTooltip({ text: c.faultNotes!, x: r.left, y: r.top - 8 }); } : undefined}
                         onMouseLeave={() => setNoteTooltip(null)}
                       >
                         <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>
@@ -705,6 +695,16 @@ export default function CasesPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {noteTooltip && (
+        <div
+          className="fixed z-[200] pointer-events-none"
+          style={{ top: noteTooltip.y, left: noteTooltip.x, transform: "translateY(-100%)" }}
+        >
+          <div className="bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-[280px] whitespace-normal leading-relaxed mb-1.5">
+            {noteTooltip.text}
+          </div>
         </div>
       )}
     </div>
