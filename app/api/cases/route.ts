@@ -80,11 +80,16 @@ export async function GET(req: NextRequest) {
 
     // Aggregate fault type counts across all filtered results
     const byFaultType: Record<string, number> = {};
+    const byMonth: Record<string, number> = {};
     for (const c of filtered) {
       byFaultType[c.faultType] = (byFaultType[c.faultType] || 0) + 1;
+      if (c.date) {
+        const ym = c.date.slice(0, 7); // 'YYYY-MM'
+        byMonth[ym] = (byMonth[ym] || 0) + 1;
+      }
     }
 
-    return NextResponse.json({ data: paged, total, page, pages, limit, byFaultType });
+    return NextResponse.json({ data: paged, total, page, pages, limit, byFaultType, byMonth });
   } catch (error) {
     console.error('[GET /api/cases]', error);
     return NextResponse.json({ error: 'Failed to fetch cases' }, { status: 500 });

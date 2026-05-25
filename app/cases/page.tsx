@@ -185,40 +185,65 @@ function FaultTypeMultiSelect({
 
 // ── Fault Summary Strip ─────────────────────────────────────────────────────
 function FaultSummaryStrip({
-  total, byFaultType, search,
-}: { total: number; byFaultType: Record<string, number>; search: string; }) {
+  total, byFaultType, byMonth, search,
+}: { total: number; byFaultType: Record<string, number>; byMonth: Record<string, number>; search: string; }) {
   const [copied, setCopied] = useState(false);
-  const sorted = Object.entries(byFaultType).sort((a, b) => b[1] - a[1]);
+  const sortedFaults = Object.entries(byFaultType).sort((a, b) => b[1] - a[1]);
+  const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+
+  function fmtMonth(ym: string) {
+    const [y, m] = ym.split('-');
+    const d = new Date(Number(y), Number(m) - 1, 1);
+    return d.toLocaleString('en-AU', { month: 'short', year: '2-digit' });
+  }
 
   function copyText() {
     const label = search ? `"${search}"` : 'this filter';
-    const lines = sorted.map(([ft, n]) => `  • ${ft || '(Blank)'}: ${n}`).join('\n');
+    const faultLines = sortedFaults.map(([ft, n]) => `  • ${ft || '(Blank)'}: ${n}`).join('\n');
+    const monthLines = sortedMonths.map(([ym, n]) => `  • ${fmtMonth(ym)}: ${n}`).join('\n');
     navigator.clipboard.writeText(
-      `Fault Summary for ${label}\nTotal: ${total} fault${total !== 1 ? 's' : ''}\n${lines}`
+      `Fault Summary for ${label}\nTotal: ${total} fault${total !== 1 ? 's' : ''}\n\nBy Fault Type:\n${faultLines}\n\nBy Month:\n${monthLines}`
     ).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
   return (
-    <div className="card px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Fault Breakdown</span>
-        <span className="text-xs font-bold text-slate-800">{total} total</span>
+    <div className="card px-4 py-4 space-y-3">
+      {/* Fault type row */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">By Fault Type</span>
+          <span className="text-xs font-bold text-slate-800">{total} total</span>
+        </div>
+        <div className="flex flex-wrap gap-2 flex-1">
+          {sortedFaults.map(([ft, n]) => (
+            <span key={ft || '__blank__'} className="inline-flex items-center gap-1.5 text-xs bg-slate-100 text-slate-700 rounded-full px-2.5 py-1">
+              <span className="font-medium">{ft || '(Blank)'}</span>
+              <span className="font-bold text-slate-900 bg-white rounded-full px-1.5 py-0.5 text-[11px] leading-none">{n}</span>
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2 flex-1">
-        {sorted.map(([ft, n]) => (
-          <span key={ft} className="inline-flex items-center gap-1.5 text-xs bg-slate-100 text-slate-700 rounded-full px-2.5 py-1">
-            <span className="font-medium">{ft || '(Blank)'}</span>
-            <span className="font-bold text-slate-900 bg-white rounded-full px-1.5 py-0.5 text-[11px] leading-none">{n}</span>
-          </span>
-        ))}
-      </div>
-      <button
-        onClick={copyText}
-        className="flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 flex-shrink-0"
-      >
-        {copied ? <Check size={13} /> : <Copy size={13} />}
-        {copied ? 'Copied!' : 'Copy summary'}
-      </button>
+      {/* Monthly row */}
+      {sortedMonths.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">By Month</span>
+          <div className="flex flex-wrap gap-2 flex-1">
+            {sortedMonths.map(([ym, n]) => (
+              <span key={ym} className="inline-flex items-center gap-1.5 text-xs bg-sky-50 text-sky-700 rounded-full px-2.5 py-1">
+                <span className="font-medium">{fmtMonth(ym)}</span>
+                <span className="font-bold text-sky-900 bg-white rounded-full px-1.5 py-0.5 text-[11px] leading-none">{n}</span>
+              </span>
+            ))}
+          </div>
+          <button
+            onClick={copyText}
+            className="flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 flex-shrink-0"
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? 'Copied!' : 'Copy summary'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -231,6 +256,7 @@ export default function CasesPage() {
   const [total, setTotal]         = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [faultSummary, setFaultSummary] = useState<Record<string, number>>({});
+  const [monthSummary, setMonthSummary] = useState<Record<string, number>>({});
   const [manufacturers, setManufacturers] = useState<string[]>([]);
   const [faultTypes, setFaultTypes]       = useState<string[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -313,6 +339,7 @@ export default function CasesPage() {
         setTotal(json.total ?? json.data?.length ?? 0);
         setTotalPages(json.pages ?? 1);
         setFaultSummary(json.byFaultType ?? {});
+        setMonthSummary(json.byMonth ?? {});
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -485,7 +512,7 @@ export default function CasesPage() {
 
       {/* Fault Summary Strip */}
       {isFiltered && !loading && total > 0 && Object.keys(faultSummary).length > 0 && (
-        <FaultSummaryStrip total={total} byFaultType={faultSummary} search={search} />
+        <FaultSummaryStrip total={total} byFaultType={faultSummary} byMonth={monthSummary} search={search} />
       )}
 
       {/* Batch Action Toolbar */}
