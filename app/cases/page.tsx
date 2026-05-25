@@ -192,7 +192,7 @@ function FaultSummaryStrip({
 
   function copyText() {
     const label = search ? `"${search}"` : 'this filter';
-    const lines = sorted.map(([ft, n]) => `  • ${ft}: ${n}`).join('\n');
+    const lines = sorted.map(([ft, n]) => `  • ${ft || '(Blank)'}: ${n}`).join('\n');
     navigator.clipboard.writeText(
       `Fault Summary for ${label}\nTotal: ${total} fault${total !== 1 ? 's' : ''}\n${lines}`
     ).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -207,7 +207,7 @@ function FaultSummaryStrip({
       <div className="flex flex-wrap gap-2 flex-1">
         {sorted.map(([ft, n]) => (
           <span key={ft} className="inline-flex items-center gap-1.5 text-xs bg-slate-100 text-slate-700 rounded-full px-2.5 py-1">
-            <span className="font-medium">{ft}</span>
+            <span className="font-medium">{ft || '(Blank)'}</span>
             <span className="font-bold text-slate-900 bg-white rounded-full px-1.5 py-0.5 text-[11px] leading-none">{n}</span>
           </span>
         ))}
