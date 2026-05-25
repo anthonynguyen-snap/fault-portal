@@ -122,7 +122,7 @@ function normaliseSku(value: string) {
     .trim();
 }
 
-function parseSlackRequest(text: string, stockBySku: Map<string, StockItem>) {
+function parseSlackRequest(text: string, stockBySku: Map<string, StockItem>, store?: string) {
   const lines: SmartImportLine[] = [];
   const unmatched: Array<{ sku: string; requested: number; raw: string }> = [];
   const seen = new Set<string>();
@@ -149,8 +149,10 @@ function parseSlackRequest(text: string, stockBySku: Map<string, StockItem>) {
     }
 
     const available = Math.max(0, Number(stock.quantity) || 0);
-    const storeroomQty = Math.min(available, requested);
-    const tplQty = Math.max(0, requested - storeroomQty);
+    // Sydney Store always sources from 3PL — skip storeroom split
+    const isSydney = store === 'Sydney Store';
+    const storeroomQty = isSydney ? 0 : Math.min(available, requested);
+    const tplQty = isSydney ? requested : Math.max(0, requested - storeroomQty);
     const rows: NewItemRow[] = [];
 
     if (storeroomQty > 0) {
@@ -412,13 +414,13 @@ function ReplenishmentPageInner() {
     return map;
   }, [stockItems]);
 
-  const smartImport = useMemo(() => parseSlackRequest(smartImportText, stockBySku), [smartImportText, stockBySku]);
+  const smartImport = useMemo(() => parseSlackRequest(smartImportText, stockBySku, form.store), [smartImportText, stockBySku, form.store]);
 
   // ── New item management ────────────────────────────────────────────────────
   function addItem() {
     setNewItems(prev => [...prev, {
       stockItemId: '', stockItemName: '', sku: '',
-      quantityRequested: 1, quantityOnHand: 0, source: 'Storeroom', skipped: false,
+      quantityRequested: 1, quantityOnHand: 0, source: form.store === 'Sydney Store' ? '3PL' : 'Storeroom', skipped: false,
     }]);
   }
 

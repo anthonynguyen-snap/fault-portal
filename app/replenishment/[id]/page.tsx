@@ -137,6 +137,7 @@ export default function ReplenishmentDetailPage() {
         else setNotesLog([]);
       } catch { setNotesLog([]); }
       setEditStore((req.store as typeof STORES[number]) ?? 'Adelaide Popup');
+      setAddItemSrc(req.store === 'Sydney Store' ? '3PL' : 'Storeroom');
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
@@ -335,7 +336,7 @@ export default function ReplenishmentDetailPage() {
       success('Item added');
       await load();
       setShowAddItem(false);
-      setAddItemId(''); setAddItemQty(1); setAddItemSrc('Storeroom');
+      setAddItemId(''); setAddItemQty(1); setAddItemSrc(request?.store === 'Sydney Store' ? '3PL' : 'Storeroom');
     } catch {
       toastError('Failed to add item');
     } finally { setAddItemSaving(false); }
