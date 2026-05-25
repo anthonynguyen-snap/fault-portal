@@ -78,7 +78,13 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
     const paged  = filtered.slice(offset, offset + limit);
 
-    return NextResponse.json({ data: paged, total, page, pages, limit });
+    // Aggregate fault type counts across all filtered results
+    const byFaultType: Record<string, number> = {};
+    for (const c of filtered) {
+      byFaultType[c.faultType] = (byFaultType[c.faultType] || 0) + 1;
+    }
+
+    return NextResponse.json({ data: paged, total, page, pages, limit, byFaultType });
   } catch (error) {
     console.error('[GET /api/cases]', error);
     return NextResponse.json({ error: 'Failed to fetch cases' }, { status: 500 });
