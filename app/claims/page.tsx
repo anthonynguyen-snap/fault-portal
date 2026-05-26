@@ -31,6 +31,7 @@ const YEARS = [currentYear, currentYear - 1, currentYear - 2].map(String);
 
 // Statuses that represent a terminal outcome — trigger the outcome modal
 const OUTCOME_STATUSES: ClaimStatus[] = ['Credit Received', 'Partial Credit', 'Rejected'];
+const NOTES_STATUSES:   ClaimStatus[] = ['Acknowledged', 'Claim Raised'];  // trigger modal for notes only
 
 function fmtDate(iso: string) {
   try {
@@ -208,7 +209,7 @@ export default function ClaimsPage() {
 
   // ── Status dropdown change ─────────────────────────────────────────────────
   function handleStatusChange(claim: Claim, status: ClaimStatus) {
-    if (OUTCOME_STATUSES.includes(status)) {
+    if (OUTCOME_STATUSES.includes(status) || NOTES_STATUSES.includes(status)) {
       // Pre-fill amount: full cost for Credit Received, 0 for Rejected
       const defaultAmount = status === 'Credit Received'
         ? String(claim.costAtRisk)
@@ -218,7 +219,7 @@ export default function ClaimsPage() {
       setOutcomeForm({
         amountRecovered: defaultAmount,
         outcomeDate: new Date().toISOString().slice(0, 10),
-        outcomeNotes: '',
+        outcomeNotes: claim.outcomeNotes || '',
         resolutionType: claim.resolutionType || 'Credit Note',
         replacementDetails: claim.replacementDetails || '',
       });
@@ -460,7 +461,7 @@ export default function ClaimsPage() {
                               >
                                 Edit
                               </button>
-                              {isResolved && (claim.outcomeDate || claim.outcomeNotes || claim.replacementDetails) && (
+                              {(claim.outcomeDate || claim.outcomeNotes || claim.replacementDetails) && (
                                 <button
                                   onClick={() => toggleExpand(claim.id)}
                                   className="text-slate-400 hover:text-slate-600"
@@ -657,7 +658,7 @@ export default function ClaimsPage() {
               </div>
 
               {/* Resolution type */}
-              {outcomeTarget.status !== 'Rejected' && (
+              {!NOTES_STATUSES.includes(outcomeTarget.status) && outcomeTarget.status !== 'Rejected' && (
                 <div>
                   <label className="form-label">Resolution Type</label>
                   <div className="flex gap-2">
@@ -682,7 +683,7 @@ export default function ClaimsPage() {
               )}
 
               {/* Amount recovered — shown for Credit Note or Mixed */}
-              {outcomeTarget.status !== 'Rejected' && (outcomeForm.resolutionType === 'Credit Note' || outcomeForm.resolutionType === 'Mixed') && (
+              {!NOTES_STATUSES.includes(outcomeTarget.status) && outcomeTarget.status !== 'Rejected' && (outcomeForm.resolutionType === 'Credit Note' || outcomeForm.resolutionType === 'Mixed') && (
                 <div>
                   <label className="form-label">Amount Recovered</label>
                   <div className="relative">
@@ -706,7 +707,7 @@ export default function ClaimsPage() {
               )}
 
               {/* Replacement details — shown for Replacement Goods or Mixed */}
-              {outcomeTarget.status !== 'Rejected' && (outcomeForm.resolutionType === 'Replacement Goods' || outcomeForm.resolutionType === 'Mixed') && (
+              {!NOTES_STATUSES.includes(outcomeTarget.status) && outcomeTarget.status !== 'Rejected' && (outcomeForm.resolutionType === 'Replacement Goods' || outcomeForm.resolutionType === 'Mixed') && (
                 <div>
                   <label className="form-label">Replacement Details</label>
                   <input
@@ -733,7 +734,9 @@ export default function ClaimsPage() {
               {/* Outcome notes */}
               <div>
                 <label className="form-label">
-                  {outcomeTarget.status === 'Rejected' ? 'Rejection reason' : 'Notes'}
+                  {outcomeTarget.status === 'Rejected' ? 'Rejection reason'
+                    : NOTES_STATUSES.includes(outcomeTarget.status) ? 'Response / notes'
+                    : 'Notes'}
                 </label>
                 <textarea
                   value={outcomeForm.outcomeNotes}
@@ -743,9 +746,11 @@ export default function ClaimsPage() {
                   placeholder={
                     outcomeTarget.status === 'Rejected'
                       ? 'Reason given by manufacturer…'
-                      : outcomeTarget.status === 'Partial Credit'
-                        ? 'What was disputed or adjusted…'
-                        : 'Credit note reference, timeline…'
+                      : NOTES_STATUSES.includes(outcomeTarget.status)
+                        ? 'e.g. Susan bulk acknowledged Jan–May, response expected within 30 days…'
+                        : outcomeTarget.status === 'Partial Credit'
+                          ? 'What was disputed or adjusted…'
+                          : 'Credit note reference, timeline…'
                   }
                 />
               </div>
