@@ -185,8 +185,16 @@ function FaultTypeMultiSelect({
 
 // ── Fault Summary Strip ─────────────────────────────────────────────────────
 function FaultSummaryStrip({
-  total, byFaultType, byMonth, search,
-}: { total: number; byFaultType: Record<string, number>; byMonth: Record<string, number>; search: string; }) {
+  total, byFaultType, byMonth, search, activeFaultTypes, onFaultTypeClick, onMonthClick,
+}: {
+  total: number;
+  byFaultType: Record<string, number>;
+  byMonth: Record<string, number>;
+  search: string;
+  activeFaultTypes: string[];
+  onFaultTypeClick: (ft: string) => void;
+  onMonthClick: (from: string, to: string) => void;
+}) {
   const [copied, setCopied] = useState(false);
   const sortedFaults = Object.entries(byFaultType).sort((a, b) => b[1] - a[1]);
   const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
@@ -195,6 +203,11 @@ function FaultSummaryStrip({
     const [y, m] = ym.split('-');
     const d = new Date(Number(y), Number(m) - 1, 1);
     return d.toLocaleString('en-AU', { month: 'short', year: '2-digit' });
+  }
+
+  function lastDayOfMonth(ym: string) {
+    const [y, m] = ym.split('-').map(Number);
+    return new Date(y, m, 0).toISOString().slice(0, 10);
   }
 
   function copyText() {
@@ -215,12 +228,28 @@ function FaultSummaryStrip({
           <span className="text-xs font-bold text-slate-800">{total} total</span>
         </div>
         <div className="flex flex-wrap gap-2 flex-1">
-          {sortedFaults.map(([ft, n]) => (
-            <span key={ft || '__blank__'} className="inline-flex items-center gap-1.5 text-xs bg-slate-100 text-slate-700 rounded-full px-2.5 py-1">
-              <span className="font-medium">{ft || '(Blank)'}</span>
-              <span className="font-bold text-slate-900 bg-white rounded-full px-1.5 py-0.5 text-[11px] leading-none">{n}</span>
-            </span>
-          ))}
+          {sortedFaults.map(([ft, n]) => {
+            const active = activeFaultTypes.includes(ft);
+            return (
+              <button
+                key={ft || '__blank__'}
+                type="button"
+                onClick={() => ft && onFaultTypeClick(ft)}
+                disabled={!ft}
+                title={ft ? (active ? `Remove "${ft}" filter` : `Filter by "${ft}"`) : 'Cannot filter blank fault type'}
+                className={`inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-1 transition-colors ${
+                  active
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : ft
+                      ? 'bg-slate-100 text-slate-700 hover:bg-brand-50 hover:text-brand-700 cursor-pointer'
+                      : 'bg-slate-100 text-slate-400 cursor-default'
+                }`}
+              >
+                <span className="font-medium">{ft || '(Blank)'}</span>
+                <span className={`font-bold rounded-full px-1.5 py-0.5 text-[11px] leading-none ${active ? 'bg-brand-500 text-white' : 'bg-white text-slate-900'}`}>{n}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
       {/* Monthly row */}
@@ -229,10 +258,16 @@ function FaultSummaryStrip({
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">By Month</span>
           <div className="flex flex-wrap gap-2 flex-1">
             {sortedMonths.map(([ym, n]) => (
-              <span key={ym} className="inline-flex items-center gap-1.5 text-xs bg-sky-50 text-sky-700 rounded-full px-2.5 py-1">
+              <button
+                key={ym}
+                type="button"
+                onClick={() => onMonthClick(`${ym}-01`, lastDayOfMonth(ym))}
+                title={`Filter to ${fmtMonth(ym)}`}
+                className="inline-flex items-center gap-1.5 text-xs bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-full px-2.5 py-1 transition-colors cursor-pointer"
+              >
                 <span className="font-medium">{fmtMonth(ym)}</span>
                 <span className="font-bold text-sky-900 bg-white rounded-full px-1.5 py-0.5 text-[11px] leading-none">{n}</span>
-              </span>
+              </button>
             ))}
           </div>
           <button
@@ -512,7 +547,18 @@ export default function CasesPage() {
 
       {/* Fault Summary Strip */}
       {isFiltered && !loading && total > 0 && Object.keys(faultSummary).length > 0 && (
-        <FaultSummaryStrip total={total} byFaultType={faultSummary} byMonth={monthSummary} search={search} />
+        <FaultSummaryStrip
+          total={total}
+          byFaultType={faultSummary}
+          byMonth={monthSummary}
+          search={search}
+          activeFaultTypes={faultTypeFilter}
+          onFaultTypeClick={ft => {
+            setFaultTypeFilter(prev => prev.includes(ft) ? prev.filter(f => f !== ft) : [...prev, ft]);
+            setPage(1);
+          }}
+          onMonthClick={(from, to) => { setFromDate(from); setToDate(to); setPage(1); }}
+        />
       )}
 
       {/* Batch Action Toolbar */}
