@@ -13,6 +13,7 @@ export type ClaimStatus =
   | 'Unsubmitted'
   | 'Claim Raised'
   | 'Acknowledged'
+  | 'Resolution Agreed'
   | 'Credit Received'
   | 'Partial Credit'
   | 'Rejected';

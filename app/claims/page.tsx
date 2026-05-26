@@ -131,10 +131,11 @@ export default function ClaimsPage() {
   }, [claims]);
 
   const totals = useMemo(() => ({
-    claimRaised:    claims.filter(c => c.status === 'Claim Raised').length,
-    acknowledged:   claims.filter(c => c.status === 'Acknowledged').length,
-    totalFaults:    claims.reduce((s, c) => s + c.faultCount, 0),
-    resolved:       claims.filter(c => OUTCOME_STATUSES.includes(c.status)).length,
+    claimRaised:        claims.filter(c => c.status === 'Claim Raised').length,
+    acknowledged:       claims.filter(c => c.status === 'Acknowledged').length,
+    resolutionAgreed:   claims.filter(c => c.status === 'Resolution Agreed').length,
+    totalFaults:        claims.reduce((s, c) => s + c.faultCount, 0),
+    resolved:           claims.filter(c => OUTCOME_STATUSES.includes(c.status)).length,
   }), [claims]);
 
   const grouped = useMemo(() => {
@@ -301,10 +302,10 @@ export default function ClaimsPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Claim Raised',    value: totals.claimRaised,  icon: Clock,       color: 'bg-amber-500' },
-          { label: 'Acknowledged',    value: totals.acknowledged, icon: FileCheck,   color: 'bg-blue-500' },
-          { label: 'Total Faults',    value: totals.totalFaults,  icon: TrendingUp,  color: 'bg-brand-600' },
-          { label: 'Outcome Recorded',value: totals.resolved,     icon: CheckCircle, color: 'bg-violet-600' },
+          { label: 'Claim Raised',       value: totals.claimRaised,       icon: Clock,       color: 'bg-amber-500' },
+          { label: 'Acknowledged',       value: totals.acknowledged,      icon: FileCheck,   color: 'bg-blue-500' },
+          { label: 'Resolution Agreed',  value: totals.resolutionAgreed,  icon: CheckCircle, color: 'bg-purple-500' },
+          { label: 'Outcome Recorded',   value: totals.resolved,          icon: TrendingUp,  color: 'bg-violet-600' },
         ].map(card => (
           <div key={card.label} className="card p-5">
             <div className="flex items-start justify-between">
