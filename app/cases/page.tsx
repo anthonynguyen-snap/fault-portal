@@ -185,11 +185,12 @@ function FaultTypeMultiSelect({
 
 // ── Fault Summary Strip ─────────────────────────────────────────────────────
 function FaultSummaryStrip({
-  total, byFaultType, byMonth, search, activeFaultTypes, onFaultTypeClick, onMonthClick,
+  total, byFaultType, byMonth, otherNotes, search, activeFaultTypes, onFaultTypeClick, onMonthClick,
 }: {
   total: number;
   byFaultType: Record<string, number>;
   byMonth: Record<string, number>;
+  otherNotes: Record<string, number>;
   search: string;
   activeFaultTypes: string[];
   onFaultTypeClick: (ft: string) => void;
@@ -198,6 +199,8 @@ function FaultSummaryStrip({
   const [copied, setCopied] = useState(false);
   const sortedFaults = Object.entries(byFaultType).sort((a, b) => b[1] - a[1]);
   const sortedMonths = Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]));
+  const sortedNotes  = Object.entries(otherNotes).sort((a, b) => b[1] - a[1]);
+  const showNotes = activeFaultTypes.includes('Other') && sortedNotes.length > 0;
 
   function fmtMonth(ym: string) {
     const [y, m] = ym.split('-');
@@ -214,8 +217,10 @@ function FaultSummaryStrip({
     const label = search ? `"${search}"` : 'this filter';
     const faultLines = sortedFaults.map(([ft, n]) => `  • ${ft || '(Blank)'}: ${n}`).join('\n');
     const monthLines = sortedMonths.map(([ym, n]) => `  • ${fmtMonth(ym)}: ${n}`).join('\n');
+    const noteLines = sortedNotes.map(([note, n]) => `  • ${note}: ${n}`).join('\n');
+    const noteSection = sortedNotes.length > 0 ? `\n\nOther — Fault Notes:\n${noteLines}` : '';
     navigator.clipboard.writeText(
-      `Fault Summary for ${label}\nTotal: ${total} fault${total !== 1 ? 's' : ''}\n\nBy Fault Type:\n${faultLines}\n\nBy Month:\n${monthLines}`
+      `Fault Summary for ${label}\nTotal: ${total} fault${total !== 1 ? 's' : ''}\n\nBy Fault Type:\n${faultLines}\n\nBy Month:\n${monthLines}${noteSection}`
     ).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
@@ -252,6 +257,21 @@ function FaultSummaryStrip({
           })}
         </div>
       </div>
+      {/* Other fault notes row */}
+      {showNotes && (
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0 pt-1">"Other" Notes</span>
+          <div className="flex flex-wrap gap-2 flex-1">
+            {sortedNotes.map(([note, n]) => (
+              <span key={note} className="inline-flex items-center gap-1.5 text-xs bg-amber-50 text-amber-800 rounded-full px-2.5 py-1">
+                <span className="font-medium">{note}</span>
+                {n > 1 && <span className="font-bold text-amber-900 bg-white rounded-full px-1.5 py-0.5 text-[11px] leading-none">{n}</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Monthly row */}
       {sortedMonths.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -292,6 +312,7 @@ export default function CasesPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [faultSummary, setFaultSummary] = useState<Record<string, number>>({});
   const [monthSummary, setMonthSummary] = useState<Record<string, number>>({});
+  const [otherNotes, setOtherNotes]     = useState<Record<string, number>>({});
   const [manufacturers, setManufacturers] = useState<string[]>([]);
   const [faultTypes, setFaultTypes]       = useState<string[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -375,6 +396,7 @@ export default function CasesPage() {
         setTotalPages(json.pages ?? 1);
         setFaultSummary(json.byFaultType ?? {});
         setMonthSummary(json.byMonth ?? {});
+        setOtherNotes(json.otherNotes ?? {});
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -551,6 +573,7 @@ export default function CasesPage() {
           total={total}
           byFaultType={faultSummary}
           byMonth={monthSummary}
+          otherNotes={otherNotes}
           search={search}
           activeFaultTypes={faultTypeFilter}
           onFaultTypeClick={ft => {
