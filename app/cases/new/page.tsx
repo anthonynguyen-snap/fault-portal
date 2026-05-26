@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Upload, X, CheckCircle, AlertCircle, ChevronLeft, PlusCircle,
@@ -34,6 +34,142 @@ function getFileIcon(type: string) {
   return <File size={20} className="text-slate-500" />;
 }
 
+
+// ── Fuzzy similarity helpers ──────────────────────────────────────────────────
+function normFaultName(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+}
+function faultSimilarity(a: string, b: string): number {
+  const na = normFaultName(a);
+  const nb = normFaultName(b);
+  if (na === nb) return 1;
+  if (na.includes(nb) || nb.includes(na)) return 0.85;
+  const wa = new Set(na.split(/\s+/).filter(w => w.length > 2));
+  const wb = new Set(nb.split(/\s+/).filter(w => w.length > 2));
+  const intersection = Array.from(wa).filter(w => wb.has(w)).length;
+  const unionSet = new Set<string>(Array.from(wa).concat(Array.from(wb)));
+  const union = unionSet.size;
+  return union > 0 ? intersection / union : 0;
+}
+
+// ── FaultTypeSelector ─────────────────────────────────────────────────────────
+interface FaultTypeSelectorProps {
+  value: string;
+  onChange: (val: string) => void;
+  faultTypes: FaultType[];
+  onFaultTypeAdded: (ft: FaultType) => void;
+  error?: string;
+}
+function FaultTypeSelector({ value, onChange, faultTypes, onFaultTypeAdded, error }: FaultTypeSelectorProps) {
+  const [addMode, setAddMode] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [similar, setSimilar] = useState<FaultType[]>([]);
+  const [adding, setAdding] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (newName.length >= 3) {
+      setSimilar(faultTypes.filter(ft => faultSimilarity(newName, ft.name) >= 0.4));
+    } else {
+      setSimilar([]);
+    }
+  }, [newName, faultTypes]);
+
+  function enterAddMode() {
+    setAddMode(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+  function cancelAdd() {
+    setAddMode(false);
+    setNewName('');
+    setSimilar([]);
+  }
+  function useSuggested(ft: FaultType) {
+    onChange(ft.name);
+    cancelAdd();
+  }
+  async function confirmAdd() {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setAdding(true);
+    try {
+      const res = await fetch('/api/fault-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed, description: '' }),
+      });
+      const data = await res.json();
+      if (data.data) {
+        onFaultTypeAdded(data.data);
+        onChange(data.data.name);
+        cancelAdd();
+      }
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  if (addMode) {
+    return (
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (similar.length === 0 && newName.trim().length >= 3) confirmAdd(); } if (e.key === 'Escape') cancelAdd(); }}
+            placeholder="Type new fault type name…"
+            className="form-input flex-1"
+          />
+          <button type="button" onClick={cancelAdd}
+            className="px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg whitespace-nowrap">
+            Cancel
+          </button>
+        </div>
+        {similar.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+            <p className="text-xs font-medium text-amber-700">⚠ Similar fault types already exist — use one of these instead?</p>
+            <div className="flex flex-wrap gap-2">
+              {similar.map(ft => (
+                <button key={ft.id} type="button" onClick={() => useSuggested(ft)}
+                  className="text-xs px-3 py-1.5 bg-white border border-amber-300 text-amber-800 rounded-full hover:bg-amber-100 transition-colors">
+                  {ft.name}
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={confirmAdd} disabled={adding}
+              className="text-xs text-amber-600 hover:text-amber-800 underline disabled:opacity-50">
+              {adding ? 'Adding…' : 'Add anyway as new type'}
+            </button>
+          </div>
+        )}
+        {similar.length === 0 && newName.trim().length >= 3 && (
+          <button type="button" onClick={confirmAdd} disabled={adding}
+            className="w-full py-2 text-sm font-medium text-brand-600 border border-brand-200 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-50">
+            {adding ? 'Adding…' : `＋ Add "${newName.trim()}" as new fault type`}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <select value={value}
+        onChange={e => {
+          if (e.target.value === '__add_new__') { enterAddMode(); }
+          else { onChange(e.target.value); }
+        }}
+        className={`form-input ${error ? 'border-red-300' : ''}`}>
+        <option value="">Select fault type…</option>
+        {faultTypes.map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
+        <option value="__add_new__">＋ Add new fault type…</option>
+      </select>
+    </div>
+  );
+}
+
 export default function NewCasePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -41,6 +177,7 @@ export default function NewCasePage() {
   const isAdmin = user?.role === 'admin';
   const [products, setProducts] = useState<Product[]>([]);
   const [faultTypes, setFaultTypes] = useState<FaultType[]>([]);
+  const handleFaultTypeAdded = useCallback((ft: FaultType) => setFaultTypes(prev => [...prev, ft]), []);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [mode, setMode] = useState<Mode>('standard');
@@ -531,11 +668,13 @@ export default function NewCasePage() {
               <div className="space-y-4">
                 <div>
                   <label className="form-label">Fault Type <span className="text-red-500">*</span></label>
-                  <select value={form.faultType} onChange={e => handleChange('faultType', e.target.value)}
-                    className={`form-input ${errors.faultType ? 'border-red-300' : ''}`}>
-                    <option value="">Select fault type…</option>
-                    {faultTypes.map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
-                  </select>
+                  <FaultTypeSelector
+                    value={form.faultType}
+                    onChange={v => handleChange('faultType', v)}
+                    faultTypes={faultTypes}
+                    onFaultTypeAdded={handleFaultTypeAdded}
+                    error={errors.faultType}
+                  />
                   {errors.faultType && <p className="form-error">{errors.faultType}</p>}
                 </div>
                 <div>
@@ -591,11 +730,13 @@ export default function NewCasePage() {
             {/* Row 3: Fault Type */}
             <div>
               <label className="form-label">Fault Type <span className="text-red-500">*</span></label>
-              <select value={form.faultType} onChange={e => handleChange('faultType', e.target.value)}
-                className={`form-input ${errors.faultType ? 'border-red-300' : ''}`}>
-                <option value="">Select fault type…</option>
-                {faultTypes.map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
-              </select>
+              <FaultTypeSelector
+                value={form.faultType}
+                onChange={v => handleChange('faultType', v)}
+                faultTypes={faultTypes}
+                onFaultTypeAdded={handleFaultTypeAdded}
+                error={errors.faultType}
+              />
               {errors.faultType && <p className="form-error">{errors.faultType}</p>}
             </div>
 
