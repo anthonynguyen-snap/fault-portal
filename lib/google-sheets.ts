@@ -439,8 +439,10 @@ function rowToClaim(row: string[]): Claim {
     caseIds:         row[9]
       ? row[9].split(',').map(s => s.trim()).filter(Boolean)
       : [],
-    outcomeDate:     row[10] || undefined,
-    outcomeNotes:    row[11] || undefined,
+    outcomeDate:        row[10] || undefined,
+    outcomeNotes:       row[11] || undefined,
+    resolutionType:     (row[12] as Claim['resolutionType']) || undefined,
+    replacementDetails: row[13] || undefined,
   };
 }
 
@@ -450,6 +452,7 @@ function claimToRow(c: Claim): string[] {
     String(c.faultCount), String(c.costAtRisk), String(c.amountRecovered),
     c.status, c.notes, c.caseIds.join(', '),
     c.outcomeDate || '', c.outcomeNotes || '',
+    c.resolutionType || '', c.replacementDetails || '',
   ];
 }
 
@@ -457,7 +460,7 @@ export async function getClaims(): Promise<Claim[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Claims!A2:L',
+    range: 'Claims!A2:N',
   });
   const rows = res.data.values || [];
   return rows.filter(r => r[0]).map(rowToClaim);

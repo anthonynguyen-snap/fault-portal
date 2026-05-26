@@ -53,10 +53,12 @@ export default function ClaimsPage() {
 
   // Record Outcome modal
   const [outcomeTarget, setOutcomeTarget] = useState<{ claim: Claim; status: ClaimStatus } | null>(null);
-  const [outcomeForm, setOutcomeForm] = useState<{ amountRecovered: string; outcomeDate: string; outcomeNotes: string }>({
+  const [outcomeForm, setOutcomeForm] = useState<{ amountRecovered: string; outcomeDate: string; outcomeNotes: string; resolutionType: string; replacementDetails: string }>({
     amountRecovered: '',
     outcomeDate: new Date().toISOString().slice(0, 10),
     outcomeNotes: '',
+    resolutionType: 'Credit Note',
+    replacementDetails: '',
   });
   const [savingOutcome, setSavingOutcome] = useState(false);
 
@@ -217,6 +219,8 @@ export default function ClaimsPage() {
         amountRecovered: defaultAmount,
         outcomeDate: new Date().toISOString().slice(0, 10),
         outcomeNotes: '',
+        resolutionType: claim.resolutionType || 'Credit Note',
+        replacementDetails: claim.replacementDetails || '',
       });
       setOutcomeTarget({ claim, status });
     } else {
@@ -246,6 +250,8 @@ export default function ClaimsPage() {
         amountRecovered: parseFloat(outcomeForm.amountRecovered) || 0,
         outcomeDate: outcomeForm.outcomeDate,
         outcomeNotes: outcomeForm.outcomeNotes,
+        resolutionType: outcomeForm.resolutionType as Claim['resolutionType'],
+        replacementDetails: outcomeForm.replacementDetails,
       };
       const res = await fetch('/api/claims', {
         method: 'PATCH',
@@ -427,9 +433,18 @@ export default function ClaimsPage() {
                           </td>
                           <td className="font-mono">
                             {isResolved ? (
-                              <span className={claim.amountRecovered > 0 ? 'text-emerald-700 font-semibold' : 'text-slate-400'}>
-                                {claim.amountRecovered > 0 ? formatCurrency(claim.amountRecovered) : '—'}
-                              </span>
+                              claim.resolutionType === 'Replacement Goods' ? (
+                                <span className="inline-flex items-center gap-1 text-xs bg-violet-100 text-violet-700 rounded-full px-2 py-0.5 font-medium">📦 Replacement</span>
+                              ) : claim.resolutionType === 'Mixed' ? (
+                                <div className="space-y-0.5">
+                                  {claim.amountRecovered > 0 && <div className="text-emerald-700 font-semibold">{formatCurrency(claim.amountRecovered)}</div>}
+                                  <span className="inline-flex items-center gap-1 text-xs bg-violet-100 text-violet-700 rounded-full px-2 py-0.5 font-medium">📦 + Goods</span>
+                                </div>
+                              ) : (
+                                <span className={claim.amountRecovered > 0 ? 'text-emerald-700 font-semibold' : 'text-slate-400'}>
+                                  {claim.amountRecovered > 0 ? formatCurrency(claim.amountRecovered) : '—'}
+                                </span>
+                              )
                             ) : (
                               <span className="text-slate-300 text-xs">pending</span>
                             )}
@@ -445,7 +460,7 @@ export default function ClaimsPage() {
                               >
                                 Edit
                               </button>
-                              {isResolved && (claim.outcomeDate || claim.outcomeNotes) && (
+                              {isResolved && (claim.outcomeDate || claim.outcomeNotes || claim.replacementDetails) && (
                                 <button
                                   onClick={() => toggleExpand(claim.id)}
                                   className="text-slate-400 hover:text-slate-600"
@@ -476,6 +491,12 @@ export default function ClaimsPage() {
                                   <div>
                                     <span className="text-slate-400">Outcome date: </span>
                                     <span className="text-slate-700 font-medium">{fmtDate(claim.outcomeDate)}</span>
+                                  </div>
+                                )}
+                                {claim.replacementDetails && (
+                                  <div className="flex-1">
+                                    <span className="text-violet-500">📦 </span>
+                                    <span className="text-slate-700 font-medium">{claim.replacementDetails}</span>
                                   </div>
                                 )}
                                 {claim.outcomeNotes && (
@@ -635,8 +656,33 @@ export default function ClaimsPage() {
                 </span>
               </div>
 
-              {/* Amount recovered */}
+              {/* Resolution type */}
               {outcomeTarget.status !== 'Rejected' && (
+                <div>
+                  <label className="form-label">Resolution Type</label>
+                  <div className="flex gap-2">
+                    {(['Credit Note', 'Replacement Goods', 'Mixed'] as const).map(rt => (
+                      <button
+                        key={rt}
+                        type="button"
+                        onClick={() => setOutcomeForm(f => ({ ...f, resolutionType: rt }))}
+                        className={`flex-1 text-xs py-2 px-3 rounded-lg border font-medium transition-colors ${
+                          outcomeForm.resolutionType === rt
+                            ? rt === 'Replacement Goods' ? 'bg-violet-600 border-violet-600 text-white'
+                              : rt === 'Mixed' ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : 'bg-brand-600 border-brand-600 text-white'
+                            : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                        }`}
+                      >
+                        {rt === 'Credit Note' ? '💳 Credit Note' : rt === 'Replacement Goods' ? '📦 Replacement Goods' : '💳📦 Mixed'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Amount recovered — shown for Credit Note or Mixed */}
+              {outcomeTarget.status !== 'Rejected' && (outcomeForm.resolutionType === 'Credit Note' || outcomeForm.resolutionType === 'Mixed') && (
                 <div>
                   <label className="form-label">Amount Recovered</label>
                   <div className="relative">
@@ -656,6 +702,20 @@ export default function ClaimsPage() {
                       {Math.round((parseFloat(outcomeForm.amountRecovered) / outcomeTarget.claim.costAtRisk) * 100)}% of cost at risk recovered
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Replacement details — shown for Replacement Goods or Mixed */}
+              {outcomeTarget.status !== 'Rejected' && (outcomeForm.resolutionType === 'Replacement Goods' || outcomeForm.resolutionType === 'Mixed') && (
+                <div>
+                  <label className="form-label">Replacement Details</label>
+                  <input
+                    type="text"
+                    value={outcomeForm.replacementDetails}
+                    onChange={e => setOutcomeForm(f => ({ ...f, replacementDetails: e.target.value }))}
+                    className="form-input"
+                    placeholder="e.g. 91 PowerBase 4 + 3 Watch Chargers in next PO"
+                  />
                 </div>
               )}
 

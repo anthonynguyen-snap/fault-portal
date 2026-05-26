@@ -70,6 +70,8 @@ export interface Claim {
   caseIds: string[];          // Array of FaultCase IDs in this claim batch
   outcomeDate?: string;       // ISO date when manufacturer responded
   outcomeNotes?: string;      // Why rejected, negotiation details, partial reason etc.
+  resolutionType?: 'Credit Note' | 'Replacement Goods' | 'Mixed'; // How the claim was resolved
+  replacementDetails?: string; // e.g. '91 PowerBase 4 + 3 Watch Chargers in next PO'
 }
 
 export interface DashboardStats {
