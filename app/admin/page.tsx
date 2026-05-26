@@ -139,20 +139,28 @@ function ProductsPanel() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [manufacturers, setManufacturers] = useState<string[]>([]);
+  const [customMfr, setCustomMfr] = useState(false);
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
-    const res = await fetch('/api/products');
-    const json = await res.json();
-    setProducts(json.data || []);
+    const [prodRes, mfrRes] = await Promise.all([
+      fetch('/api/products'),
+      fetch('/api/manufacturers'),
+    ]);
+    const prodJson = await prodRes.json();
+    const mfrJson  = await mfrRes.json();
+    setProducts(prodJson.data || []);
+    setManufacturers((mfrJson.data || []).map((m: { name: string }) => m.name).sort());
     setLoading(false);
   }
 
   function openNew() {
     setEditing(null);
     setForm({ name: '', manufacturerName: '', unitCostUSD: '', manufacturerNumbers: '' });
+    setCustomMfr(false);
     setError('');
     setShowModal(true);
   }
@@ -165,6 +173,7 @@ function ProductsPanel() {
       unitCostUSD: String(p.unitCostUSD),
       manufacturerNumbers: p.manufacturerNumbers.join(', '),
     });
+    setCustomMfr(false);
     setError('');
     setShowModal(true);
   }
@@ -273,7 +282,36 @@ function ProductsPanel() {
             </div>
             <div>
               <label className="form-label">Manufacturer Name *</label>
-              <input value={form.manufacturerName} onChange={e => setForm(f=>({...f,manufacturerName:e.target.value}))} className="form-input" placeholder="e.g. Acme Corp" />
+              {!customMfr ? (
+                <div className="flex gap-2">
+                  <select
+                    value={form.manufacturerName}
+                    onChange={e => {
+                      if (e.target.value === '__new__') { setCustomMfr(true); setForm(f => ({ ...f, manufacturerName: '' })); }
+                      else setForm(f => ({ ...f, manufacturerName: e.target.value }));
+                    }}
+                    className="form-input flex-1"
+                  >
+                    <option value="">Select manufacturer…</option>
+                    {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
+                    <option value="__new__">＋ Add new manufacturer…</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={form.manufacturerName}
+                    onChange={e => setForm(f => ({ ...f, manufacturerName: e.target.value }))}
+                    className="form-input flex-1"
+                    placeholder="e.g. Acme Corp"
+                  />
+                  <button type="button" onClick={() => { setCustomMfr(false); setForm(f => ({ ...f, manufacturerName: '' })); }}
+                    className="text-xs text-slate-500 hover:text-slate-700 whitespace-nowrap px-2">
+                    ← Back
+                  </button>
+                </div>
+              )}
             </div>
             <div>
               <label className="form-label">Unit Cost (USD)</label>
