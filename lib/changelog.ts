@@ -33,10 +33,27 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v8.1',
+    label: 'Claims, Fault Types & Cases',
+    date: '2026-05-26',
+    isLatest: true,
+    summary: 'Claims now track resolution type and support outcome notes, the All Cases page has a fault breakdown strip with clickable filters, and fault type management is smarter.',
+    changes: [
+      { category: 'Cases', text: 'Fault breakdown summary strip on All Cases — total count plus per-fault-type chips and monthly chips, all clickable to instantly filter the table' },
+      { category: 'Cases', text: 'Other fault notes breakdown — selecting the Other filter reveals a list of the actual notes logged under Other' },
+      { category: 'Cases', text: 'Smart fault type suggestions — when adding a new fault type during case submission, similar existing types are highlighted with a warning before the new one is saved' },
+      { category: 'Admin', text: 'Fault type library cleaned up — removed 13 duplicates and placeholders, merged similar types, renamed vague entries (e.g. "Expanded" → "Battery expanded / swollen", "Broken" → "Physical issue (broken)")' },
+      { category: 'Admin', text: 'Manufacturer field in Add Product is now a dropdown of existing manufacturers with an "Add new" escape hatch instead of a free-text input' },
+      { category: 'Cases', text: 'Claims now record a resolution type — Credit Note, Replacement Goods, or Mixed — when an outcome is logged' },
+      { category: 'Cases', text: 'Setting a claim to Acknowledged or Claim Raised now prompts for a response note so the outcome context is captured at each stage' },
+      { category: 'Replenishment', text: 'Sydney Store replenishment orders now always default to 3PL as the source — the Storeroom option is suppressed for that store' },
+    ],
+  },
+  {
     version: 'v8.0',
     label: 'Return Request Lookup',
     date: '2026-05-21',
-    isLatest: true,
+    isLatest: false,
     summary: 'Process Office Return now lets you search existing return requests before filling out the received parcel details.',
     changes: [
       { category: 'Returns', text: 'Process Office Return now has a Find Existing Return Request search for customers who were already sent a return form.' },
