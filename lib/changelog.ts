@@ -63,6 +63,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Returns', text: 'Process Office Return now has quick links to open the Commslayer conversation and search the Shopify order directly from the form.' },
       { category: 'Returns', text: 'Log Return Request now includes a Reason for Return dropdown while keeping Notes available for other context.' },
       { category: 'Refunds', text: 'Refund requests now include a Product / SKU being refunded field to help prevent refunding the wrong colour or variant.' },
+      { category: 'Refunds', text: 'Refund requests now support multiple Product / SKU entries, with each item shown separately when reviewing or processing.' },
       { category: 'Inventory', text: 'Stock Room receive and dispatch product selectors now show the SKU beside each product name to make variants easier to choose correctly.' },
       { category: 'Admin', text: 'Staff Members now has admin-only private profiles for shipping address, personal contact details, start date, contract/document link, and notes.' },
       { category: 'Replenishment', text: 'Replenishment Save Changes now persists per-item source, sent quantity, and skipped state before dispatch.' },
