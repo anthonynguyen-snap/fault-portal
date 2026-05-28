@@ -58,6 +58,8 @@ interface FormState {
   followUpNotes: string;
   notes: string;
   conversationLink: string;
+  overrideTotal: boolean;
+  overrideTotalAmount: string;
 }
 
 function blankItem(): LineItem {
@@ -79,6 +81,8 @@ function blankForm(processedBy = ''): FormState {
     followUpNotes: '',
     notes: '',
     conversationLink: '',
+    overrideTotal: false,
+    overrideTotalAmount: '',
   };
 }
 
@@ -252,12 +256,16 @@ export default function NewReturnPage() {
 
     setSubmitting(true);
     try {
+      const finalTotal = form.overrideTotal && form.overrideTotalAmount.trim()
+        ? parseFloat(form.overrideTotalAmount) || 0
+        : refundSummary.total;
       const payload = {
         ...form,
         stage: 'processed',
         trackingNumber:  form.trackingNumber.trim(),
         starshipitOrderNumber: form.starshipitOrderNumber.trim(),
         linkedRequestId: matchLinked ?? undefined,
+        totalRefundAmount: finalTotal,
         items: form.items.map(item => ({
           ...item,
           refundAmount: netRefund(item),
@@ -615,19 +623,24 @@ export default function NewReturnPage() {
             <PlusCircle size={15} /> Add Another Item
           </button>
 
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className={`rounded-xl border p-4 ${form.overrideTotal ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-emerald-900">Total to refund</p>
-                <p className="mt-1 text-xs text-emerald-700">
-                  Based on refund decisions, label fees, and restocking deductions entered above.
+                <p className={`text-sm font-semibold ${form.overrideTotal ? 'text-amber-900' : 'text-emerald-900'}`}>Total to refund</p>
+                <p className={`mt-1 text-xs ${form.overrideTotal ? 'text-amber-700' : 'text-emerald-700'}`}>
+                  {form.overrideTotal
+                    ? 'Manually overridden — calculated total is ignored.'
+                    : 'Based on refund decisions, label fees, and restocking deductions entered above.'}
                 </p>
               </div>
-              <p className="font-mono text-2xl font-bold text-emerald-700">
-                ${refundSummary.total.toFixed(2)}
+              <p className={`font-mono text-2xl font-bold ${form.overrideTotal ? 'text-amber-700' : 'text-emerald-700'}`}>
+                ${(form.overrideTotal && form.overrideTotalAmount.trim()
+                  ? parseFloat(form.overrideTotalAmount) || 0
+                  : refundSummary.total
+                ).toFixed(2)}
               </p>
             </div>
-            {refundSummary.items.length > 0 && (
+            {!form.overrideTotal && refundSummary.items.length > 0 && (
               <div className="mt-3 space-y-1 border-t border-emerald-200 pt-3">
                 {refundSummary.items.map((item, index) => (
                   <div key={`${item.product}-${index}`} className="flex justify-between gap-3 text-xs text-emerald-800">
@@ -637,6 +650,42 @@ export default function NewReturnPage() {
                 ))}
               </div>
             )}
+            {/* Override toggle */}
+            <div className={`mt-3 border-t pt-3 ${form.overrideTotal ? 'border-amber-200' : 'border-emerald-200'}`}>
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={form.overrideTotal}
+                  onChange={e => set('overrideTotal', e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
+                />
+                <span className={`text-xs font-medium ${form.overrideTotal ? 'text-amber-800' : 'text-emerald-800'}`}>
+                  Override total (bundle partial return, split refund, etc.)
+                </span>
+              </label>
+              {form.overrideTotal && (
+                <div className="mt-2.5 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-600 text-sm font-semibold">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={form.overrideTotalAmount}
+                      onChange={e => set('overrideTotalAmount', e.target.value)}
+                      placeholder="Enter override amount"
+                      className="form-input pl-7 border-amber-300 focus:ring-amber-400 bg-white"
+                      autoFocus
+                    />
+                  </div>
+                  {refundSummary.total > 0 && (
+                    <p className="text-xs text-amber-700 whitespace-nowrap">
+                      Calc: ${refundSummary.total.toFixed(2)}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -696,9 +745,16 @@ export default function NewReturnPage() {
         )}
 
         <div className="sticky bottom-0 z-20 -mx-3 flex flex-wrap items-center gap-3 border-t border-slate-200 bg-slate-50/95 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
-          <div className="mr-auto min-w-[150px] rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Total to refund</p>
-            <p className="font-mono text-lg font-bold text-emerald-700">${refundSummary.total.toFixed(2)}</p>
+          <div className={`mr-auto min-w-[150px] rounded-lg bg-white px-3 py-2 shadow-sm ring-1 ${form.overrideTotal ? 'ring-amber-300' : 'ring-slate-200'}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              Total to refund{form.overrideTotal && <span className="ml-1 text-amber-500">· Override</span>}
+            </p>
+            <p className={`font-mono text-lg font-bold ${form.overrideTotal ? 'text-amber-600' : 'text-emerald-700'}`}>
+              ${(form.overrideTotal && form.overrideTotalAmount.trim()
+                ? parseFloat(form.overrideTotalAmount) || 0
+                : refundSummary.total
+              ).toFixed(2)}
+            </p>
           </div>
           <Link href="/returns" className="btn-secondary flex-1 text-center">Cancel</Link>
           <button type="submit" disabled={submitting} className="btn-primary flex-1">
