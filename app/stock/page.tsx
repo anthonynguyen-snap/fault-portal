@@ -160,6 +160,85 @@ function stockOptionLabel(item: StockItem): string {
   return item.sku ? `${item.sku} — ${item.name}` : item.name;
 }
 
+interface StockComboboxProps {
+  items: StockItem[];
+  value: string;
+  onChange: (id: string) => void;
+}
+
+function StockCombobox({ items, value, onChange }: StockComboboxProps) {
+  const [query, setQuery]   = useState('');
+  const [open, setOpen]     = useState(false);
+  const ref                 = useRef<HTMLDivElement>(null);
+  const inputRef            = useRef<HTMLInputElement>(null);
+
+  const selected = items.find(i => i.id === value);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(i =>
+      i.sku.toLowerCase().includes(q) || i.name.toLowerCase().includes(q)
+    );
+  }, [items, query]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function handleSelect(item: StockItem) {
+    onChange(item.id);
+    setOpen(false);
+    setQuery('');
+    inputRef.current?.blur();
+  }
+
+  return (
+    <div ref={ref} className="relative flex-1 min-w-0">
+      <input
+        ref={inputRef}
+        type="text"
+        className="form-input w-full text-sm pr-8"
+        placeholder="Search SKU or product name…"
+        value={open ? query : (selected ? stockOptionLabel(selected) : '')}
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        onChange={e => setQuery(e.target.value)}
+        autoComplete="off"
+      />
+      <ChevronDown
+        size={14}
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+      />
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2.5 text-xs text-slate-400">No products match</p>
+          ) : (
+            filtered.slice(0, 40).map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onMouseDown={() => handleSelect(item)}
+                className={`w-full text-left px-3 py-2 text-sm flex items-baseline gap-2 hover:bg-slate-50 transition-colors ${value === item.id ? 'bg-brand-50' : ''}`}
+              >
+                <span className="font-mono text-[11px] text-slate-400 shrink-0">{item.sku}</span>
+                <span className={`truncate ${value === item.id ? 'text-brand-700 font-medium' : 'text-slate-800'}`}>{item.name}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function StockPage() {
   const [items, setItems]           = useState<StockItem[]>([]);
@@ -2857,16 +2936,11 @@ export default function StockPage() {
             <div className="space-y-2">
               {movLines.map((line, i) => (
                 <div key={i} className="flex gap-2 items-center">
-                  <select
+                  <StockCombobox
+                    items={items}
                     value={line.stockItemId}
-                    onChange={e => updateLine(i, 'stockItemId', e.target.value)}
-                    className="form-input flex-1 text-sm"
-                  >
-                    <option value="">Select product…</option>
-                    {items.map(item => (
-                      <option key={item.id} value={item.id}>{stockOptionLabel(item)}</option>
-                    ))}
-                  </select>
+                    onChange={id => updateLine(i, 'stockItemId', id)}
+                  />
                   <input
                     type="number"
                     min={1}
