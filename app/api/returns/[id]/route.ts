@@ -98,6 +98,38 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   }
 }
 
+// Auto-close any Pending refund requests for the same order number
+async function autoCloseRefunds(orderNumber: string, processedBy: string) {
+  if (!orderNumber) return;
+  const supabase = getSupabase();
+  const { data: matches } = await supabase
+    .from('refund_requests')
+    .select('id')
+    .eq('order_number', orderNumber)
+    .eq('status', 'Pending');
+  if (!matches?.length) return;
+  const now = new Date().toISOString();
+  await supabase
+    .from('refund_requests')
+    .update({
+      status:          'Processed',
+      processed_notes: 'Auto-closed — linked return was processed.',
+      processed_at:    now,
+    })
+    .eq('order_number', orderNumber)
+    .eq('status', 'Pending');
+  for (const r of matches) {
+    void logActivity({
+      actor:       processedBy || 'system',
+      action:      'refund.processed',
+      entityType:  'Refund',
+      entityId:    r.id as string,
+      entityLabel: orderNumber,
+      detail:      { note: 'Auto-closed when return was processed' },
+    });
+  }
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
@@ -153,6 +185,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         entityLabel: String(full?.order_number ?? ''),
         detail:      { customerName: String(full?.customer_name ?? '') },
       });
+      if (headerUpdates.status === 'Processed') {
+        void autoCloseRefunds(String(full?.order_number ?? ''), String(full?.processed_by ?? ''));
+      }
       return NextResponse.json({ data: fromRow(full) });
     }
 
@@ -164,6 +199,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       entityLabel: String(data.order_number ?? ''),
       detail:      { customerName: String(data.customer_name ?? '') },
     });
+    if (headerUpdates.status === 'Processed') {
+      void autoCloseRefunds(String(data.order_number ?? ''), String(data.processed_by ?? ''));
+    }
     return NextResponse.json({ data: fromRow(data) });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
