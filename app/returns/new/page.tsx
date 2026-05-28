@@ -404,6 +404,11 @@ export default function NewReturnPage() {
                             {req.items.map(item => item.product).filter(Boolean).join(', ')}
                           </p>
                         )}
+                        {req.notes?.trim() && (
+                          <p className="mt-1 truncate text-xs text-slate-400 italic">
+                            &ldquo;{req.notes.trim()}&rdquo;
+                          </p>
+                        )}
                       </div>
                       <span className="flex-shrink-0 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
                         Use
