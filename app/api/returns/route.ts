@@ -6,6 +6,37 @@ import { verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
+async function autoCloseRefunds(orderNumber: string, processedBy: string) {
+  if (!orderNumber) return;
+  const supabase = getSupabase();
+  const { data: matches } = await supabase
+    .from('refund_requests')
+    .select('id')
+    .eq('order_number', orderNumber)
+    .eq('status', 'Pending');
+  if (!matches?.length) return;
+  const now = new Date().toISOString();
+  await supabase
+    .from('refund_requests')
+    .update({
+      status:          'Processed',
+      processed_notes: 'Auto-closed — linked return was processed.',
+      processed_at:    now,
+    })
+    .eq('order_number', orderNumber)
+    .eq('status', 'Pending');
+  for (const r of matches) {
+    void logActivity({
+      actor:       processedBy || 'system',
+      action:      'refund.processed',
+      entityType:  'Refund',
+      entityId:    r.id as string,
+      entityLabel: orderNumber,
+      detail:      { note: 'Auto-closed when return was processed' },
+    });
+  }
+}
+
 function fromItemRow(row: Record<string, unknown>): ReturnItem {
   return {
     id:            String(row.id ?? ''),
@@ -207,6 +238,12 @@ export async function POST(req: NextRequest) {
       entityLabel: orderNumber,
       detail:      { customerName, itemCount: items?.length ?? 0 },
     });
+
+    // Auto-close any Pending refund requests for the same order when processing a return
+    if ((stage || 'processed') === 'processed') {
+      void autoCloseRefunds(orderNumber, loggedBy);
+    }
+
     return NextResponse.json({ data: fromRow(full) }, { status: 201 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
