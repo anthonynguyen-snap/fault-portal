@@ -201,6 +201,7 @@ export default function NewCasePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; link: string; previewUrl?: string; fileType?: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [ewasteAdvised, setEwasteAdvised] = useState(false);
   const [success, setSuccess] = useState(false);
   const [submittedCaseId, setSubmittedCaseId] = useState<string>('');
   const [duplicates, setDuplicates] = useState<{ id: string; product: string; date: string; faultType: string; claimStatus: string }[]>([]);
@@ -862,6 +863,20 @@ export default function NewCasePage() {
             <p className="text-sm text-red-700">{(errors as any).submit}</p>
           </div>
         )}
+
+        {/* E-waste acknowledgement */}
+        <label className={`flex items-start gap-3 cursor-pointer select-none rounded-xl border px-4 py-3.5 transition-colors ${ewasteAdvised ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+          <input
+            type="checkbox"
+            checked={ewasteAdvised}
+            onChange={e => setEwasteAdvised(e.target.checked)}
+            className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+          />
+          <div>
+            <p className="text-sm font-medium text-slate-800">Customer advised to dispose of the faulty product at an e-waste collection point</p>
+            <p className="text-xs text-slate-500 mt-0.5">Tick this to confirm the customer has been told not to dispose of the product in general waste and to use an e-waste facility instead.</p>
+          </div>
+        </label>
 
         <div className="flex items-center justify-between gap-4 pb-4">
           <Link href="/cases" className="btn-secondary">Cancel</Link>
