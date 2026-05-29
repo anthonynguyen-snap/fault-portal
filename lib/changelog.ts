@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v8.2',
+    label: 'Safety, Returns & Stock UX',
+    date: '2026-05-29',
+    isLatest: true,
+    summary: 'E-waste disposal is now a required step on fault case submission, return search shows reason for return, refund auto-close is fixed, and stock receiving has a searchable SKU picker.',
+    changes: [
+      { category: 'Cases', text: 'E-waste disposal acknowledgement is now a required checkbox on fault case submission — staff must confirm the customer has been directed to an e-waste collection point before the case can be saved' },
+      { category: 'Returns', text: 'Find Existing Return Request search results now show the customer\'s reason/notes so staff can see why they\'re returning before selecting the record' },
+      { category: 'Returns', text: 'Process Office Return form now has a manual total override option for bundle or partial returns where the calculated total doesn\'t match the actual refund amount' },
+      { category: 'Refunds', text: 'Fixed: processing a return via the Process Office Return form now correctly auto-closes any Pending refund requests for the same order number (previously only worked when editing an existing return)' },
+      { category: 'Inventory', text: 'Receive Stock and Dispatch Stock modals now use a searchable SKU combobox instead of a scrollable dropdown — type any part of a SKU or product name to filter instantly' },
+    ],
+  },
+  {
     version: 'v8.1',
     label: 'Claims, Fault Types & Cases',
     date: '2026-05-26',
-    isLatest: true,
+    isLatest: false,
     summary: 'Claims now track resolution type and support outcome notes, the All Cases page has a fault breakdown strip with clickable filters, and fault type management is smarter.',
     changes: [
       { category: 'Cases', text: 'Fault breakdown summary strip on All Cases — total count plus per-fault-type chips and monthly chips, all clickable to instantly filter the table' },
