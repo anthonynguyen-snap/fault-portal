@@ -388,6 +388,7 @@ export default function NewCasePage() {
     if (!form.product)      newErrors.product = 'Product is required';
     if (!form.faultType)    newErrors.faultType = 'Fault type is required';
     if (!form.evidenceLink) newErrors.file = 'Evidence upload is required';
+    if (!ewasteAdvised)     (newErrors as Record<string, string>).ewaste = 'You must confirm the customer has been directed to an e-waste collection point before submitting';
 
     // In Standard mode, customerName is also required
     if (mode === 'standard' && !form.customerName) {
@@ -864,19 +865,28 @@ export default function NewCasePage() {
           </div>
         )}
 
-        {/* E-waste acknowledgement */}
-        <label className={`flex items-start gap-3 cursor-pointer select-none rounded-xl border px-4 py-3.5 transition-colors ${ewasteAdvised ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
-          <input
-            type="checkbox"
-            checked={ewasteAdvised}
-            onChange={e => setEwasteAdvised(e.target.checked)}
-            className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
-          />
-          <div>
-            <p className="text-sm font-medium text-slate-800">Customer advised to dispose of the faulty product at an e-waste collection point</p>
-            <p className="text-xs text-slate-500 mt-0.5">Tick this to confirm the customer has been told not to dispose of the product in general waste and to use an e-waste facility instead.</p>
-          </div>
-        </label>
+        {/* E-waste acknowledgement — required */}
+        <div>
+          <label className={`flex items-start gap-3 cursor-pointer select-none rounded-xl border px-4 py-3.5 transition-colors ${ewasteAdvised ? 'border-emerald-300 bg-emerald-50' : (errors as Record<string,string>).ewaste ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}>
+            <input
+              type="checkbox"
+              checked={ewasteAdvised}
+              onChange={e => { setEwasteAdvised(e.target.checked); setErrors(prev => { const n = { ...prev } as Record<string,string>; delete n.ewaste; return n; }); }}
+              className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0"
+            />
+            <div>
+              <p className="text-sm font-medium text-slate-800">
+                Customer directed to an e-waste collection point for disposal <span className="text-red-400">*</span>
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">Faulty units must not be kept at home. Confirm the customer has been told to drop off the product at an e-waste facility — do not dispose of in general waste.</p>
+            </div>
+          </label>
+          {(errors as Record<string,string>).ewaste && (
+            <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1.5 px-1">
+              <span>⚠</span> {(errors as Record<string,string>).ewaste}
+            </p>
+          )}
+        </div>
 
         <div className="flex items-center justify-between gap-4 pb-4">
           <Link href="/cases" className="btn-secondary">Cancel</Link>
