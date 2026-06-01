@@ -33,10 +33,23 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v8.3',
+    label: 'Evidence Folders',
+    date: '2026-06-01',
+    isLatest: true,
+    summary: 'Monthly evidence folders can now be configured in Admin — the correct folder link appears automatically on the fault case form, with alerts when a month is missing or the year rolls over.',
+    changes: [
+      { category: 'Admin', text: 'New Evidence Folders tab in Admin Settings — paste a Google Drive folder URL for each month of the year once, and the portal handles the rest automatically' },
+      { category: 'Cases', text: 'Submit Fault Case form now shows the current month\'s evidence folder as a one-click button — staff no longer need to remember or search for the right folder' },
+      { category: 'Cases', text: 'Amber warning shown on the case form if no folder has been set for the current month, prompting staff to flag it to Anthony' },
+      { category: 'Admin', text: 'January alert in Evidence Folders tab reminds Anthony to create and update all folder links at the start of each new year' },
+    ],
+  },
+  {
     version: 'v8.2',
     label: 'Safety, Returns & Stock UX',
     date: '2026-05-29',
-    isLatest: true,
+    isLatest: false,
     summary: 'E-waste disposal is now a required step on fault case submission, return search shows reason for return, refund auto-close is fixed, and stock receiving has a searchable SKU picker.',
     changes: [
       { category: 'Cases', text: 'E-waste disposal acknowledgement is now a required checkbox on fault case submission — staff must confirm the customer has been directed to an e-waste collection point before the case can be saved' },
