@@ -235,7 +235,6 @@ function ReplenishmentPageInner() {
   const [form, setForm] = useState({
     store:       'Adelaide Popup' as typeof STORES[number],
     orderNumber: generateOrderNumber('Adelaide Popup'),
-    requestedBy: '',
     date:        new Date().toISOString().slice(0, 10),
     notes:       '',
   });
@@ -285,7 +284,7 @@ function ReplenishmentPageInner() {
         .then(r => r.json())
         .then(({ data }) => {
           if (!data) return;
-          setForm(f => ({ ...f, store: data.store, orderNumber: '', requestedBy: data.requestedBy, notes: data.notes }));
+          setForm(f => ({ ...f, store: data.store, orderNumber: generateOrderNumber(data.store), notes: data.notes }));
           setNewItems(data.items.map((i: { stockItemId: string; stockItemName: string; sku: string; quantityRequested: number; quantityOnHand: number; source: string }) => ({
             stockItemId:       i.stockItemId,
             stockItemName:     i.stockItemName,
@@ -492,7 +491,7 @@ function ReplenishmentPageInner() {
       setNewItems([]);
       setSmartImportText('');
       setIncludeEOL(false);
-      setForm({ store: 'Adelaide Popup', orderNumber: generateOrderNumber('Adelaide Popup'), requestedBy: '', date: new Date().toISOString().slice(0, 10), notes: '' });
+      setForm({ store: 'Adelaide Popup', orderNumber: generateOrderNumber('Adelaide Popup'), date: new Date().toISOString().slice(0, 10), notes: '' });
       success('Request created', `Replenishment request for ${form.store} logged.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -811,7 +810,6 @@ function ReplenishmentPageInner() {
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Order #</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Items</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Units</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Requested by</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -845,7 +843,6 @@ function ReplenishmentPageInner() {
                         </button>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-800">{totalUnits(r)}</td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">{r.requestedBy || <span className="text-slate-300">—</span>}</td>
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <StatusChanger
                           id={r.id}
@@ -916,16 +913,10 @@ function ReplenishmentPageInner() {
                 </div>
               </div>
 
-              {/* Requested by + Date */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">Requested by</label>
-                  <input value={form.requestedBy} onChange={e => setForm(f => ({ ...f, requestedBy: e.target.value }))} className="form-input" placeholder="e.g. Michael" />
-                </div>
-                <div>
-                  <label className="form-label">Date</label>
-                  <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className="form-input" />
-                </div>
+              {/* Date */}
+              <div>
+                <label className="form-label">Date</label>
+                <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} className="form-input" />
               </div>
 
               {/* Smart import */}
