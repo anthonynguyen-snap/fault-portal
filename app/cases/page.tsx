@@ -526,10 +526,10 @@ export default function CasesPage() {
     const json = await fetch(`/api/cases?${params}`).then(r => r.json());
     const allFiltered: FaultCase[] = json.data ?? [];
 
-    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Fault Type','Fault Notes','Status','Cost','Evidence Link'];
+    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Manufacturer Number','Fault Type','Fault Notes','Status','Cost','Evidence Link'];
     const rows = allFiltered.map(c => [
       c.id, c.date, c.orderNumber, c.customerName, c.product,
-      c.manufacturerName, c.faultType, c.faultNotes || '', c.claimStatus, c.unitCostUSD,
+      c.manufacturerName, c.manufacturerNumber || '', c.faultType, c.faultNotes || '', c.claimStatus, c.unitCostUSD,
       c.evidenceLink,
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
