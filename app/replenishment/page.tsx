@@ -13,6 +13,16 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 
 const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
+
+function generateOrderNumber(store: string): string {
+  const prefix = store === 'Sydney Store' ? 'SYD' : 'ADE';
+  const now    = new Date();
+  const dd     = String(now.getDate()).padStart(2, '0');
+  const mm     = String(now.getMonth() + 1).padStart(2, '0');
+  const yy     = String(now.getFullYear()).slice(-2);
+  const suffix = Math.random().toString(36).slice(2, 5).toUpperCase();
+  return `${prefix}-${dd}${mm}${yy}-${suffix}`;
+}
 const SOURCES = ['Storeroom', '3PL'] as const;
 
 const STATUS_STYLES: Record<ReplenishmentStatus, string> = {
@@ -224,7 +234,7 @@ function ReplenishmentPageInner() {
   // New request form state
   const [form, setForm] = useState({
     store:       'Adelaide Popup' as typeof STORES[number],
-    orderNumber: '',
+    orderNumber: generateOrderNumber('Adelaide Popup'),
     requestedBy: '',
     date:        new Date().toISOString().slice(0, 10),
     notes:       '',
@@ -482,7 +492,7 @@ function ReplenishmentPageInner() {
       setNewItems([]);
       setSmartImportText('');
       setIncludeEOL(false);
-      setForm({ store: 'Adelaide Popup', orderNumber: '', requestedBy: '', date: new Date().toISOString().slice(0, 10), notes: '' });
+      setForm({ store: 'Adelaide Popup', orderNumber: generateOrderNumber('Adelaide Popup'), requestedBy: '', date: new Date().toISOString().slice(0, 10), notes: '' });
       success('Request created', `Replenishment request for ${form.store} logged.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -506,7 +516,7 @@ function ReplenishmentPageInner() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
-          <button onClick={() => setShowModal(true)} className="btn-primary">
+          <button onClick={() => { setForm(f => ({ ...f, orderNumber: generateOrderNumber(f.store) })); setShowModal(true); }} className="btn-primary">
             <Plus size={15} /> New Request
           </button>
         </div>
@@ -887,13 +897,22 @@ function ReplenishmentPageInner() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="form-label">Store</label>
-                  <select value={form.store} onChange={e => setForm(f => ({ ...f, store: e.target.value as typeof STORES[number] }))} className="form-input">
+                  <select value={form.store} onChange={e => { const s = e.target.value as typeof STORES[number]; setForm(f => ({ ...f, store: s, orderNumber: generateOrderNumber(s) })); }} className="form-input">
                     {STORES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="form-label">Order Number <span className="text-slate-400 font-normal">(optional)</span></label>
-                  <input value={form.orderNumber} onChange={e => setForm(f => ({ ...f, orderNumber: e.target.value }))} className="form-input" placeholder="e.g. PO-2026-001" />
+                  <label className="form-label">Order Number <span className="text-slate-400 font-normal text-[11px]">(auto-generated)</span></label>
+                  <div className="relative">
+                    <input value={form.orderNumber} onChange={e => setForm(f => ({ ...f, orderNumber: e.target.value }))} className="form-input font-mono pr-20" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, orderNumber: generateOrderNumber(f.store) }))}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-slate-400 hover:text-brand-600 bg-slate-100 hover:bg-brand-50 px-2 py-0.5 rounded transition-colors"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
                 </div>
               </div>
 
