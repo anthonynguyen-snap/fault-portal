@@ -14,6 +14,76 @@ import { useToast } from '@/components/ui/Toast';
 
 const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
 
+interface ReplenComboboxProps {
+  items: StockItem[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+  includeEOL: boolean;
+}
+
+function ReplenCombobox({ items, value, onChange, disabled, includeEOL }: ReplenComboboxProps) {
+  const [query, setQuery]  = useState('');
+  const [open, setOpen]    = useState(false);
+  const ref                = useRef<HTMLDivElement>(null);
+  const inputRef           = useRef<HTMLInputElement>(null);
+
+  const filtered = useMemo(() => {
+    const pool = items.filter(s => includeEOL || !s.discontinued);
+    const q = query.trim().toLowerCase();
+    if (!q) return pool;
+    return pool.filter(s =>
+      s.sku.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
+    );
+  }, [items, query, includeEOL]);
+
+  const selected = items.find(s => s.id === value);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false); setQuery('');
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative min-w-0">
+      <input
+        ref={inputRef}
+        type="text"
+        disabled={disabled}
+        autoComplete="off"
+        placeholder="Search SKU or product…"
+        className={`form-input text-xs py-1.5 w-full pr-6 ${disabled ? 'line-through text-red-400' : ''}`}
+        value={open ? query : (selected ? `${selected.sku ? selected.sku + ' · ' : ''}${selected.name}` : '')}
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        onChange={e => setQuery(e.target.value)}
+      />
+      <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          {filtered.length === 0
+            ? <p className="px-3 py-2 text-xs text-slate-400">No products match</p>
+            : filtered.slice(0, 40).map(s => (
+              <button key={s.id} type="button"
+                onMouseDown={() => { onChange(s.id); setOpen(false); setQuery(''); inputRef.current?.blur(); }}
+                className={`w-full text-left px-3 py-2 text-xs flex items-baseline gap-2 hover:bg-slate-50 transition-colors ${value === s.id ? 'bg-brand-50' : ''}`}>
+                <span className="font-mono text-[11px] text-slate-400 shrink-0">{s.sku}</span>
+                <span className={`truncate ${value === s.id ? 'text-brand-700 font-medium' : 'text-slate-800'}`}>
+                  {s.name}{s.discontinued ? ' · EOL' : ''}
+                </span>
+              </button>
+            ))
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
 function generateOrderNumber(store: string): string {
   const prefix = store === 'Sydney Store' ? 'SYD' : 'ADE';
   const now    = new Date();
@@ -1065,16 +1135,13 @@ function ReplenishmentPageInner() {
                           className={`text-base leading-none transition-colors ${item.skipped ? 'text-red-400 hover:text-slate-400' : 'text-slate-300 hover:text-red-400'}`}>
                           {item.skipped ? '↩' : '⊘'}
                         </button>
-                        <select
+                        <ReplenCombobox
+                          items={stockItems}
                           value={item.stockItemId}
-                          onChange={e => selectStockItem(idx, e.target.value)}
+                          onChange={id => selectStockItem(idx, id)}
                           disabled={item.skipped}
-                          className={`form-input text-xs py-1.5 ${item.skipped ? 'line-through text-red-400' : ''}`}>
-                          <option value="">Select product…</option>
-                          {stockItems.filter(s => includeEOL || !s.discontinued).map(s => (
-                            <option key={s.id} value={s.id}>{s.name}{s.sku ? ` · ${s.sku}` : ''}{s.discontinued ? ' · EOL' : ''}</option>
-                          ))}
-                        </select>
+                          includeEOL={includeEOL}
+                        />
                         <div className="text-center">
                           {item.source === '3PL' ? (
                             <span className="font-mono text-sm text-slate-300">—</span>
