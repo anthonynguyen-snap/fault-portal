@@ -31,6 +31,12 @@ function isoMonday() {
   d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
   return d.toISOString().slice(0, 10);
 }
+function isoLastMonthRange(): { from: string; to: string } {
+  const d = new Date();
+  const from = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  const to   = new Date(d.getFullYear(), d.getMonth(), 0);
+  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+}
 
 // ── Inline status change ──────────────────────────────────────────────────────
 function InlineStatusBadge({
@@ -498,12 +504,13 @@ export default function CasesPage() {
     setPage(1);
   }
 
-  function applyDatePreset(preset: 'today' | 'week' | 'month' | '30days') {
+  function applyDatePreset(preset: 'today' | 'week' | 'month' | 'lastMonth' | '30days') {
     const today = isoToday();
-    if (preset === 'today')  { setFromDate(today);        setToDate(today);  }
-    if (preset === 'week')   { setFromDate(isoMonday());  setToDate(today);  }
-    if (preset === 'month')  { setFromDate(today.slice(0, 8) + '01'); setToDate(today); }
-    if (preset === '30days') { setFromDate(isoNDaysAgo(30)); setToDate(today); }
+    if (preset === 'today')     { setFromDate(today);        setToDate(today);  }
+    if (preset === 'week')      { setFromDate(isoMonday());  setToDate(today);  }
+    if (preset === 'month')     { setFromDate(today.slice(0, 8) + '01'); setToDate(today); }
+    if (preset === 'lastMonth') { const r = isoLastMonthRange(); setFromDate(r.from); setToDate(r.to); }
+    if (preset === '30days')    { setFromDate(isoNDaysAgo(30)); setToDate(today); }
     setPage(1);
     if (!showFilters) setShowFilters(true);
   }
@@ -648,18 +655,21 @@ export default function CasesPage() {
         {showFilters && (
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Quick:</span>
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Date:</span>
               {([
-                { label: 'Today',      key: 'today'  as const },
-                { label: 'This Week',  key: 'week'   as const },
-                { label: 'This Month', key: 'month'  as const },
-                { label: 'Last 30d',   key: '30days' as const },
+                { label: 'Today',      key: 'today'     as const },
+                { label: 'This Week',  key: 'week'      as const },
+                { label: 'This Month', key: 'month'     as const },
+                { label: 'Last Month', key: 'lastMonth' as const },
+                { label: 'Last 30d',   key: '30days'    as const },
               ]).map(p => {
+                const lm = isoLastMonthRange();
                 const isActive =
-                  p.key === 'today'  ? fromDate === isoToday() && toDate === isoToday() :
-                  p.key === 'week'   ? fromDate === isoMonday() && toDate === isoToday() :
-                  p.key === 'month'  ? fromDate === isoToday().slice(0, 8) + '01' && toDate === isoToday() :
-                  p.key === '30days' ? fromDate === isoNDaysAgo(30) && toDate === isoToday() : false;
+                  p.key === 'today'     ? fromDate === isoToday() && toDate === isoToday() :
+                  p.key === 'week'      ? fromDate === isoMonday() && toDate === isoToday() :
+                  p.key === 'month'     ? fromDate === isoToday().slice(0, 8) + '01' && toDate === isoToday() :
+                  p.key === 'lastMonth' ? fromDate === lm.from && toDate === lm.to :
+                  p.key === '30days'    ? fromDate === isoNDaysAgo(30) && toDate === isoToday() : false;
                 return (
                   <button key={p.key} onClick={() => applyDatePreset(p.key)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
@@ -671,13 +681,30 @@ export default function CasesPage() {
                   </button>
                 );
               })}
-              {(fromDate || toDate) && (
+            </div>
+            {manufacturers.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Manufacturer:</span>
+                {manufacturers.map(m => (
+                  <button key={m} onClick={() => { setManufacturerFilter(manufacturerFilter === m ? '' : m); setPage(1); }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      manufacturerFilter === m
+                        ? 'bg-brand-50 border-brand-300 text-brand-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'
+                    }`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+            )}
+            {(fromDate || toDate) && (
+              <div className="flex items-center">
                 <button onClick={() => { setFromDate(''); setToDate(''); setPage(1); }}
                   className="px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-red-500 transition-colors">
                   Clear dates
                 </button>
-              )}
-            </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               <div>
                 <label className="form-label text-xs">Status</label>
