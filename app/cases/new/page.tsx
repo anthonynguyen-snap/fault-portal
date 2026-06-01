@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Upload, X, CheckCircle, AlertCircle, ChevronLeft, PlusCircle,
-  File, Image as ImageIcon, Video, Zap, LayoutList, ChevronDown, ChevronUp,
+  File, Image as ImageIcon, Video, Zap, LayoutList, ChevronDown, ChevronUp, ExternalLink,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Product, FaultType } from '@/types';
@@ -202,6 +202,16 @@ export default function NewCasePage() {
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; link: string; previewUrl?: string; fileType?: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [ewasteAdvised, setEwasteAdvised] = useState(false);
+  const [evidenceFolderUrl, setEvidenceFolderUrl] = useState<string>('');
+
+  // Load current month's evidence folder link
+  useEffect(() => {
+    const month = new Date().getMonth() + 1; // 1-indexed
+    fetch('/api/settings/evidence-folders')
+      .then(r => r.json())
+      .then(d => { setEvidenceFolderUrl((d.data ?? {})[String(month)] ?? ''); })
+      .catch(() => {});
+  }, []);
   const [success, setSuccess] = useState(false);
   const [submittedCaseId, setSubmittedCaseId] = useState<string>('');
   const [duplicates, setDuplicates] = useState<{ id: string; product: string; date: string; faultType: string; claimStatus: string }[]>([]);
@@ -821,11 +831,29 @@ export default function NewCasePage() {
           <h2 className="text-sm font-semibold text-slate-900 mb-1 pb-2 border-b border-slate-100">
             Evidence Links <span className="text-red-500">*</span>
           </h2>
+          {/* Current month folder link */}
+          {evidenceFolderUrl ? (
+            <a
+              href={evidenceFolderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 mb-3 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 text-sm font-medium text-brand-700 hover:bg-brand-100 transition-colors"
+            >
+              <span className="text-base">📁</span>
+              <span className="flex-1">Open {new Date().toLocaleString('default', { month: 'long' })} Evidence Folder</span>
+              <ExternalLink size={13} className="flex-shrink-0 opacity-60" />
+            </a>
+          ) : (
+            <div className="flex items-start gap-2.5 mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+              <span className="text-base">⚠️</span>
+              <div>
+                <p className="text-xs font-semibold text-amber-800">No evidence folder set for this month</p>
+                <p className="text-xs text-amber-700 mt-0.5">Upload your file to Google Drive then paste the share link below. Ask Anthony to set up the monthly folder in Admin → Evidence Folders.</p>
+              </div>
+            </div>
+          )}
           <p className="text-xs text-slate-500 mb-3">
-            Upload files to{" "}
-            <a href="https://drive.google.com" target="_blank" rel="noopener noreferrer"
-              className="text-brand-600 hover:underline font-medium">Google Drive</a>
-            {", then paste the share link(s) here. Separate multiple links with a comma or new line."}
+            Upload files to the folder above, then paste the individual share link(s) here. Separate multiple links with a comma or new line.
           </p>
           <textarea
             value={form.evidenceLink}
@@ -850,10 +878,10 @@ export default function NewCasePage() {
               ))}
             </div>
           )}
-          <a href="https://drive.google.com" target="_blank" rel="noopener noreferrer"
+          <a href={evidenceFolderUrl || 'https://drive.google.com'} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 mt-3 text-xs text-slate-400 hover:text-brand-600 transition-colors">
             <Upload size={12} />
-            Open Google Drive
+            {evidenceFolderUrl ? `Open ${new Date().toLocaleString('default', { month: 'long' })} folder` : 'Open Google Drive'}
           </a>
         </div>
 

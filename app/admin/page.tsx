@@ -25,13 +25,15 @@ import {
   RefreshCw,
   FileText,
   ExternalLink,
+  FolderOpen,
+  Save,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
 import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
 
 // Generic CRUD panel used for all three entity types
-type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'health' | 'changelog';
+type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'health' | 'changelog' | 'evidenceFolders';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('products');
@@ -70,9 +72,10 @@ export default function AdminPage() {
     {
       label: 'Portal',
       tabs: [
-        { key: 'kpiTargets', label: 'KPI Targets', icon: Target   },
-        { key: 'health',     label: 'Health',      icon: Database },
-        { key: 'changelog',  label: 'Changelog',   icon: History,  badge: hasNewChangelog, onSelect: handleChangelogTab },
+        { key: 'kpiTargets',      label: 'KPI Targets',      icon: Target      },
+        { key: 'evidenceFolders', label: 'Evidence Folders', icon: FolderOpen  },
+        { key: 'health',          label: 'Health',           icon: Database    },
+        { key: 'changelog',       label: 'Changelog',        icon: History, badge: hasNewChangelog, onSelect: handleChangelogTab },
       ],
     },
   ];
@@ -119,10 +122,11 @@ export default function AdminPage() {
       {activeTab === 'faultTypes'    && <FaultTypesPanel />}
       {activeTab === 'staff'         && <StaffPanel />}
       {activeTab === 'logins'        && <LoginsPanel />}
-      {activeTab === 'kpiTargets'    && <KpiTargetsPanel />}
-      {activeTab === 'roster'        && <RosterSettingsPanel />}
-      {activeTab === 'health'        && <IntegrationHealthPanel />}
-      {activeTab === 'changelog'     && <ChangelogPanel />}
+      {activeTab === 'kpiTargets'      && <KpiTargetsPanel />}
+      {activeTab === 'evidenceFolders' && <EvidenceFoldersPanel />}
+      {activeTab === 'roster'          && <RosterSettingsPanel />}
+      {activeTab === 'health'          && <IntegrationHealthPanel />}
+      {activeTab === 'changelog'       && <ChangelogPanel />}
     </div>
   );
 }
@@ -2054,6 +2058,110 @@ function ChangelogPanel() {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Evidence Folders Panel ───────────────────────────────────────────────────
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function EvidenceFoldersPanel() {
+  const [folders, setFolders] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
+  const [error, setError]     = useState('');
+
+  const currentMonth = new Date().getMonth(); // 0-indexed
+  const currentYear  = new Date().getFullYear();
+  const isJanuary    = currentMonth === 0;
+
+  useEffect(() => {
+    fetch('/api/settings/evidence-folders')
+      .then(r => r.json())
+      .then(d => { setFolders(d.data ?? {}); setLoading(false); });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true); setError(''); setSaved(false);
+    try {
+      const res = await fetch('/api/settings/evidence-folders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(folders),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className="text-sm text-slate-500 py-8 text-center">Loading…</div>;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900">Evidence Folders</h2>
+        <p className="text-sm text-slate-500 mt-1">
+          Paste your Google Drive folder link for each month. Staff will see the current month&apos;s link automatically on the Submit Fault Case form — no manual updating needed.
+        </p>
+      </div>
+
+      {/* Year rollover alert — shown every January */}
+      {isJanuary && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5">
+          <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-900">New year — update your evidence folders</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              It&apos;s {currentYear}. Create new monthly folders in Google Drive for this year and paste the links below.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="card divide-y divide-slate-100 overflow-hidden p-0">
+        {MONTHS.map((month, i) => {
+          const key       = String(i + 1);
+          const isCurrent = i === currentMonth;
+          const url       = folders[key] ?? '';
+          return (
+            <div key={month} className={`flex items-center gap-3 px-4 py-3 ${isCurrent ? 'bg-brand-50' : ''}`}>
+              <div className="w-24 flex-shrink-0">
+                <span className={`text-sm font-medium ${isCurrent ? 'text-brand-700' : 'text-slate-700'}`}>{month}</span>
+                {isCurrent && <span className="ml-2 rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600">Current</span>}
+              </div>
+              <input
+                type="url"
+                value={url}
+                onChange={e => setFolders(prev => ({ ...prev, [key]: e.target.value }))}
+                placeholder="https://drive.google.com/drive/folders/..."
+                className="form-input flex-1 text-xs font-mono"
+              />
+              {url && (
+                <a href={url} target="_blank" rel="noopener noreferrer" className="flex-shrink-0 text-slate-400 hover:text-brand-600">
+                  <ExternalLink size={14} />
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="flex items-center gap-3">
+        <button onClick={handleSave} disabled={saving} className="btn-primary gap-2">
+          {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? 'Saving…' : 'Save Folders'}
+        </button>
+        {saved && <span className="flex items-center gap-1.5 text-sm text-emerald-600"><CheckCircle size={14} /> Saved</span>}
       </div>
     </div>
   );

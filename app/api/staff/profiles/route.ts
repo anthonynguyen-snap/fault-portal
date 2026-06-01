@@ -19,6 +19,21 @@ function fromRow(row: Record<string, unknown>) {
   };
 }
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    const message = String(record.message ?? record.details ?? record.hint ?? '');
+    if (message) {
+      if (message.includes('staff_profiles') || message.includes('relation')) {
+        return 'Staff profiles table is missing. Apply the Supabase migration 20260521_staff_profiles.sql, then try again.';
+      }
+      return message;
+    }
+  }
+  return String(error);
+}
+
 async function requireAdmin() {
   const session = await verifySession();
   return session?.role === 'admin';
@@ -38,8 +53,7 @@ export async function GET() {
     if (error) throw error;
     return NextResponse.json({ data: (data ?? []).map(fromRow) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }
 
@@ -75,7 +89,6 @@ export async function PUT(req: NextRequest) {
     if (error) throw error;
     return NextResponse.json({ data: fromRow(data) });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }
