@@ -738,106 +738,103 @@ export default function ReplenishmentDetailPage() {
             </tr>
           </thead>
           <tbody>
-            {request.items.map((item: ReplenishmentLineItem, idx) => {
-              const skipped   = itemSkipped[item.id] ?? item.skipped ?? false;
-              const source    = itemSource[item.id] ?? item.source;
-              const onHand    = item.quantityOnHand;
-              const short     = onHand < item.quantityRequested;
-              const recvQty   = qtyReceived[item.id] ?? item.quantitySent ?? 0;
-              const rowShort  = showReceivedCol && !skipped && recvQty < (item.quantitySent || 0);
+            {(['Storeroom', '3PL'] as const).map(group => {
+              const groupItems = request.items.filter(
+                (item: ReplenishmentLineItem) => (itemSource[item.id] ?? item.source) === group
+              );
+              if (groupItems.length === 0) return null;
+              const colSpan = (isDispatched ? 0 : 1) + 5 + (showReceivedCol ? 1 : 0) + 1;
+              const groupSent = groupItems
+                .filter((i: ReplenishmentLineItem) => !(itemSkipped[i.id] ?? i.skipped))
+                .reduce((s: number, i: ReplenishmentLineItem) => s + (isDispatched ? (i.quantitySent || 0) : (qtySent[i.id] ?? i.quantityRequested)), 0);
               return (
-                <tr key={item.id} className={`border-b border-slate-50 last:border-0 transition-colors ${
-                  skipped
-                    ? 'bg-red-50/60'
-                    : rowShort
-                      ? 'bg-amber-50/60'
-                      : source === 'Storeroom'
-                        ? 'bg-emerald-50/40'
-                        : 'bg-sky-50/30'
-                }`}>
-                  {!isDispatched && (
-                    <td className="px-2 py-3 text-center">
-                      <button
-                        onClick={() => toggleSkip(item.id)}
-                        title={skipped ? 'Restore item' : 'Mark as out of stock'}
-                        className={`text-base leading-none transition-colors ${skipped ? 'text-red-400 hover:text-slate-400' : 'text-slate-300 hover:text-red-400'}`}>
-                        {skipped ? '↩' : '⊘'}
-                      </button>
+                <>
+                  {/* Group header */}
+                  <tr key={`header-${group}`} className={group === 'Storeroom' ? 'bg-emerald-50' : 'bg-sky-50'}>
+                    <td colSpan={colSpan} className="px-4 py-2">
+                      <span className={`text-xs font-bold uppercase tracking-wide ${group === 'Storeroom' ? 'text-emerald-700' : 'text-sky-700'}`}>
+                        {group === 'Storeroom' ? '🏬 Office / Storeroom' : '📦 3PL Warehouse'}
+                      </span>
+                      <span className="ml-2 text-[11px] text-slate-400">{groupItems.length} item{groupItems.length !== 1 ? 's' : ''} · {groupSent} units</span>
                     </td>
-                  )}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`font-medium ${skipped ? 'line-through text-red-400' : 'text-slate-800'}`}>{item.stockItemName}</span>
-                      {skipped && <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">OOS</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku || '—'}</td>
-                  <td className="px-4 py-3 text-center">
-                    {source === '3PL' ? (
-                      <span className="font-mono text-sm text-slate-300">—</span>
-                    ) : (
-                      <>
-                        <span className={`font-mono text-sm font-semibold ${
-                          skipped ? 'text-slate-300' :
-                          onHand === 0 ? 'text-red-500' : short ? 'text-amber-500' : 'text-emerald-600'
-                        }`}>{onHand}</span>
-                        {!skipped && short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
-                      </>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center font-mono text-sm font-semibold text-slate-700">{item.quantityRequested}</td>
-                  <td className="px-4 py-3 text-center">
-                    {skipped ? (
-                      <span className="text-slate-300 font-mono text-sm">—</span>
-                    ) : isDispatched ? (
-                      <span className="font-mono text-sm font-semibold text-slate-700">{item.quantitySent}</span>
-                    ) : (
-                      <input
-                        type="number" min={0}
-                        value={qtySent[item.id] ?? item.quantityRequested}
-                        onChange={e => setQtySent(prev => ({ ...prev, [item.id]: parseInt(e.target.value) || 0 }))}
-                        className="form-input text-xs py-1 text-center font-mono w-16 mx-auto"
-                      />
-                    )}
-                  </td>
-                  {showReceivedCol && (
-                    <td className="px-4 py-3 text-center">
-                      {skipped ? (
-                        <span className="text-slate-300 font-mono text-sm">—</span>
-                      ) : request.status === 'Delivered' ? (
-                        <span className={`font-mono text-sm font-semibold ${
-                          rowShort ? 'text-amber-600' : 'text-emerald-600'
-                        }`}>{recvQty}</span>
-                      ) : (
-                        <input
-                          type="number" min={0}
-                          value={qtyReceived[item.id] ?? item.quantitySent ?? 0}
-                          onChange={e => setQtyReceived(prev => ({ ...prev, [item.id]: parseInt(e.target.value) || 0 }))}
-                          className={`form-input text-xs py-1 text-center font-mono w-16 mx-auto ${
-                            rowShort ? 'border-amber-300 bg-amber-50' : ''
-                          }`}
-                        />
-                      )}
-                    </td>
-                  )}
-                  <td className="px-4 py-3 text-center">
-                    {isDispatched ? (
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        source === 'Storeroom'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-sky-100 text-sky-700'
-                      }`}>{source}</span>
-                    ) : (
-                      <select
-                        value={source}
-                        onChange={e => setItemSource(prev => ({ ...prev, [item.id]: e.target.value }))}
-                        className="form-input text-xs py-1 w-28 mx-auto">
-                        <option value="Storeroom">Storeroom</option>
-                        <option value="3PL">3PL</option>
-                      </select>
-                    )}
-                  </td>
-                </tr>
+                  </tr>
+                  {/* Group rows */}
+                  {groupItems.map((item: ReplenishmentLineItem) => {
+                    const skipped  = itemSkipped[item.id] ?? item.skipped ?? false;
+                    const source   = itemSource[item.id] ?? item.source;
+                    const onHand   = item.quantityOnHand;
+                    const short    = onHand < item.quantityRequested;
+                    const recvQty  = qtyReceived[item.id] ?? item.quantitySent ?? 0;
+                    const rowShort = showReceivedCol && !skipped && recvQty < (item.quantitySent || 0);
+                    return (
+                      <tr key={item.id} className={`border-b border-slate-50 last:border-0 transition-colors ${
+                        skipped ? 'bg-red-50/60' : rowShort ? 'bg-amber-50/60' : group === 'Storeroom' ? 'bg-emerald-50/30' : 'bg-sky-50/20'
+                      }`}>
+                        {!isDispatched && (
+                          <td className="px-2 py-3 text-center">
+                            <button onClick={() => toggleSkip(item.id)} title={skipped ? 'Restore item' : 'Mark as out of stock'}
+                              className={`text-base leading-none transition-colors ${skipped ? 'text-red-400 hover:text-slate-400' : 'text-slate-300 hover:text-red-400'}`}>
+                              {skipped ? '↩' : '⊘'}
+                            </button>
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-medium ${skipped ? 'line-through text-red-400' : 'text-slate-800'}`}>{item.stockItemName}</span>
+                            {skipped && <span className="text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-600">OOS</span>}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-500">{item.sku || '—'}</td>
+                        <td className="px-4 py-3 text-center">
+                          {source === '3PL' ? (
+                            <span className="font-mono text-sm text-slate-300">—</span>
+                          ) : (
+                            <>
+                              <span className={`font-mono text-sm font-semibold ${skipped ? 'text-slate-300' : onHand === 0 ? 'text-red-500' : short ? 'text-amber-500' : 'text-emerald-600'}`}>{onHand}</span>
+                              {!skipped && short && <span className="text-[10px] text-amber-500 block">short {item.quantityRequested - onHand}</span>}
+                            </>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center font-mono text-sm font-semibold text-slate-700">{item.quantityRequested}</td>
+                        <td className="px-4 py-3 text-center">
+                          {skipped ? (
+                            <span className="text-slate-300 font-mono text-sm">—</span>
+                          ) : isDispatched ? (
+                            <span className="font-mono text-sm font-semibold text-slate-700">{item.quantitySent}</span>
+                          ) : (
+                            <input type="number" min={0} value={qtySent[item.id] ?? item.quantityRequested}
+                              onChange={e => setQtySent(prev => ({ ...prev, [item.id]: parseInt(e.target.value) || 0 }))}
+                              className="form-input text-xs py-1 text-center font-mono w-16 mx-auto" />
+                          )}
+                        </td>
+                        {showReceivedCol && (
+                          <td className="px-4 py-3 text-center">
+                            {skipped ? (
+                              <span className="text-slate-300 font-mono text-sm">—</span>
+                            ) : request.status === 'Delivered' ? (
+                              <span className={`font-mono text-sm font-semibold ${rowShort ? 'text-amber-600' : 'text-emerald-600'}`}>{recvQty}</span>
+                            ) : (
+                              <input type="number" min={0} value={qtyReceived[item.id] ?? item.quantitySent ?? 0}
+                                onChange={e => setQtyReceived(prev => ({ ...prev, [item.id]: parseInt(e.target.value) || 0 }))}
+                                className={`form-input text-xs py-1 text-center font-mono w-16 mx-auto ${rowShort ? 'border-amber-300 bg-amber-50' : ''}`} />
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-center">
+                          {isDispatched ? (
+                            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${source === 'Storeroom' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}>{source}</span>
+                          ) : (
+                            <select value={source} onChange={e => setItemSource(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              className="form-input text-xs py-1 w-28 mx-auto">
+                              <option value="Storeroom">Storeroom</option>
+                              <option value="3PL">3PL</option>
+                            </select>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </>
               );
             })}
           </tbody>
