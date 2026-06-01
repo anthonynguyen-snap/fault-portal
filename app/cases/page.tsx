@@ -380,7 +380,7 @@ export default function CasesPage() {
       .then(r => r.json())
       .then(json => {
         const nonClaimable = new Set<string>(
-          (json.data ?? []).filter((p: { name: string; claimable: boolean }) => p.claimable === false).map((p: { name: string }) => p.name)
+          (json.data ?? []).filter((p: { name: string; claimable: boolean }) => p.claimable === false).map((p: { name: string }) => p.name.toLowerCase().trim())
         );
         setNonClaimableProducts(nonClaimable);
       })
@@ -517,7 +517,7 @@ export default function CasesPage() {
   }
 
   const displayedCases = claimableOnly
-    ? cases.filter(c => !nonClaimableProducts.has(c.product))
+    ? cases.filter(c => !nonClaimableProducts.has(c.product.toLowerCase().trim()))
     : cases;
 
   function applyDatePreset(preset: 'today' | 'week' | 'month' | 'lastMonth' | '30days') {
@@ -548,7 +548,7 @@ export default function CasesPage() {
 
     const json = await fetch(`/api/cases?${params}`).then(r => r.json());
     const allFiltered: FaultCase[] = claimableOnly
-      ? (json.data ?? []).filter((c: FaultCase) => !nonClaimableProducts.has(c.product))
+      ? (json.data ?? []).filter((c: FaultCase) => !nonClaimableProducts.has(c.product.toLowerCase().trim()))
       : (json.data ?? []);
 
     const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Manufacturer Number','Fault Type','Fault Notes','Status','Evidence Link'];
