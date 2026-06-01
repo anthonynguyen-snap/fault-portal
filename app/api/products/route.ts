@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       manufacturerNumbers: Array.isArray(body.manufacturerNumbers)
         ? body.manufacturerNumbers
         : [],
+      claimable: body.claimable !== false,
     });
     return NextResponse.json({ data: product }, { status: 201 });
   } catch (error) {

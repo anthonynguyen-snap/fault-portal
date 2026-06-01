@@ -160,6 +160,7 @@ function rowToProduct(row: string[]): Product {
     manufacturerNumbers: row[4]
       ? row[4].split(',').map(s => s.trim()).filter(Boolean)
       : [],
+    claimable: row[5] !== 'FALSE', // default true if blank
   };
 }
 
@@ -167,7 +168,7 @@ export async function getProducts(): Promise<Product[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Products!A2:E',
+    range: 'Products!A2:F',
   });
   const rows = res.data.values || [];
   return rows.filter(r => r[0]).map(rowToProduct);
@@ -177,17 +178,18 @@ export async function createProduct(
   data: Omit<Product, 'id'>
 ): Promise<Product> {
   const sheets = getSheets();
-  const product: Product = { ...data, id: `PROD-${Date.now()}` };
+  const product: Product = { ...data, claimable: data.claimable !== false, id: `PROD-${Date.now()}` };
   const row = [
     product.id,
     product.name,
     product.manufacturerName,
     String(product.unitCostUSD),
     product.manufacturerNumbers.join(', '),
+    product.claimable === false ? 'FALSE' : 'TRUE',
   ];
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Products!A:E',
+    range: 'Products!A:F',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
@@ -210,11 +212,12 @@ export async function updateProduct(
     updated.manufacturerName,
     String(updated.unitCostUSD),
     updated.manufacturerNumbers.join(', '),
+    updated.claimable === false ? 'FALSE' : 'TRUE',
   ];
   const sheetRow = idx + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `Products!A${sheetRow}:E${sheetRow}`,
+    range: `Products!A${sheetRow}:F${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });

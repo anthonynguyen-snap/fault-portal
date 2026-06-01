@@ -139,7 +139,7 @@ function ProductsPanel() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
-  const [form, setForm] = useState({ name: '', manufacturerName: '', unitCostUSD: '', manufacturerNumbers: '' });
+  const [form, setForm] = useState({ name: '', manufacturerName: '', unitCostUSD: '', manufacturerNumbers: '', claimable: true });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -163,7 +163,7 @@ function ProductsPanel() {
 
   function openNew() {
     setEditing(null);
-    setForm({ name: '', manufacturerName: '', unitCostUSD: '', manufacturerNumbers: '' });
+    setForm({ name: '', manufacturerName: '', unitCostUSD: '', manufacturerNumbers: '', claimable: true });
     setCustomMfr(false);
     setError('');
     setShowModal(true);
@@ -176,6 +176,7 @@ function ProductsPanel() {
       manufacturerName: p.manufacturerName,
       unitCostUSD: String(p.unitCostUSD),
       manufacturerNumbers: p.manufacturerNumbers.join(', '),
+      claimable: p.claimable !== false,
     });
     setCustomMfr(false);
     setError('');
@@ -191,6 +192,7 @@ function ProductsPanel() {
         name: form.name,
         manufacturerName: form.manufacturerName,
         unitCostUSD: parseFloat(form.unitCostUSD) || 0,
+        claimable: form.claimable,
         manufacturerNumbers: form.manufacturerNumbers
           .split(',').map(s => s.trim()).filter(Boolean),
       };
@@ -255,6 +257,11 @@ function ProductsPanel() {
                 <td className="text-slate-500">{p.manufacturerName}</td>
                 <td className="font-semibold">${p.unitCostUSD.toFixed(2)}</td>
                 <td className="text-slate-400 text-xs">{p.manufacturerNumbers.join(', ') || '—'}</td>
+                <td className="text-center">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.claimable !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {p.claimable !== false ? 'Claimable' : 'Track only'}
+                  </span>
+                </td>
                 <td>
                   <div className="flex items-center gap-2">
                     <button onClick={() => openEdit(p)} className="text-brand-600 hover:text-brand-800 p-1">
@@ -324,6 +331,17 @@ function ProductsPanel() {
             <div>
               <label className="form-label">Manufacturer Numbers</label>
               <input value={form.manufacturerNumbers} onChange={e => setForm(f=>({...f,manufacturerNumbers:e.target.value}))} className="form-input" placeholder="MN-001, MN-002, MN-003 (comma separated)" />
+            </div>
+            <div>
+              <label className="form-label">Claim Status</label>
+              <label className={`flex items-center gap-3 cursor-pointer select-none rounded-xl border px-4 py-3 transition-colors ${form.claimable ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                <input type="checkbox" checked={form.claimable} onChange={e => setForm(f=>({...f,claimable:e.target.checked}))}
+                  className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Claimable product</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Uncheck for products we track but cannot claim against the manufacturer (e.g. discontinued / 1st gen)</p>
+                </div>
+              </label>
               <p className="text-xs text-slate-400 mt-1">These appear as a dropdown when this product is selected.</p>
             </div>
           </div>

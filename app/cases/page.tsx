@@ -321,6 +321,8 @@ export default function CasesPage() {
   const [otherNotes, setOtherNotes]     = useState<Record<string, number>>({});
   const [manufacturers, setManufacturers] = useState<string[]>([]);
   const [faultTypes, setFaultTypes]       = useState<string[]>([]);
+  const [nonClaimableProducts, setNonClaimableProducts] = useState<Set<string>>(new Set());
+  const [claimableOnly, setClaimableOnly] = useState(false);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
 
@@ -372,6 +374,15 @@ export default function CasesPage() {
       .then(json => {
         const names: string[] = (json.data ?? []).map((ft: FaultType) => ft.name).sort();
         setFaultTypes(names);
+      })
+      .catch(() => {});
+    fetch('/api/products')
+      .then(r => r.json())
+      .then(json => {
+        const nonClaimable = new Set<string>(
+          (json.data ?? []).filter((p: { name: string; claimable: boolean }) => p.claimable === false).map((p: { name: string }) => p.name)
+        );
+        setNonClaimableProducts(nonClaimable);
       })
       .catch(() => {});
   }, []);
@@ -501,8 +512,13 @@ export default function CasesPage() {
     setFromDate('');
     setToDate('');
     setMineOnly(false);
+    setClaimableOnly(false);
     setPage(1);
   }
+
+  const displayedCases = claimableOnly
+    ? cases.filter(c => !nonClaimableProducts.has(c.product))
+    : cases;
 
   function applyDatePreset(preset: 'today' | 'week' | 'month' | 'lastMonth' | '30days') {
     const today = isoToday();
@@ -531,7 +547,9 @@ export default function CasesPage() {
     params.set('limit', '9999');
 
     const json = await fetch(`/api/cases?${params}`).then(r => r.json());
-    const allFiltered: FaultCase[] = json.data ?? [];
+    const allFiltered: FaultCase[] = claimableOnly
+      ? (json.data ?? []).filter((c: FaultCase) => !nonClaimableProducts.has(c.product))
+      : (json.data ?? []);
 
     const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Manufacturer Number','Fault Type','Fault Notes','Status','Evidence Link'];
     const rows = allFiltered.map(c => [
@@ -705,6 +723,17 @@ export default function CasesPage() {
                 </button>
               </div>
             )}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Claims:</span>
+              <button onClick={() => { setClaimableOnly(!claimableOnly); setPage(1); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                  claimableOnly
+                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                    : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'
+                }`}>
+                Claimable only
+              </button>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               <div>
                 <label className="form-label text-xs">Status</label>
@@ -801,7 +830,7 @@ export default function CasesPage() {
                     </td>
                   </tr>
                 ) : (
-                  cases.map(c => (
+                  displayedCases.map(c => (
                     <tr key={c.id}
                       className={`cursor-pointer ${selectedIds.has(c.id) ? 'bg-brand-50' : ''}`}
                       onClick={() => window.location.href = `/cases/${c.id}`}>
