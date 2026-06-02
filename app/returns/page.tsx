@@ -631,7 +631,17 @@ export default function ReturnsPage() {
         return stored && query && (stored === query || stored.includes(query) || query.includes(stored));
       });
     }
-    if (teamSearch.trim()) out = out.filter(r => r.assignedTo.toLowerCase().includes(teamSearch.toLowerCase()));
+    if (teamSearch.trim()) {
+      const q = teamSearch.toLowerCase();
+      out = out.filter(r =>
+        r.customerName.toLowerCase().includes(q) ||
+        r.customerEmail.toLowerCase().includes(q) ||
+        r.orderNumber.toLowerCase().includes(q) ||
+        r.assignedTo.toLowerCase().includes(q) ||
+        r.processedBy.toLowerCase().includes(q) ||
+        (r.items ?? []).some(i => i.product.toLowerCase().includes(q))
+      );
+    }
     return out;
   }, [mineOnly, teamSearch, user?.name]);
 
@@ -971,7 +981,7 @@ export default function ReturnsPage() {
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Filter by team member…" className="form-input pl-8 py-1.5 text-sm" />
+              <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Search customer, order, product…" className="form-input pl-8 py-1.5 text-sm" />
             </div>
             <button
               onClick={() => setMineOnly(v => !v)}
