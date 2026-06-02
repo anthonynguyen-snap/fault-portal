@@ -245,6 +245,7 @@ export function DashboardView() {
       </div>
 
       {/* Product Launches tile — always render for debugging */}
+      <div className="bg-red-500 text-white p-3 text-sm font-bold rounded-xl">DEBUG: launches = {launches.length}, stats loaded = {stats ? 'yes' : 'no'}</div>
       {true && (
         <div className="card overflow-hidden">
           <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-brand-50 to-purple-50">
