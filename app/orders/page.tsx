@@ -303,7 +303,7 @@ export default function OrderLookupPage() {
     <div className="max-w-5xl mx-auto">
       <div className="mb-6">
         <h1 className="page-title">Order Timeline</h1>
-        <p className="page-subtitle">Search an order to see cases, returns, refunds, links, and customer-care history in one place</p>
+        <p className="page-subtitle">Search by order number or customer name to see cases, returns, refunds, and customer-care history in one place</p>
       </div>
 
       <form onSubmit={lookup} className="flex gap-3 mb-6">
@@ -311,7 +311,7 @@ export default function OrderLookupPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Enter order number e.g. 406849AU"
+            placeholder="Order number or customer name e.g. 406849AU or John Smith"
             value={query}
             onChange={e => setQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
@@ -343,7 +343,7 @@ export default function OrderLookupPage() {
         <div className="card p-10 text-center">
           <Package size={28} className="mx-auto mb-3 text-slate-200" />
           <p className="text-sm font-medium text-slate-500">No portal records found</p>
-          <p className="text-xs text-slate-400 mt-1">No cases, refunds, or returns match order <span className="font-mono font-semibold">#{results.orderNumber}</span></p>
+          <p className="text-xs text-slate-400 mt-1">No cases, refunds, or returns match <span className="font-mono font-semibold">#{results.orderNumber}</span></p>
         </div>
       )}
 

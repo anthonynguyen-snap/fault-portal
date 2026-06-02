@@ -12,28 +12,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'order parameter is required' }, { status: 400 });
   }
 
-  // Normalise: strip leading #, uppercase for consistent matching
+  // Normalise: strip leading #
   const orderNum = raw.replace(/^#/, '').trim();
+  const q = orderNum.toLowerCase();
 
   try {
-    // Fetch all three sources in parallel
+    // Fetch all three sources in parallel — search both order number and customer name
     const [allCases, refundRes, returnRes] = await Promise.all([
       getCases(),
       getSupabase()
         .from('refund_requests')
         .select('*')
-        .ilike('order_number', `%${orderNum}%`)
+        .or(`order_number.ilike.%${orderNum}%,customer_name.ilike.%${orderNum}%`)
         .order('created_at', { ascending: false }),
       getSupabase()
         .from('returns')
         .select('*, return_items(*)')
-        .ilike('order_number', `%${orderNum}%`)
+        .or(`order_number.ilike.%${orderNum}%,customer_name.ilike.%${orderNum}%`)
         .order('date', { ascending: false }),
     ]);
 
     // Filter cases locally (Google Sheets doesn't support server-side filtering)
     const cases = allCases.filter(c =>
-      c.orderNumber.toLowerCase().includes(orderNum.toLowerCase())
+      c.orderNumber.toLowerCase().includes(q) ||
+      c.customerName.toLowerCase().includes(q)
     );
 
     const refunds = (refundRes.data ?? []).map((r: Record<string, unknown>) => ({
