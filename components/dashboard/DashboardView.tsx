@@ -141,7 +141,7 @@ export function DashboardView() {
 
   useEffect(() => {
     load();
-    fetch('/api/product-launches').then(r => r.json()).then(d => setLaunches(d.data ?? [])).catch(() => {});
+    fetch('/api/product-launches').then(r => r.json()).then(d => { console.log('[Dashboard] launches response:', d); setLaunches(d.data ?? []); }).catch(e => console.error('[Dashboard] launches error:', e));
   }, []);
 
   if (loading) {
