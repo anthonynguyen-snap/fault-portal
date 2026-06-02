@@ -64,8 +64,8 @@ export async function uploadFileToDrive(
     supportsAllDrives: true,
   });
 
-  return fileRes.data.webViewLink
-    || `https://drive.google.com/file/d/${fileId}/view`;
+  // Return a direct-embed URL so it can be used in <img> tags
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
 }
 
 /**
