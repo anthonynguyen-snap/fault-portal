@@ -210,13 +210,16 @@ export function DashboardView() {
         </div>
       </div>
 
-      {/* Product Launches tile */}
-      {launches.length > 0 && (
+      {/* Product Launches tile — always render for debugging */}
+      {true && (
         <div className="card overflow-hidden">
           <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-brand-50 to-purple-50">
             <Rocket size={15} className="text-brand-600" />
             <h2 className="text-sm font-semibold text-brand-900">Product Launches</h2>
           </div>
+          {launches.length === 0 && (
+            <div className="px-5 py-4 text-xs text-slate-400">No launches loaded — API may be failing or table missing.</div>
+          )}
           <div className={`grid gap-0 divide-x divide-slate-100 ${launches.length === 1 ? 'grid-cols-1' : launches.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
             {launches.map(l => {
               const isLive = l.launch_date ? new Date(l.launch_date) <= new Date() : true;
