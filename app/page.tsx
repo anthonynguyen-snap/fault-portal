@@ -230,6 +230,7 @@ export default function DashboardPage() {
   const [queueError, setQueueError] = useState('');
   const [queueLoading, setQueueLoading] = useState(true);
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const [launches, setLaunches] = useState<{ id: string; name: string; description: string; price_aud: number | null; image_url: string; launch_date: string | null; link: string }[]>([]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 30_000);
@@ -269,7 +270,10 @@ export default function DashboardPage() {
       .finally(() => setQueueLoading(false));
   }
 
-  useEffect(() => { loadStats(); }, []);
+  useEffect(() => {
+    loadStats();
+    fetch('/api/product-launches').then(r => r.json()).then(d => setLaunches(d.data ?? [])).catch(() => {});
+  }, []);
 
   function handleRefresh() {
     setRefreshing(true);
@@ -349,6 +353,48 @@ export default function DashboardPage() {
           <Link href="/cases/new" className="btn-primary">+ Submit Fault</Link>
         </div>
       </div>
+
+      {/* Product Launches tile */}
+      {launches.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-brand-50 to-purple-50">
+            <span className="text-base">🚀</span>
+            <h2 className="text-sm font-semibold text-brand-900">Product Launches</h2>
+          </div>
+          <div className={`grid divide-slate-100 ${launches.length === 1 ? 'grid-cols-1' : launches.length === 2 ? 'grid-cols-2 divide-x' : 'grid-cols-3 divide-x'}`}>
+            {launches.map(l => {
+              const isLive = l.launch_date ? new Date(l.launch_date) <= new Date() : true;
+              return (
+                <div key={l.id} className="p-4 flex gap-3 items-start">
+                  {l.image_url && (
+                    <img src={l.image_url} alt={l.name} className="w-16 h-16 object-cover rounded-lg flex-shrink-0 bg-slate-100" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-slate-900 text-sm">{l.name}</span>
+                      <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {isLive ? '✅ Live' : '🚀 Coming Soon'}
+                      </span>
+                    </div>
+                    {l.price_aud != null && <p className="text-sm font-bold text-brand-700 mt-0.5">${l.price_aud.toFixed(2)} AUD</p>}
+                    {l.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{l.description}</p>}
+                    {l.launch_date && (
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        {isLive ? 'Launched' : 'Launches'} {new Date(l.launch_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    )}
+                    {l.link && (
+                      <a href={l.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-brand-600 hover:underline">
+                        View product →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {viewingAsTeam && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
