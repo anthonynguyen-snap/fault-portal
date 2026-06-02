@@ -2249,10 +2249,9 @@ function ProductLaunchesPanel() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('caseId', `launch-${Date.now()}`);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd }).then(r => r.json());
+      const res = await fetch('/api/upload-image', { method: 'POST', body: fd }).then(r => r.json());
       if (res.error) throw new Error(res.error);
-      setForm(f => ({ ...f, imageUrl: res.data.link }));
+      setForm(f => ({ ...f, imageUrl: res.data.url }));
     } catch (e: any) {
       setErr(e.message);
     } finally {
