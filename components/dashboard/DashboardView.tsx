@@ -161,7 +161,41 @@ export function DashboardView() {
     );
   }
 
-  if (!stats) return null;
+  if (!stats) {
+    // Still show launches tile even if stats failed
+    return (
+      <div className="max-w-7xl mx-auto space-y-6">
+        {launches.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-brand-50 to-purple-50">
+              <Rocket size={15} className="text-brand-600" />
+              <h2 className="text-sm font-semibold text-brand-900">Product Launches</h2>
+            </div>
+            <div className={`grid gap-0 divide-x divide-slate-100 ${launches.length === 1 ? 'grid-cols-1' : launches.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {launches.map(l => {
+                const isLive = l.launch_date ? new Date(l.launch_date) <= new Date() : true;
+                return (
+                  <div key={l.id} className="p-4 flex gap-3 items-start">
+                    {l.image_url && <img src={l.image_url} alt={l.name} className="w-14 h-14 object-cover rounded-lg flex-shrink-0 bg-slate-100" />}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-900 text-sm">{l.name}</span>
+                        <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {isLive ? '✅ Live' : '🚀 Coming Soon'}
+                        </span>
+                      </div>
+                      {l.price_aud != null && <p className="text-sm font-bold text-brand-700 mt-0.5">${l.price_aud.toFixed(2)} AUD</p>}
+                      {l.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{l.description}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const topMfr = stats.faultsByManufacturer[0]?.name ?? '—';
   const weekChange = stats.monthlyTrend.length >= 2
