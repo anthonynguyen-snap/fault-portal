@@ -27,13 +27,16 @@ import {
   ExternalLink,
   FolderOpen,
   Save,
+  Rocket,
+  ImageIcon,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
 import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
 
 // Generic CRUD panel used for all three entity types
-type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'health' | 'changelog' | 'evidenceFolders';
+type Tab = 'products' | 'manufacturers' | 'faultTypes' | 'staff' | 'logins' | 'kpiTargets' | 'roster' | 'health' | 'changelog' | 'evidenceFolders' | 'launches';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('products');
@@ -74,6 +77,7 @@ export default function AdminPage() {
       tabs: [
         { key: 'kpiTargets',      label: 'KPI Targets',      icon: Target      },
         { key: 'evidenceFolders', label: 'Evidence Folders', icon: FolderOpen  },
+        { key: 'launches',        label: 'Launches',         icon: Rocket      },
         { key: 'health',          label: 'Health',           icon: Database    },
         { key: 'changelog',       label: 'Changelog',        icon: History, badge: hasNewChangelog, onSelect: handleChangelogTab },
       ],
@@ -124,6 +128,7 @@ export default function AdminPage() {
       {activeTab === 'logins'        && <LoginsPanel />}
       {activeTab === 'kpiTargets'      && <KpiTargetsPanel />}
       {activeTab === 'evidenceFolders' && <EvidenceFoldersPanel />}
+      {activeTab === 'launches'        && <ProductLaunchesPanel />}
       {activeTab === 'roster'          && <RosterSettingsPanel />}
       {activeTab === 'health'          && <IntegrationHealthPanel />}
       {activeTab === 'changelog'       && <ChangelogPanel />}
@@ -2181,6 +2186,248 @@ function EvidenceFoldersPanel() {
         </button>
         {saved && <span className="flex items-center gap-1.5 text-sm text-emerald-600"><CheckCircle size={14} /> Saved</span>}
       </div>
+    </div>
+  );
+}
+
+// ─── Product Launches Panel ───────────────────────────────────────────────────
+interface Launch {
+  id: string;
+  name: string;
+  description: string;
+  price_aud: number | null;
+  image_url: string;
+  launch_date: string | null;
+  link: string;
+  archived: boolean;
+}
+
+const BLANK_LAUNCH = { name: '', description: '', priceAud: '', imageUrl: '', launchDate: '', link: '' };
+
+function ProductLaunchesPanel() {
+  const [launches, setLaunches]   = useState<Launch[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing]     = useState<Launch | null>(null);
+  const [form, setForm]           = useState(BLANK_LAUNCH);
+  const [saving, setSaving]       = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr]             = useState('');
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch('/api/product-launches').then(r => r.json());
+    setLaunches(res.data ?? []);
+    setLoading(false);
+  }
+
+  function openNew() {
+    setEditing(null);
+    setForm(BLANK_LAUNCH);
+    setErr('');
+    setShowModal(true);
+  }
+
+  function openEdit(l: Launch) {
+    setEditing(l);
+    setForm({
+      name: l.name,
+      description: l.description,
+      priceAud: l.price_aud != null ? String(l.price_aud) : '',
+      imageUrl: l.image_url,
+      launchDate: l.launch_date ?? '',
+      link: l.link,
+    });
+    setErr('');
+    setShowModal(true);
+  }
+
+  async function handleImageUpload(file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('caseId', `launch-${Date.now()}`);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd }).then(r => r.json());
+      if (res.error) throw new Error(res.error);
+      setForm(f => ({ ...f, imageUrl: res.data.link }));
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { setErr('Product name is required'); return; }
+    setSaving(true); setErr('');
+    try {
+      const body = {
+        ...(editing ? { id: editing.id } : {}),
+        name:       form.name.trim(),
+        description: form.description.trim(),
+        priceAud:   form.priceAud ? parseFloat(form.priceAud) : null,
+        imageUrl:   form.imageUrl,
+        launchDate: form.launchDate || null,
+        link:       form.link.trim(),
+      };
+      const method = editing ? 'PATCH' : 'POST';
+      const res = await fetch('/api/product-launches', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => r.json());
+      if (res.error) throw new Error(res.error);
+      setShowModal(false);
+      load();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleArchive(id: string) {
+    await fetch('/api/product-launches', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, archived: true }),
+    });
+    load();
+  }
+
+  if (loading) return <div className="text-sm text-slate-500 py-8 text-center">Loading…</div>;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-slate-900">Product Launches</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Add upcoming or current launches — they appear as a tile on the dashboard for all staff.</p>
+        </div>
+        <button onClick={openNew} className="btn-primary gap-2"><Plus size={14} /> Add Launch</button>
+      </div>
+
+      {launches.length === 0 ? (
+        <div className="card p-10 text-center text-slate-400 text-sm">No launches yet — add one above.</div>
+      ) : (
+        <div className="space-y-3">
+          {launches.map(l => {
+            const isLive = l.launch_date ? new Date(l.launch_date) <= new Date() : true;
+            return (
+              <div key={l.id} className="card p-4 flex items-center gap-4">
+                {l.image_url ? (
+                  <img src={l.image_url} alt={l.name} className="w-16 h-16 object-cover rounded-lg flex-shrink-0 bg-slate-100" />
+                ) : (
+                  <div className="w-16 h-16 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <ImageIcon size={20} className="text-slate-300" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-slate-900">{l.name}</span>
+                    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {isLive ? 'Live' : 'Coming Soon'}
+                    </span>
+                  </div>
+                  {l.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{l.description}</p>}
+                  <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                    {l.price_aud != null && <span className="font-semibold text-slate-700">${l.price_aud.toFixed(2)} AUD</span>}
+                    {l.launch_date && <span>{new Date(l.launch_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button onClick={() => openEdit(l)} className="btn-ghost p-2"><Pencil size={14} /></button>
+                  <button onClick={() => handleArchive(l.id)} className="btn-ghost p-2 text-slate-400 hover:text-red-500"><X size={14} /></button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-900">{editing ? 'Edit Launch' : 'New Product Launch'}</h2>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 p-1">×</button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {/* Image upload */}
+              <div>
+                <label className="form-label">Product Photo</label>
+                <div
+                  className="relative rounded-xl border-2 border-dashed border-slate-200 hover:border-brand-400 transition-colors cursor-pointer overflow-hidden"
+                  style={{ minHeight: form.imageUrl ? 'auto' : '120px' }}
+                  onClick={() => document.getElementById('launch-img-input')?.click()}
+                >
+                  {form.imageUrl ? (
+                    <div className="relative">
+                      <img src={form.imageUrl} alt="preview" className="w-full max-h-48 object-contain bg-slate-50" />
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setForm(f => ({ ...f, imageUrl: '' })); }}
+                        className="absolute top-2 right-2 bg-white rounded-full p-1 shadow text-slate-400 hover:text-red-500">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                      {uploading ? <RefreshCw size={20} className="animate-spin mb-2" /> : <ImageIcon size={20} className="mb-2" />}
+                      <span className="text-xs">{uploading ? 'Uploading…' : 'Click to upload product photo'}</span>
+                    </div>
+                  )}
+                  <input
+                    id="launch-img-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Product Name <span className="text-red-400">*</span></label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="form-input" placeholder="e.g. PowerPack Ultra" />
+              </div>
+              <div>
+                <label className="form-label">Description</label>
+                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="form-input resize-none" placeholder="Key feature or positioning statement…" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Retail Price (AUD)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    <input type="number" step="0.01" min="0" value={form.priceAud} onChange={e => setForm(f => ({ ...f, priceAud: e.target.value }))} className="form-input pl-7" placeholder="49.95" />
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Launch Date</label>
+                  <input type="date" value={form.launchDate} onChange={e => setForm(f => ({ ...f, launchDate: e.target.value }))} className="form-input" />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Link <span className="text-slate-400 font-normal">(optional)</span></label>
+                <div className="relative">
+                  <LinkIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="url" value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))} className="form-input pl-8" placeholder="https://snapwireless.com.au/…" />
+                </div>
+              </div>
+              {err && <p className="text-sm text-red-600">{err}</p>}
+            </div>
+            <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+              <button onClick={handleSave} disabled={saving} className="btn-primary flex-1 justify-center">
+                {saving ? <><RefreshCw size={14} className="animate-spin" /> Saving…</> : editing ? 'Save Changes' : 'Add Launch'}
+              </button>
+              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
