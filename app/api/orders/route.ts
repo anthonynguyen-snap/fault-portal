@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       id:          String(r.id ?? ''),
       orderNumber: String(r.order_number ?? ''),
       customerName: String(r.customer_name ?? ''),
+      customerEmail: String(r.customer_email ?? ''),
       amount:      Number(r.amount ?? 0),
       reason:      String(r.reason ?? ''),
       status:      String(r.status ?? ''),
@@ -55,12 +56,41 @@ export async function GET(req: NextRequest) {
       id:           String(r.id ?? ''),
       orderNumber:  String(r.order_number ?? ''),
       customerName: String(r.customer_name ?? ''),
+      customerEmail: String(r.customer_email ?? ''),
       date:         String(r.date ?? ''),
       status:       String(r.status ?? ''),
       followUpStatus: String(r.follow_up_status ?? ''),
       totalRefundAmount: Number(r.total_refund_amount ?? 0),
       assignedTo:   String(r.assigned_to ?? ''),
     }));
+
+    // Build candidate list when name search matches multiple distinct customers
+    // Key by email (if available) otherwise by name+firstOrder
+    const candidateMap = new Map<string, { name: string; email: string; orderNumbers: string[]; recordCount: number }>();
+    const allRecords = [
+      ...returns.map(r => ({ name: r.customerName, email: r.customerEmail, order: r.orderNumber })),
+      ...refunds.map(r => ({ name: r.customerName, email: r.customerEmail, order: r.orderNumber })),
+      ...cases.map(c => ({ name: c.customerName, email: '', order: c.orderNumber })),
+    ];
+    for (const rec of allRecords) {
+      const key = rec.email?.trim() || `${rec.name}::${rec.order}`;
+      if (!key) continue;
+      const existing = candidateMap.get(key);
+      if (existing) {
+        if (!existing.orderNumbers.includes(rec.order)) existing.orderNumbers.push(rec.order);
+        existing.recordCount++;
+      } else {
+        candidateMap.set(key, { name: rec.name, email: rec.email || '', orderNumbers: [rec.order], recordCount: 1 });
+      }
+    }
+
+    const candidates = Array.from(candidateMap.values());
+    const isNameSearch = /\s/.test(q) || !/^\d/.test(q); // has space or doesn't start with digit
+    const hasMultiple = isNameSearch && candidates.length > 1;
+
+    if (hasMultiple) {
+      return NextResponse.json({ candidates });
+    }
 
     return NextResponse.json({
       orderNumber: orderNum,

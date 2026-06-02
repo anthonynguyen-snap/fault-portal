@@ -248,11 +248,12 @@ function TimelineItem({ event }: { event: TimelineEvent }) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function OrderLookupPage() {
   const searchParams = useSearchParams();
-  const [query,    setQuery]    = useState(searchParams.get('order') || '');
-  const [results,  setResults]  = useState<OrderResults | null>(null);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
-  const [searched, setSearched] = useState(false);
+  const [query,      setQuery]      = useState(searchParams.get('order') || '');
+  const [results,    setResults]    = useState<OrderResults | null>(null);
+  const [candidates, setCandidates] = useState<{ name: string; email: string; orderNumbers: string[]; recordCount: number }[] | null>(null);
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState('');
+  const [searched,   setSearched]   = useState(false);
 
   async function lookup(e?: React.FormEvent, override?: string) {
     e?.preventDefault();
@@ -261,13 +262,18 @@ export default function OrderLookupPage() {
     setLoading(true);
     setError('');
     setResults(null);
+    setCandidates(null);
     setSearched(true);
     try {
       const res  = await fetch(`/api/orders?order=${encodeURIComponent(q)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
-      setResults(json);
-      setQuery(json.orderNumber || q);
+      if (json.candidates) {
+        setCandidates(json.candidates);
+      } else {
+        setResults(json);
+        setQuery(json.orderNumber || q);
+      }
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong');
     } finally {
@@ -326,6 +332,40 @@ export default function OrderLookupPage() {
         <div className="card p-8 flex items-center justify-center gap-3 text-slate-400">
           <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
           <span className="text-sm">Building order timeline...</span>
+        </div>
+      )}
+
+      {/* Disambiguation — multiple customers with same name */}
+      {!loading && candidates && (
+        <div className="card p-5 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Multiple customers found for &ldquo;{query}&rdquo;</p>
+            <p className="text-xs text-slate-500 mt-0.5">Select the customer you&apos;re looking for:</p>
+          </div>
+          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden">
+            {candidates.map((c, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  const searchTerm = c.email || c.orderNumbers[0] || c.name;
+                  setQuery(searchTerm);
+                  setCandidates(null);
+                  void lookup(undefined, searchTerm);
+                }}
+                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{c.name}</p>
+                  <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-400">
+                    {c.email && <span>{c.email}</span>}
+                    <span>{c.orderNumbers.slice(0, 3).join(', ')}{c.orderNumbers.length > 3 ? ` +${c.orderNumbers.length - 3} more` : ''}</span>
+                  </div>
+                </div>
+                <span className="text-xs text-slate-400 flex-shrink-0">{c.recordCount} record{c.recordCount !== 1 ? 's' : ''} →</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
