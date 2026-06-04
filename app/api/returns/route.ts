@@ -179,6 +179,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Build restocking reasons note
+    const restockingNotes = items
+      .filter((item: Record<string, unknown>) => item.decision === 'Refund + Restocking Fee' && item.restockingReason)
+      .map((item: Record<string, unknown>) => `Restocking fee reason (${item.product}): ${item.restockingReason}`)
+      .join('\n');
+
     // Insert return header (legacy item fields left empty for new returns)
     const { data: ret, error: retErr } = await getSupabase()
       .from('returns')
@@ -209,12 +215,6 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (retErr) throw retErr;
-
-    // Build restocking reasons note
-    const restockingNotes = items
-      .filter((item: Record<string, unknown>) => item.decision === 'Refund + Restocking Fee' && item.restockingReason)
-      .map((item: Record<string, unknown>) => `Restocking fee reason (${item.product}): ${item.restockingReason}`)
-      .join('\n');
 
     // Insert line items
     const itemRows = items.map((item: Record<string, unknown>) => ({
