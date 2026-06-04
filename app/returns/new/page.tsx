@@ -61,6 +61,8 @@ interface FormState {
   conversationLink: string;
   overrideTotal: boolean;
   overrideTotalAmount: string;
+  discountType: '%' | '$';
+  discountValue: string;
 }
 
 function blankItem(): LineItem {
@@ -84,6 +86,8 @@ function blankForm(processedBy = ''): FormState {
     conversationLink: '',
     overrideTotal: false,
     overrideTotalAmount: '',
+    discountType: '%',
+    discountValue: '',
   };
 }
 
@@ -208,6 +212,17 @@ export default function NewReturnPage() {
       .slice(0, 6);
   }, [openRequests, requestSearch]);
 
+  // Calculate order-level discount amount
+  const discountAmount = useMemo(() => {
+    const val = parseFloat(form.discountValue) || 0;
+    if (!val) return 0;
+    const grossTotal = form.items
+      .filter(item => REFUND_DECISIONS.has(item.decision))
+      .reduce((sum, item) => sum + (parseFloat(item.refundAmount) || 0), 0);
+    if (form.discountType === '%') return grossTotal * (val / 100);
+    return Math.min(val, grossTotal);
+  }, [form.discountValue, form.discountType, form.items]);
+
   const refundSummary = useMemo(() => {
     const refundableItems = form.items
       .filter(item => REFUND_DECISIONS.has(item.decision))
@@ -217,11 +232,14 @@ export default function NewReturnPage() {
       }))
       .filter(item => item.amount > 0);
 
+    const subtotal = refundableItems.reduce((sum, item) => sum + item.amount, 0);
     return {
       items: refundableItems,
-      total: refundableItems.reduce((sum, item) => sum + item.amount, 0),
+      subtotal,
+      total: Math.max(0, subtotal - discountAmount),
+      discountAmount,
     };
-  }, [form.items]);
+  }, [form.items, discountAmount]);
 
   function setItemField(index: number, field: keyof LineItem, value: string | number | ReturnCondition | ReturnDecision) {
     setForm(prev => {
@@ -513,7 +531,36 @@ export default function NewReturnPage() {
 
         {/* Line Items */}
         <div className="card p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-700">Return Items</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-slate-700">Return Items</h2>
+            {/* Order-level discount */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Discount code applied?</span>
+              <div className="flex items-center gap-1 rounded-lg border border-slate-200 overflow-hidden">
+                <button type="button"
+                  onClick={() => set('discountType', '%')}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${form.discountType === '%' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                  %
+                </button>
+                <button type="button"
+                  onClick={() => set('discountType', '$')}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${form.discountType === '$' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
+                  $
+                </button>
+              </div>
+              <div className="relative w-24">
+                {form.discountType === '$' && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">$</span>}
+                <input
+                  type="number" min="0" step="0.01"
+                  value={form.discountValue}
+                  onChange={e => set('discountValue', e.target.value)}
+                  placeholder={form.discountType === '%' ? 'e.g. 10' : 'e.g. 20'}
+                  className={`form-input text-xs py-1 w-full ${form.discountType === '$' ? 'pl-6' : ''}`}
+                />
+                {form.discountType === '%' && <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>}
+              </div>
+            </div>
+          </div>
 
           {form.items.map((item, i) => (
             <div key={i} className="border border-slate-200 rounded-xl p-4 space-y-3">
@@ -663,6 +710,18 @@ export default function NewReturnPage() {
                     <span className="font-mono">${item.amount.toFixed(2)}</span>
                   </div>
                 ))}
+                {refundSummary.discountAmount > 0 && (
+                  <>
+                    <div className="flex justify-between gap-3 text-xs text-slate-500 border-t border-emerald-100 pt-1 mt-1">
+                      <span>Subtotal</span>
+                      <span className="font-mono">${refundSummary.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between gap-3 text-xs text-red-500">
+                      <span>Discount ({form.discountType === '%' ? `${form.discountValue}%` : `$${form.discountValue}`} off order)</span>
+                      <span className="font-mono">−${refundSummary.discountAmount.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {/* Override toggle */}
