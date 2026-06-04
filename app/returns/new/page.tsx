@@ -20,6 +20,7 @@ interface LineItem {
   refundAmount: string;   // gross amount entered by user
   restockingPct: string;  // restocking fee percentage (for Refund + Restocking Fee)
   restockingFee: number;
+  restockingReason: string; // reason for applying restocking fee
 }
 
 function netRefund(item: LineItem): number {
@@ -63,7 +64,7 @@ interface FormState {
 }
 
 function blankItem(): LineItem {
-  return { product: '', condition: 'Sealed', decision: 'Pending', refundAmount: '', restockingPct: '', restockingFee: 0 };
+  return { product: '', condition: 'Sealed', decision: 'Pending', refundAmount: '', restockingPct: '', restockingFee: 0, restockingReason: '' };
 }
 
 function blankForm(processedBy = ''): FormState {
@@ -151,6 +152,7 @@ export default function NewReturnPage() {
           refundAmount:  ri.refundAmount ? String(ri.refundAmount) : '',
           restockingPct: '',
           restockingFee: ri.restockingFee || 0,
+          restockingReason: '',
         }))
       : [blankItem()];
     // Auto-fill customer details + items from the request
@@ -611,6 +613,19 @@ export default function NewReturnPage() {
                         <span>Net refund</span>
                         <span className="font-mono text-emerald-700">${netRefund(item).toFixed(2)}</span>
                       </div>
+                    </div>
+                  )}
+                  {item.decision === 'Refund + Restocking Fee' && (
+                    <div>
+                      <label className="form-label">Reason for restocking fee <span className="text-red-400">*</span></label>
+                      <input
+                        type="text"
+                        value={item.restockingReason}
+                        onChange={e => setItemField(i, 'restockingReason', e.target.value)}
+                        placeholder="e.g. Opened packaging, missing accessories, signs of use…"
+                        className="form-input text-sm"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Documented in case the customer queries the deduction.</p>
                     </div>
                   )}
                 </div>

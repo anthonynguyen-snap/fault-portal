@@ -200,7 +200,7 @@ export async function POST(req: NextRequest) {
         assigned_to:      assignedTo || '',
         follow_up_status: needsFollowUp ? 'Pending' : 'N/A',
         follow_up_notes:  followUpNotes || '',
-        notes:            notes || '',
+        notes:            [notes || '', restockingNotes].filter(Boolean).join('\n\n'),
         status:           stage === 'requested' ? 'Received' : (needsFollowUp ? 'Processed' : 'Closed'),
         processed_by:     loggedBy,
         conversation_link: conversationLink || '',
@@ -209,6 +209,12 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (retErr) throw retErr;
+
+    // Build restocking reasons note
+    const restockingNotes = items
+      .filter((item: Record<string, unknown>) => item.decision === 'Refund + Restocking Fee' && item.restockingReason)
+      .map((item: Record<string, unknown>) => `Restocking fee reason (${item.product}): ${item.restockingReason}`)
+      .join('\n');
 
     // Insert line items
     const itemRows = items.map((item: Record<string, unknown>) => ({
