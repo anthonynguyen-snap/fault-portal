@@ -246,7 +246,7 @@ export default function NewReturnPage() {
     };
   }, [form.items, discountAmount]);
 
-  function setItemField(index: number, field: keyof LineItem, value: string | number | ReturnCondition | ReturnDecision) {
+  function setItemField(index: number, field: keyof LineItem, value: string | number | boolean | ReturnCondition | ReturnDecision) {
     setForm(prev => {
       const items = [...prev.items];
       items[index] = { ...items[index], [field]: value };
