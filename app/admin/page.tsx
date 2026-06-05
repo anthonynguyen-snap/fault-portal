@@ -212,7 +212,12 @@ function ProductsPanel() {
       setShowModal(false);
       setSuccess(editing ? 'Product updated.' : 'Product created.');
       setTimeout(() => setSuccess(''), 3000);
-      await load();
+      // Immediately add to local state so it shows right away
+      if (!editing && json.data) {
+        setProducts(prev => [...prev, json.data]);
+      }
+      // Then re-fetch after a short delay to let Sheets commit
+      setTimeout(() => load(), 1500);
     } catch (err: any) {
       setError(err.message);
     } finally {
