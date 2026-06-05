@@ -49,6 +49,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Admin', text: 'Add Product now verifies the new product can be read back from Google Sheets before showing a success message.' },
       { category: 'Admin', text: 'Add Product now writes to the next exact Products row instead of relying on Google Sheets append behaviour, improving reliability with dropdown/data-validation sheets.' },
       { category: 'Admin', text: 'Add Product success messages now show the exact Google Sheets row where the product was saved, making hidden/filter issues easier to spot.' },
+      { category: 'Admin', text: 'Admin Products no longer adds new products optimistically to the visible list; the table now refreshes from Google Sheets after saving so the portal cannot show unsynced products.' },
     ],
   },
   {

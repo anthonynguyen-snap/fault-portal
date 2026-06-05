@@ -212,12 +212,7 @@ function ProductsPanel() {
       setShowModal(false);
       setSuccess(editing ? 'Product updated.' : `Product created in Google Sheets${json.meta?.sheetRow ? ` row ${json.meta.sheetRow}` : ''}.`);
       setTimeout(() => setSuccess(''), 3000);
-      // Immediately add to local state so it shows right away
-      if (!editing && json.data) {
-        setProducts(prev => [...prev, json.data]);
-      }
-      // Then re-fetch after a short delay to let Sheets commit
-      setTimeout(() => load(), 1500);
+      await load();
     } catch (err: any) {
       setError(err.message);
     } finally {
