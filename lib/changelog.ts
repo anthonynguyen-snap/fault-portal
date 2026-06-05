@@ -47,6 +47,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Admin', text: 'Product save failures now show the actual Google Sheets error instead of a generic message, making product setup issues easier to diagnose.' },
       { category: 'Admin', text: 'Admin Products now saves using the existing Google Sheet layout when the Products tab is Product / Unit Cost / Manufacturer, so new products land in the visible columns.' },
       { category: 'Admin', text: 'Add Product now verifies the new product can be read back from Google Sheets before showing a success message.' },
+      { category: 'Admin', text: 'Add Product now writes to the next exact Products row instead of relying on Google Sheets append behaviour, improving reliability with dropdown/data-validation sheets.' },
     ],
   },
   {

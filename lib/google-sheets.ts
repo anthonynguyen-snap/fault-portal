@@ -234,18 +234,36 @@ export async function createProduct(
         product.manufacturerNumbers.join(', '),
         product.claimable === false ? 'FALSE' : 'TRUE',
       ];
-  await sheets.spreadsheets.values.append({
+  const existingRowsRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: layout === 'legacy' ? 'Products!A:E' : 'Products!A:F',
+    range: 'Products!A2:F',
+  });
+  const existingRows = existingRowsRes.data.values || [];
+  const lastUsedIndex = existingRows.reduce((last, row, index) => row.some(cell => String(cell ?? '').trim()) ? index : last, -1);
+  const sheetRow = lastUsedIndex + 3;
+  const writeRange = layout === 'legacy'
+    ? `Products!A${sheetRow}:E${sheetRow}`
+    : `Products!A${sheetRow}:F${sheetRow}`;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: writeRange,
     valueInputOption: 'USER_ENTERED',
-    insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
   });
 
-  const savedProducts = await getProducts();
-  const savedProduct = savedProducts.find(p => productMatches(p, product));
-  if (!savedProduct) {
-    throw new Error('Google Sheets accepted the save, but the product was not found after reloading the Products tab.');
+  const savedRowRes = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: writeRange,
+  });
+  const savedRow = savedRowRes.data.values?.[0];
+  if (!savedRow) {
+    throw new Error(`Google Sheets accepted the save, but row ${sheetRow} could not be read back from the Products tab.`);
+  }
+
+  const savedProduct = rowToProduct(savedRow, layout);
+  if (!productMatches(savedProduct, product)) {
+    throw new Error(`Google Sheets saved row ${sheetRow}, but the values read back did not match the product that was submitted.`);
   }
   return savedProduct;
 }
