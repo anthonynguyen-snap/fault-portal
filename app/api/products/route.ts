@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ data: product }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/products]', error);
-    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create product' },
+      { status: 500 }
+    );
   }
 }
 
@@ -55,7 +58,10 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ message: 'Updated' });
   } catch (error) {
     console.error('[PATCH /api/products]', error);
-    return NextResponse.json({ error: 'Failed to update product' }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update product' },
+      { status: 500 }
+    );
   }
 }
 

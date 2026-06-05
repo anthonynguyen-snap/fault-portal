@@ -208,7 +208,7 @@ function ProductsPanel() {
         body: JSON.stringify(body),
       });
       const json = await res.json();
-      if (json.error) throw new Error(json.error);
+      if (!res.ok || json.error) throw new Error(json.error || 'Product could not be saved to Google Sheets');
       setShowModal(false);
       setSuccess(editing ? 'Product updated.' : 'Product created.');
       setTimeout(() => setSuccess(''), 3000);
@@ -254,12 +254,13 @@ function ProductsPanel() {
             <th>Manufacturer</th>
             <th>Unit Cost</th>
             <th>Manufacturer Numbers</th>
+            <th>Claim Status</th>
             <th className="w-24">Actions</th>
           </tr>
         </thead>
         <tbody>
           {products.length === 0 ? (
-            <tr><td colSpan={5} className="text-center py-10 text-slate-400">No products yet. Add one above.</td></tr>
+            <tr><td colSpan={6} className="text-center py-10 text-slate-400">No products yet. Add one above.</td></tr>
           ) : (
             products.map(p => (
               <tr key={p.id}>

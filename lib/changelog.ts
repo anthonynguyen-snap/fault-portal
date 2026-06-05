@@ -43,6 +43,9 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Cases', text: 'Submit Fault Case form now shows the current month\'s evidence folder as a one-click button — staff no longer need to remember or search for the right folder' },
       { category: 'Cases', text: 'Amber warning shown on the case form if no folder has been set for the current month, prompting staff to flag it to Anthony' },
       { category: 'Admin', text: 'January alert in Evidence Folders tab reminds Anthony to create and update all folder links at the start of each new year' },
+      { category: 'Inventory', text: 'Stock Room Add Product now clearly notes it only creates office inventory items, while Admin Products remains the Google Sheets-backed fault-case product list.' },
+      { category: 'Admin', text: 'Product save failures now show the actual Google Sheets error instead of a generic message, making product setup issues easier to diagnose.' },
+      { category: 'Admin', text: 'Admin Products now saves using the existing Google Sheet layout when the Products tab is Product / Unit Cost / Manufacturer, so new products land in the visible columns.' },
     ],
   },
   {

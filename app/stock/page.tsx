@@ -392,6 +392,7 @@ export default function StockPage() {
 
   function closePanel() {
     setPanel(null);
+    setError('');
     setNewName(''); setNewSku(''); setNewThreshold(5);
     setBulkMode(false); setBulkText(''); setBulkResult(null);
   }
@@ -435,6 +436,7 @@ export default function StockPage() {
   async function addProduct() {
     if (!newName.trim()) return;
     setSaving(true);
+    setError('');
     try {
       const res = await fetch('/api/stock/items', {
         method: 'POST',
@@ -442,7 +444,7 @@ export default function StockPage() {
         body: JSON.stringify({ name: newName, sku: newSku, lowStockThreshold: newThreshold }),
       });
       const json = await res.json();
-      if (json.error) throw new Error(json.error);
+      if (!res.ok || json.error) throw new Error(json.error || 'Product could not be saved to Stock Room');
       setItems(prev => [...prev, json.data].sort((a, b) => a.name.localeCompare(b.name)));
       closePanel();
     } catch (e: any) {
@@ -456,8 +458,10 @@ export default function StockPage() {
     const lines = bulkText.split('\n').map(l => l.trim()).filter(Boolean);
     if (!lines.length) return;
     setSaving(true);
+    setError('');
     setBulkResult(null);
     let added = 0;
+    const failures: string[] = [];
     for (const line of lines) {
       const [name, sku] = line.split(',').map(s => s.trim());
       if (!name) continue;
@@ -468,14 +472,19 @@ export default function StockPage() {
           body: JSON.stringify({ name, sku: sku ?? '', lowStockThreshold: newThreshold }),
         });
         const json = await res.json();
-        if (!json.error) {
+        if (res.ok && !json.error) {
           setItems(prev => [...prev, json.data].sort((a, b) => a.name.localeCompare(b.name)));
           added++;
+        } else {
+          failures.push(`${name}: ${json.error || 'save failed'}`);
         }
-      } catch { /* skip failed lines */ }
+      } catch (e: any) {
+        failures.push(`${name}: ${e.message || 'save failed'}`);
+      }
     }
     setSaving(false);
     setBulkResult(`${added} of ${lines.length} products added`);
+    if (failures.length) setError(`Some products did not save: ${failures.slice(0, 3).join('; ')}${failures.length > 3 ? '…' : ''}`);
     setBulkText('');
   }
 
@@ -2987,6 +2996,14 @@ export default function StockPage() {
       {/* Add Product Slide-over */}
       <SlideOver open={panel === 'add-product'} onClose={closePanel} title="Add Product">
         <div className="space-y-4">
+          <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+            This adds an office Stock Room item only. Fault-case products are managed in Admin Settings → Products and save to Google Sheets.
+          </div>
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {error}
+            </div>
+          )}
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
             <button onClick={() => setBulkMode(false)} className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${!bulkMode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               Single
