@@ -46,6 +46,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Inventory', text: 'Stock Room Add Product now clearly notes it only creates office inventory items, while Admin Products remains the Google Sheets-backed fault-case product list.' },
       { category: 'Admin', text: 'Product save failures now show the actual Google Sheets error instead of a generic message, making product setup issues easier to diagnose.' },
       { category: 'Admin', text: 'Admin Products now saves using the existing Google Sheet layout when the Products tab is Product / Unit Cost / Manufacturer, so new products land in the visible columns.' },
+      { category: 'Admin', text: 'Add Product now verifies the new product can be read back from Google Sheets before showing a success message.' },
     ],
   },
   {

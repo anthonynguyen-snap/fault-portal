@@ -167,6 +167,14 @@ async function getProductSheetLayout(): Promise<ProductSheetLayout> {
   return headers[0] === 'product' ? 'legacy' : 'structured';
 }
 
+function productMatches(product: Product, candidate: Pick<Product, 'name' | 'manufacturerName' | 'unitCostUSD'>): boolean {
+  return (
+    product.name.trim().toLowerCase() === candidate.name.trim().toLowerCase() &&
+    product.manufacturerName.trim().toLowerCase() === candidate.manufacturerName.trim().toLowerCase() &&
+    Math.abs(product.unitCostUSD - candidate.unitCostUSD) < 0.001
+  );
+}
+
 function rowToProduct(row: string[], layout: ProductSheetLayout): Product {
   if (layout === 'legacy') {
     return {
@@ -230,9 +238,16 @@ export async function createProduct(
     spreadsheetId: SHEET_ID,
     range: layout === 'legacy' ? 'Products!A:E' : 'Products!A:F',
     valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
   });
-  return product;
+
+  const savedProducts = await getProducts();
+  const savedProduct = savedProducts.find(p => productMatches(p, product));
+  if (!savedProduct) {
+    throw new Error('Google Sheets accepted the save, but the product was not found after reloading the Products tab.');
+  }
+  return savedProduct;
 }
 
 export async function updateProduct(
