@@ -21,6 +21,7 @@ interface LineItem {
   restockingPct: string;  // restocking fee percentage (for Refund + Restocking Fee)
   restockingFee: number;
   restockingReason: string; // reason for applying restocking fee
+  addToStock: boolean;      // prompt to add back to storeroom
 }
 
 function netRefund(item: LineItem): number {
@@ -65,8 +66,10 @@ interface FormState {
   discountValue: string;
 }
 
+const RESTOCK_CONDITIONS = new Set<ReturnCondition>(['Sealed', 'Open - Good Condition']);
+
 function blankItem(): LineItem {
-  return { product: '', condition: 'Sealed', decision: 'Pending', refundAmount: '', restockingPct: '', restockingFee: 0, restockingReason: '' };
+  return { product: '', condition: 'Sealed', decision: 'Pending', refundAmount: '', restockingPct: '', restockingFee: 0, restockingReason: '', addToStock: false };
 }
 
 function blankForm(processedBy = ''): FormState {
@@ -98,6 +101,7 @@ export default function NewReturnPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState('');
   const [successOrder, setSuccessOrder] = useState<string | null>(null);
+  const [restockReminder, setRestockReminder] = useState<string[]>([]);
   const [openRequests, setOpenRequests] = useState<Return[]>([]);
   const [requestSearch, setRequestSearch] = useState('');
   const [matchDismissed, setMatchDismissed] = useState(false);
@@ -157,6 +161,7 @@ export default function NewReturnPage() {
           restockingPct: '',
           restockingFee: ri.restockingFee || 0,
           restockingReason: '',
+          addToStock: false,
         }))
       : [blankItem()];
     // Auto-fill customer details + items from the request
@@ -299,7 +304,10 @@ export default function NewReturnPage() {
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
+
+      const restockItems = form.items.filter(item => item.addToStock && item.product.trim()).map(i => i.product.trim());
       setSuccessOrder(form.orderNumber);
+      setRestockReminder(restockItems);
     } catch (err: any) {
       setError(err.message || 'Failed to submit return.');
     } finally {
@@ -315,6 +323,7 @@ export default function NewReturnPage() {
     setMatchDismissed(false);
     setMatchLinked(null);
     setLinkedRequest(null);
+    setRestockReminder([]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -326,9 +335,21 @@ export default function NewReturnPage() {
             <CheckCircle size={28} className="text-emerald-600" />
           </div>
           <h2 className="text-xl font-bold text-slate-900 mb-1">Return processed</h2>
-          <p className="text-slate-500 text-sm mb-8">
+          <p className="text-slate-500 text-sm mb-4">
             <span className="font-mono font-semibold text-slate-700">{successOrder}</span> has been saved successfully.
           </p>
+          {restockReminder.length > 0 && (
+            <div className="w-full max-w-sm mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-left">
+              <p className="text-sm font-semibold text-amber-900 mb-1">📦 Don&apos;t forget to log stock in</p>
+              <p className="text-xs text-amber-700 mb-2">You marked the following as going back to the storeroom:</p>
+              <ul className="text-xs text-amber-800 space-y-0.5 mb-3">
+                {restockReminder.map((sku, i) => <li key={i} className="font-mono">• {sku}</li>)}
+              </ul>
+              <Link href="/stock" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 underline hover:text-amber-900">
+                Go to Stock → Receive to log it →
+              </Link>
+            </div>
+          )}
           <div className="flex gap-3 w-full max-w-xs">
             <Link href="/returns" className="btn-secondary flex-1 text-center">
               View Returns
@@ -588,9 +609,29 @@ export default function NewReturnPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="form-label">Condition</label>
-                  <select value={item.condition} onChange={e => setItemField(i, 'condition', e.target.value as ReturnCondition)} className="form-input">
+                  <select value={item.condition} onChange={e => {
+                    const cond = e.target.value as ReturnCondition;
+                    setItemField(i, 'condition', cond);
+                    // Auto-suggest restock for good condition items
+                    if (RESTOCK_CONDITIONS.has(cond)) setItemField(i, 'addToStock', true);
+                    else setItemField(i, 'addToStock', false);
+                  }} className="form-input">
                     {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
+                  {RESTOCK_CONDITIONS.has(item.condition) && (
+                    <label className={`mt-2 flex items-center gap-2.5 cursor-pointer select-none rounded-lg border px-3 py-2 transition-colors ${item.addToStock ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}>
+                      <input
+                        type="checkbox"
+                        checked={item.addToStock}
+                        onChange={e => setItemField(i, 'addToStock', e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="text-xs font-medium text-slate-700">
+                        Add back to office storeroom
+                      </span>
+                      {item.addToStock && <span className="ml-auto text-[10px] font-semibold text-emerald-600">+1 unit</span>}
+                    </label>
+                  )}
                 </div>
                 <div>
                   <label className="form-label">Decision</label>
