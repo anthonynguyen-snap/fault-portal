@@ -225,7 +225,7 @@ export async function updateProduct(
 
 export async function deleteProduct(id: string): Promise<void> {
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Products!A2:E' });
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Products!A2:F' });
   const rows = res.data.values || [];
   const filtered = rows.filter(r => r[0] !== id);
   if (filtered.length === rows.length) throw new Error(`Product ${id} not found`);

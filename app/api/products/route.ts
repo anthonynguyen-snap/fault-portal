@@ -6,10 +6,14 @@ import {
   deleteProduct,
 } from '@/lib/google-sheets';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const products = await getProducts();
-    return NextResponse.json({ data: products });
+    return NextResponse.json({ data: products }, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
   } catch (error) {
     console.error('[GET /api/products]', error);
     return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });

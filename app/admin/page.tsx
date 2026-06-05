@@ -156,7 +156,7 @@ function ProductsPanel() {
   async function load() {
     setLoading(true);
     const [prodRes, mfrRes] = await Promise.all([
-      fetch('/api/products'),
+      fetch(`/api/products?_t=${Date.now()}`),
       fetch('/api/manufacturers'),
     ]);
     const prodJson = await prodRes.json();
