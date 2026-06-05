@@ -152,6 +152,12 @@ export async function updateCase(
 // =========================================================
 
 type ProductSheetLayout = 'legacy' | 'structured';
+type ProductSaveResult = {
+  product: Product;
+  sheetRow: number;
+  writeRange: string;
+  layout: ProductSheetLayout;
+};
 
 function parseSheetMoney(value: string | undefined): number {
   return parseFloat(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
@@ -214,7 +220,7 @@ export async function getProducts(): Promise<Product[]> {
 
 export async function createProduct(
   data: Omit<Product, 'id'>
-): Promise<Product> {
+): Promise<ProductSaveResult> {
   const layout = await getProductSheetLayout();
   const sheets = getSheets();
   const product: Product = { ...data, claimable: data.claimable !== false, id: layout === 'legacy' ? data.name : `PROD-${Date.now()}` };
@@ -265,7 +271,7 @@ export async function createProduct(
   if (!productMatches(savedProduct, product)) {
     throw new Error(`Google Sheets saved row ${sheetRow}, but the values read back did not match the product that was submitted.`);
   }
-  return savedProduct;
+  return { product: savedProduct, sheetRow, writeRange, layout };
 }
 
 export async function updateProduct(

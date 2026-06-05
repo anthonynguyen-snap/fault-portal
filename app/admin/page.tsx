@@ -210,7 +210,7 @@ function ProductsPanel() {
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || 'Product could not be saved to Google Sheets');
       setShowModal(false);
-      setSuccess(editing ? 'Product updated.' : 'Product created.');
+      setSuccess(editing ? 'Product updated.' : `Product created in Google Sheets${json.meta?.sheetRow ? ` row ${json.meta.sheetRow}` : ''}.`);
       setTimeout(() => setSuccess(''), 3000);
       // Immediately add to local state so it shows right away
       if (!editing && json.data) {

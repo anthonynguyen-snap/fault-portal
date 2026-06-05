@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const product = await createProduct({
+    const result = await createProduct({
       name:               body.name,
       manufacturerName:   body.manufacturerName,
       unitCostUSD:        parseFloat(body.unitCostUSD) || 0,
@@ -38,7 +38,14 @@ export async function POST(req: NextRequest) {
         : [],
       claimable: body.claimable !== false,
     });
-    return NextResponse.json({ data: product }, { status: 201 });
+    return NextResponse.json({
+      data: result.product,
+      meta: {
+        sheetRow: result.sheetRow,
+        writeRange: result.writeRange,
+        layout: result.layout,
+      },
+    }, { status: 201 });
   } catch (error) {
     console.error('[POST /api/products]', error);
     return NextResponse.json(
