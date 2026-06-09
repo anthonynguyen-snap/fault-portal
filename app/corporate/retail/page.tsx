@@ -80,9 +80,17 @@ function StatusBadge({ status }: { status: RetailOrderStatus }) {
 
 const CIN7_INVOICE_URL = 'https://go.cin7.com/Cloud/CRM/MembersList.aspx?idWebSite=26235&idCustomerAppsLink=1245560';
 
-function blankOrder(): Omit<RetailOrder, 'id' | 'createdAt'> {
+function generateOrderNumber(orders: RetailOrder[]): string {
+  const nums = orders
+    .map(o => parseInt(o.orderNumber.replace(/^#/, ''), 10))
+    .filter(n => !isNaN(n));
+  const next = nums.length > 0 ? Math.max(...nums) + 1 : 1001;
+  return `#${next}`;
+}
+
+function blankOrder(orderNumber = ''): Omit<RetailOrder, 'id' | 'createdAt'> {
   return {
-    orderNumber: '', platform: 'B2B', orderDate: new Date().toISOString().split('T')[0],
+    orderNumber, platform: 'B2B', orderDate: new Date().toISOString().split('T')[0],
     customerName: '', companyName: '', customerEmail: '', customerPhone: '',
     shippingAddress: '', shippingCity: '', shippingState: 'VIC', shippingPostcode: '', shippingCountry: 'AU',
     thirdPlReference: '', warehouse: '', thirdPlNotes: '',
@@ -172,17 +180,18 @@ function CustomerAutocomplete({
 
 // ── Order slide-over panel ────────────────────────────────────────────────────
 function OrderPanel({
-  order, customers, onClose, onSaved, onDeleted, onCustomerSaved,
+  order, customers, suggestedOrderNumber, onClose, onSaved, onDeleted, onCustomerSaved,
 }: {
   order: RetailOrder | null;
   customers: RetailCustomer[];
+  suggestedOrderNumber?: string;
   onClose: () => void;
   onSaved: (o: RetailOrder) => void;
   onDeleted: (id: string) => void;
   onCustomerSaved: (c: RetailCustomer) => void;
 }) {
   const [mode, setMode] = useState<'view' | 'edit'>(order ? 'view' : 'edit');
-  const [form, setForm] = useState<Omit<RetailOrder, 'id' | 'createdAt'>>(order ? { ...order } : blankOrder());
+  const [form, setForm] = useState<Omit<RetailOrder, 'id' | 'createdAt'>>(order ? { ...order } : blankOrder(suggestedOrderNumber));
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1162,6 +1171,7 @@ export default function RetailOrdersPage() {
         <OrderPanel
           order={selectedOrder}
           customers={customers}
+          suggestedOrderNumber={selectedOrder === null ? generateOrderNumber(orders) : undefined}
           onClose={() => setSelectedOrder(undefined)}
           onSaved={handleOrderSaved}
           onDeleted={handleOrderDeleted}
