@@ -7,7 +7,7 @@ import {
   Clock, Loader2, Pencil, Trash2, Check, Building2, Users, ChevronRight,
   UserPlus, BookUser, FileText, Send,
 } from 'lucide-react';
-import { RetailOrder, RetailOrderItem, RetailOrderStatus, RetailCustomer } from '@/types';
+import { RetailOrder, RetailOrderItem, RetailOrderStatus, RetailCustomer, Product } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 
 // ── Tab bars ──────────────────────────────────────────────────────────────────
@@ -180,10 +180,11 @@ function CustomerAutocomplete({
 
 // ── Order slide-over panel ────────────────────────────────────────────────────
 function OrderPanel({
-  order, customers, suggestedOrderNumber, onClose, onSaved, onDeleted, onCustomerSaved,
+  order, customers, products, suggestedOrderNumber, onClose, onSaved, onDeleted, onCustomerSaved,
 }: {
   order: RetailOrder | null;
   customers: RetailCustomer[];
+  products: Product[];
   suggestedOrderNumber?: string;
   onClose: () => void;
   onSaved: (o: RetailOrder) => void;
@@ -438,11 +439,40 @@ function OrderPanel({
                     </div>
                     {form.items.map((item, idx) => {
                       const lineTotal = (item.unitPrice || 0) * (item.quantityOrdered || 0);
+                      const skuMatches = item.sku.length >= 2
+                        ? products.filter(p => p.name.toLowerCase().includes(item.sku.toLowerCase())).slice(0, 5)
+                        : [];
                       return (
                         <div key={idx} className="grid grid-cols-[1fr_80px_52px_52px_72px_28px] gap-2 items-center">
                           <div className="space-y-1">
                             <input className="form-input w-full text-xs" value={item.product} onChange={e => setItem(idx, 'product', e.target.value)} placeholder="Product name" />
-                            <input className="form-input w-full text-xs font-mono text-slate-500" value={item.sku} onChange={e => setItem(idx, 'sku', e.target.value)} placeholder="SKU" />
+                            <div className="relative">
+                              <input
+                                className="form-input w-full text-xs font-mono text-slate-500"
+                                value={item.sku}
+                                onChange={e => setItem(idx, 'sku', e.target.value)}
+                                placeholder="SKU"
+                              />
+                              {skuMatches.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-0.5 bg-white border border-slate-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                                  {skuMatches.map(p => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onMouseDown={e => {
+                                        e.preventDefault();
+                                        setItem(idx, 'sku', p.name);
+                                        setItem(idx, 'product', p.name);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 transition-colors"
+                                    >
+                                      <span className="font-mono text-slate-700">{p.name}</span>
+                                      {p.manufacturerName && <span className="text-slate-400 ml-2">{p.manufacturerName}</span>}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div className="relative">
                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
@@ -805,6 +835,7 @@ function CustomerPanel({
 export default function RetailOrdersPage() {
   const [orders, setOrders] = useState<RetailOrder[]>([]);
   const [customers, setCustomers] = useState<RetailCustomer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'orders' | 'customers'>('orders');
   const [search, setSearch] = useState('');
@@ -818,9 +849,11 @@ export default function RetailOrdersPage() {
     Promise.all([
       fetch('/api/retail-orders').then(r => r.json()),
       fetch('/api/retail-customers').then(r => r.json()),
-    ]).then(([ordJson, custJson]) => {
+      fetch('/api/products').then(r => r.json()),
+    ]).then(([ordJson, custJson, prodJson]) => {
       setOrders(ordJson.data || []);
       setCustomers(custJson.data || []);
+      setProducts(prodJson.data || []);
       setLoading(false);
     });
   }, []);
@@ -1171,6 +1204,7 @@ export default function RetailOrdersPage() {
         <OrderPanel
           order={selectedOrder}
           customers={customers}
+          products={products}
           suggestedOrderNumber={selectedOrder === null ? generateOrderNumber(orders) : undefined}
           onClose={() => setSelectedOrder(undefined)}
           onSaved={handleOrderSaved}
