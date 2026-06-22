@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Truck, Package, Send, CheckCircle,
   Clock, AlertTriangle, Save, ExternalLink, Plus, Pencil, Lock, Copy,
-  MapPin,
+  MapPin, Trash2,
 } from 'lucide-react';
 import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem, StockItem } from '@/types';
 import { useToast } from '@/components/ui/Toast';
@@ -95,6 +95,8 @@ export default function ReplenishmentDetailPage() {
   // Allow editing even after dispatch
   const [unlocked, setUnlocked] = useState(false);
   const [showDeliverConfirm, setShowDeliverConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -332,13 +334,14 @@ export default function ReplenishmentDetailPage() {
           },
         }),
       });
-      if (!res.ok) throw new Error();
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'Could not add item');
       success('Item added');
       await load();
       setShowAddItem(false);
       setAddItemId(''); setAddItemQty(1); setAddItemSrc(request?.store === 'Sydney Store' ? '3PL' : 'Storeroom');
-    } catch {
-      toastError('Failed to add item');
+    } catch (err: unknown) {
+      toastError('Failed to add item', err instanceof Error ? err.message : String(err));
     } finally { setAddItemSaving(false); }
   }
 
@@ -380,6 +383,19 @@ export default function ReplenishmentDetailPage() {
     } catch (err: unknown) {
       toastError('Failed', err instanceof Error ? err.message : String(err));
     } finally { setMarkingDelivered(false); }
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/replenishment/${id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      success('Deleted', 'Replenishment request removed.');
+      router.push('/replenishment');
+    } catch (err: unknown) {
+      toastError('Delete failed', err instanceof Error ? err.message : String(err));
+    } finally { setDeleting(false); setShowDeleteConfirm(false); }
   }
 
   function fmtNoteTs(ts: string) {
@@ -450,6 +466,11 @@ export default function ReplenishmentDetailPage() {
           </h1>
           <p className="text-xs text-slate-400 font-mono mt-0.5">{request.date} · {request.items.length} items · {request.items.reduce((s,i) => s + i.quantityRequested, 0)} units</p>
         </div>
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors">
+          <Trash2 size={13} /> Delete
+        </button>
       </div>
 
       {/* Meta card */}
@@ -714,13 +735,30 @@ export default function ReplenishmentDetailPage() {
       <div className="card overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-800">Items</h2>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-xs text-slate-400">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 inline-block" /> Storeroom
-            </span>
-            <span className="flex items-center gap-1 text-xs text-slate-400">
-              <span className="w-2.5 h-2.5 rounded-sm bg-sky-200 inline-block" /> 3PL
-            </span>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-3">
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-200 inline-block" /> Storeroom
+              </span>
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                <span className="w-2.5 h-2.5 rounded-sm bg-sky-200 inline-block" /> 3PL
+              </span>
+            </div>
+            {isDispatched ? (
+              <button
+                onClick={() => setUnlocked(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                <Pencil size={12} /> Edit items
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowAddItem(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+              >
+                <Plus size={12} /> Add item
+              </button>
+            )}
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -868,7 +906,13 @@ export default function ReplenishmentDetailPage() {
         {!isDispatched && (
           <div className="border-t border-slate-100 px-4 py-3">
             {showAddItem ? (
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-700">Add item to this order</p>
+                  <button onClick={() => { setShowAddItem(false); setAddItemId(''); }}
+                    className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
                 <select
                   value={addItemId}
                   onChange={e => setAddItemId(e.target.value)}
@@ -896,8 +940,7 @@ export default function ReplenishmentDetailPage() {
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-40">
                   {addItemSaving ? 'Adding…' : 'Add'}
                 </button>
-                <button onClick={() => { setShowAddItem(false); setAddItemId(''); }}
-                  className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
+                </div>
               </div>
             ) : (
               <button onClick={() => setShowAddItem(true)}
@@ -1139,6 +1182,29 @@ export default function ReplenishmentDetailPage() {
                 onClick={() => { setShowDeliverConfirm(false); markDelivered(); }}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
                 <CheckCircle size={14} /> Confirm Delivered
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation modal ───────────────────────────────────────── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-900">Delete this request?</h2>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-slate-600">
+                This will permanently delete <strong>{request.orderNumber || 'this request'}</strong> and all its line items. This cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <button onClick={() => setShowDeleteConfirm(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-40">
+                <Trash2 size={14} /> {deleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>

@@ -9,7 +9,7 @@ function fromItemRow(row: Record<string, unknown>): ReplenishmentLineItem {
   return {
     id:                String(row.id ?? ''),
     requestId:         String(row.request_id ?? ''),
-    stockItemId:       String(row.stock_item_id ?? ''),
+    stockItemId:       String(row.stock_item_id ?? row.sku ?? ''),
     stockItemName:     String(row.stock_item_name ?? ''),
     sku:               String(row.sku ?? ''),
     quantityRequested: Number(row.quantity_requested ?? 0),
@@ -119,7 +119,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         .from('replenishment_items')
         .insert({
           request_id:         id,
-          stock_item_id:      item.stockItemId,
+          stock_item_id:      null,
           stock_item_name:    item.stockItemName,
           sku:                item.sku,
           quantity_requested: item.quantityRequested,
@@ -183,5 +183,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ data: fromRow(full) });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
+  try {
+    await getSupabase().from('replenishment_items').delete().eq('request_id', id);
+    const { error } = await getSupabase().from('replenishment_requests').delete().eq('id', id);
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : JSON.stringify(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

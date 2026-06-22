@@ -9,7 +9,7 @@ function fromItemRow(row: Record<string, unknown>): ReplenishmentLineItem {
   return {
     id:                String(row.id ?? ''),
     requestId:         String(row.request_id ?? ''),
-    stockItemId:       String(row.stock_item_id ?? ''),
+    stockItemId:       String(row.stock_item_id ?? row.sku ?? ''),
     stockItemName:     String(row.stock_item_name ?? ''),
     sku:               String(row.sku ?? ''),
     quantityRequested: Number(row.quantity_requested ?? 0),
@@ -55,7 +55,8 @@ export async function GET() {
     if (error) throw error;
     return NextResponse.json({ data: (data ?? []).map(fromRow) });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    const msg = err instanceof Error ? err.message : JSON.stringify(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     const itemRows = items.map((item: Record<string, unknown>) => ({
       request_id:          request.id,
-      stock_item_id:       item.stockItemId || null,
+      stock_item_id:       null,  // stock items now backed by Google Sheets (SKU-based IDs, not Supabase UUIDs)
       stock_item_name:     String(item.stockItemName ?? ''),
       sku:                 String(item.sku ?? ''),
       quantity_requested:  Number(item.quantityRequested) || 0,
@@ -97,7 +98,11 @@ export async function POST(req: NextRequest) {
     const { error: itemErr } = await getSupabase()
       .from('replenishment_items')
       .insert(itemRows);
-    if (itemErr) throw itemErr;
+    if (itemErr) {
+      // Roll back the parent request so we don't leave orphaned records
+      await getSupabase().from('replenishment_requests').delete().eq('id', request.id);
+      throw itemErr;
+    }
 
     const { data: full } = await getSupabase()
       .from('replenishment_requests')
@@ -115,6 +120,7 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ data: fromRow(full) }, { status: 201 });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    const msg = err instanceof Error ? err.message : JSON.stringify(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

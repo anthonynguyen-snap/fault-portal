@@ -51,6 +51,8 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Admin', text: 'Add Product success messages now show the exact Google Sheets row where the product was saved, making hidden/filter issues easier to spot.' },
       { category: 'Admin', text: 'Admin Products no longer adds new products optimistically to the visible list; the table now refreshes from Google Sheets after saving so the portal cannot show unsynced products.' },
       { category: 'Admin', text: 'Products backed by the legacy 3-column sheet now use their sheet row as the internal ID, so duplicate product names can be edited or deleted one row at a time.' },
+      { category: 'Replenishment', text: 'Replenishment detail pages now have clearer item editing controls, including a header Add item button and Edit items button for locked dispatched orders.' },
+      { category: 'Replenishment', text: 'Adding items to an existing replenishment order now works with SKU-backed stock items instead of relying on the old Supabase stock item ID.' },
     ],
   },
   {
