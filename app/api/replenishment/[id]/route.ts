@@ -186,8 +186,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
     await getSupabase().from('replenishment_items').delete().eq('request_id', id);
     const { error } = await getSupabase().from('replenishment_requests').delete().eq('id', id);
