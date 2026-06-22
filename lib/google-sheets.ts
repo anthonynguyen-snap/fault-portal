@@ -181,10 +181,14 @@ function productMatches(product: Product, candidate: Pick<Product, 'name' | 'man
   );
 }
 
-function rowToProduct(row: string[], layout: ProductSheetLayout): Product {
+function legacyProductId(sheetRow: number): string {
+  return `products-row-${sheetRow}`;
+}
+
+function rowToProduct(row: string[], layout: ProductSheetLayout, sheetRow: number): Product {
   if (layout === 'legacy') {
     return {
-      id:                  row[0] || '',
+      id:                  legacyProductId(sheetRow),
       name:                row[0] || '',
       unitCostUSD:         parseSheetMoney(row[1]),
       manufacturerName:    row[2] || '',
@@ -215,7 +219,10 @@ export async function getProducts(): Promise<Product[]> {
     range: 'Products!A2:F',
   });
   const rows = res.data.values || [];
-  return rows.filter(r => r[0]).map(row => rowToProduct(row, layout));
+  return rows
+    .map((row, index) => ({ row, sheetRow: index + 2 }))
+    .filter(({ row }) => row[0])
+    .map(({ row, sheetRow }) => rowToProduct(row, layout, sheetRow));
 }
 
 export async function createProduct(
@@ -223,7 +230,7 @@ export async function createProduct(
 ): Promise<ProductSaveResult> {
   const layout = await getProductSheetLayout();
   const sheets = getSheets();
-  const product: Product = { ...data, claimable: data.claimable !== false, id: layout === 'legacy' ? data.name : `PROD-${Date.now()}` };
+  const product: Product = { ...data, claimable: data.claimable !== false, id: layout === 'legacy' ? '' : `PROD-${Date.now()}` };
   const row = layout === 'legacy'
     ? [
         product.name,
@@ -267,7 +274,7 @@ export async function createProduct(
     throw new Error(`Google Sheets accepted the save, but row ${sheetRow} could not be read back from the Products tab.`);
   }
 
-  const savedProduct = rowToProduct(savedRow, layout);
+  const savedProduct = rowToProduct(savedRow, layout, sheetRow);
   if (!productMatches(savedProduct, product)) {
     throw new Error(`Google Sheets saved row ${sheetRow}, but the values read back did not match the product that was submitted.`);
   }
@@ -315,8 +322,8 @@ export async function deleteProduct(id: string): Promise<void> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Products!A2:F' });
   const rows = res.data.values || [];
-  const filtered = rows.filter(r => {
-    const product = rowToProduct(r, layout);
+  const filtered = rows.filter((r, index) => {
+    const product = rowToProduct(r, layout, index + 2);
     return product.id !== id;
   });
   if (filtered.length === rows.length) throw new Error(`Product ${id} not found`);
