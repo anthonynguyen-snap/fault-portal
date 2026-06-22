@@ -192,13 +192,15 @@ export interface Return {
 // STOCK ROOM
 // =========================================================
 export interface StockItem {
-  id: string;
+  id: string;                // equals SKU when backed by Google Sheets
   name: string;
   sku: string;
   quantity: number;
   lowStockThreshold: number;
   discontinued: boolean;
   createdAt: string;
+  category?: string;         // from Google Sheets column C
+  imageUrl?: string;         // from Google Sheets column D
 }
 
 export interface StockMovementItem {
