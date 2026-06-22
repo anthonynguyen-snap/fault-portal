@@ -171,6 +171,7 @@ export default function ReplenishmentDetailPage() {
       const itemUpdates = request.items.map(item => ({
         id:           item.id,
         stockItemId:  item.stockItemId,
+        sku:          item.sku,
         quantitySent: qtySent[item.id] ?? item.quantityRequested,
         source:       itemSource[item.id] ?? item.source,
         skipped:      itemSkipped[item.id] ?? item.skipped ?? false,
@@ -207,6 +208,7 @@ export default function ReplenishmentDetailPage() {
       const itemUpdates = request.items.map(item => ({
         id:           item.id,
         stockItemId:  item.stockItemId,
+        sku:          item.sku,
         quantitySent: qtySent[item.id] ?? item.quantityRequested,
         source:       itemSource[item.id] ?? item.source,
         skipped:      itemSkipped[item.id] ?? item.skipped ?? false,
@@ -235,6 +237,7 @@ export default function ReplenishmentDetailPage() {
       const itemUpdates = request.items.map(item => ({
         id:           item.id,
         stockItemId:  item.stockItemId,
+        sku:          item.sku,
         quantitySent: qtySent[item.id] ?? item.quantityRequested,
         source:       itemSource[item.id] ?? item.source,
         skipped:      itemSkipped[item.id] ?? item.skipped ?? false,

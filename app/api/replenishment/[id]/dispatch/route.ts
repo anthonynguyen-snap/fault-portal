@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { adjustStockQuantity } from '@/lib/stock-sheets';
+import { logActivity } from '@/lib/activity';
 
 export const runtime = 'nodejs';
 
@@ -39,7 +41,7 @@ export async function POST(
 
     // 1. Update each item's qty_sent, source, skipped
     for (const item of itemUpdates as {
-      id: string; stockItemId: string; quantitySent: number;
+      id: string; stockItemId: string; sku?: string; quantitySent: number;
       source: string; skipped: boolean;
     }[]) {
       const { error } = await supabase
@@ -97,44 +99,44 @@ export async function POST(
     // 3. Deduct storeroom items from stock
     if (dispatchSource === 'Storeroom' || dispatchSource === 'All') {
       const storeroomItems = (itemUpdates as {
-        id: string; stockItemId: string; quantitySent: number; source: string; skipped: boolean;
-      }[]).filter(i => !i.skipped && i.source === 'Storeroom' && i.stockItemId && i.quantitySent > 0);
+        id: string; stockItemId: string; sku?: string; quantitySent: number; source: string; skipped: boolean;
+      }[]).filter(i => !i.skipped && i.source === 'Storeroom' && (i.stockItemId || i.sku) && i.quantitySent > 0);
 
       if (storeroomItems.length > 0) {
-        const { data: movement, error: mvErr } = await supabase
-          .from('stock_movements')
-          .insert({
-            type:   'out',
-            reason: `Replenishment — ${store ?? 'Store'}`,
-            notes:  `Request ID: ${id}. Tracking: ${tracking || '—'}`,
-          })
-          .select()
-          .single();
-        if (mvErr) throw mvErr;
-
-        const { error: miErr } = await supabase
-          .from('stock_movement_items')
-          .insert(storeroomItems.map(i => ({
-            movement_id:   movement.id,
-            stock_item_id: i.stockItemId,
-            quantity:      i.quantitySent,
-          })));
-        if (miErr) throw miErr;
+        const movementId = crypto.randomUUID();
+        const movementItems = [];
+        const reason = `Replenishment — ${store ?? 'Store'}`;
+        const notes = `Request ID: ${id}. Tracking: ${tracking || '—'}`;
 
         for (const item of storeroomItems) {
-          const { data: stockRow, error: sErr } = await supabase
-            .from('stock_items')
-            .select('quantity')
-            .eq('id', item.stockItemId)
-            .single();
-          if (sErr) throw sErr;
-          const newQty = Math.max(0, Number(stockRow.quantity) - item.quantitySent);
-          const { error: uErr } = await supabase
-            .from('stock_items')
-            .update({ quantity: newQty })
-            .eq('id', item.stockItemId);
-          if (uErr) throw uErr;
+          const sku = item.stockItemId || item.sku || '';
+          const { itemName } = await adjustStockQuantity(
+            sku,
+            -item.quantitySent,
+            `OUT · ${reason} · ${notes}`,
+          );
+          movementItems.push({
+            id:            crypto.randomUUID(),
+            movementId,
+            stockItemId:   sku,
+            stockItemName: itemName || sku,
+            quantity:      item.quantitySent,
+          });
         }
+
+        void logActivity({
+          actor:       'Stock',
+          action:      'stock_movement_created',
+          entityType:  'stock_movement',
+          entityId:    movementId,
+          entityLabel: `OUT · ${reason}`,
+          detail: {
+            type: 'out',
+            reason,
+            notes,
+            items: movementItems,
+          },
+        });
       }
     }
 
