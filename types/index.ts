@@ -231,7 +231,9 @@ export type PromoDiscountType = typeof PROMO_DISCOUNT_TYPES[number];
 
 export interface PromoRun {
   startDate: string;
+  startTime?: string;
   endDate: string | null;
+  endTime?: string;
 }
 
 export interface Promotion {
@@ -245,7 +247,9 @@ export interface Promotion {
   productsCovered: string;
   notes: string;
   startDate: string;
+  startTime: string;
   endDate: string | null;
+  endTime: string;
   createdAt: string;
   isActive: boolean;
   enabled: boolean;

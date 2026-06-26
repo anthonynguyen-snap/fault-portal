@@ -22,7 +22,9 @@ function fromRow(row: Record<string, unknown>): Promotion {
     productsCovered: String(row.products_covered ?? ''),
     notes:           String(row.notes ?? ''),
     startDate:       String(row.start_date ?? ''),
+    startTime:       String(row.start_time ?? ''),
     endDate,
+    endTime:         String(row.end_time ?? ''),
     createdAt:       String(row.created_at ?? ''),
     isActive,
     enabled,
@@ -47,7 +49,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, code, platform, description, discountType, discountValue, productsCovered, notes, startDate, endDate } = body;
+    const { name, code, platform, description, discountType, discountValue, productsCovered, notes, startDate, startTime, endDate, endTime } = body;
     if (!name?.trim())  return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     if (!startDate)     return NextResponse.json({ error: 'Start date is required' }, { status: 400 });
     if (!discountType)  return NextResponse.json({ error: 'Discount type is required' }, { status: 400 });
@@ -64,7 +66,9 @@ export async function POST(req: NextRequest) {
         products_covered: productsCovered?.trim() ?? '',
         notes:            notes?.trim() ?? '',
         start_date:       startDate,
+        start_time:       startTime || null,
         end_date:         endDate || null,
+        end_time:         endTime || null,
         enabled:          true,
         previous_runs:    [],
         is_major:         body.isMajor ?? false,

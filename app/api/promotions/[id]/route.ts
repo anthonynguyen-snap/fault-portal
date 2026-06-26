@@ -18,7 +18,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.productsCovered  !== undefined) updates.products_covered = body.productsCovered.trim();
     if (body.notes            !== undefined) updates.notes            = body.notes.trim();
     if (body.startDate        !== undefined) updates.start_date       = body.startDate;
+    if (body.startTime        !== undefined) updates.start_time       = body.startTime || null;
     if (body.endDate          !== undefined) updates.end_date         = body.endDate || null;
+    if (body.endTime          !== undefined) updates.end_time         = body.endTime || null;
     if (body.enabled          !== undefined) updates.enabled          = body.enabled;
     if (body.previousRuns     !== undefined) updates.previous_runs    = body.previousRuns;
     if (body.isMajor          !== undefined) updates.is_major         = body.isMajor;

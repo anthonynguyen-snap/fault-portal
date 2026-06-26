@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   Tag, Plus, X, RefreshCw, CheckCircle, Calendar,
-  Pencil, Trash2, Search, Archive, PauseCircle, PlayCircle, RotateCcw,
+  Pencil, Trash2, Search, Archive, PauseCircle, PlayCircle, RotateCcw, Clock,
 } from 'lucide-react';
 import { Promotion, PromoRun, PROMO_STORES, PROMO_DISCOUNT_TYPES } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -30,6 +30,22 @@ function SlideOver({ open, onClose, title, children }: {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function fmtTime(time?: string | null) {
+  if (!time) return '';
+  const [hh = '0', mm = '0'] = time.split(':');
+  const date = new Date();
+  date.setHours(Number(hh), Number(mm), 0, 0);
+  return date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+}
+
+function fmtPromoDateTime(date: string, time?: string | null) {
+  return `${fmtDate(date)}${time ? `, ${fmtTime(time)}` : ''}`;
+}
+
+function fmtPromoRange(startDate: string, startTime?: string | null, endDate?: string | null, endTime?: string | null) {
+  return `${fmtPromoDateTime(startDate, startTime)} – ${endDate ? fmtPromoDateTime(endDate, endTime) : 'ongoing'}`;
 }
 
 function daysUntil(iso: string): number {
@@ -80,7 +96,7 @@ function PreviousRuns({ runs }: { runs: PromoRun[] }) {
       {runs.map((r, i) => (
         <span key={i} className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
           <RotateCcw size={9} />
-          {fmtDate(r.startDate)} – {r.endDate ? fmtDate(r.endDate) : 'ongoing'}
+          {fmtPromoRange(r.startDate, r.startTime, r.endDate, r.endTime)}
         </span>
       ))}
     </div>
@@ -106,7 +122,9 @@ function PromoForm({
     productsCovered: initial?.productsCovered ?? '',
     notes:           initial?.notes           ?? '',
     startDate:       initial?.startDate       ?? '',
+    startTime:       initial?.startTime       ?? '',
     endDate:         initial?.endDate         ?? '',
+    endTime:         initial?.endTime         ?? '',
     isMajor:         initial?.isMajor         ?? false,
   });
   const [err, setErr] = useState('');
@@ -170,6 +188,17 @@ function PromoForm({
           <input type="date" value={form.endDate ?? ''} onChange={e => set('endDate', e.target.value)} className="form-input" />
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="form-label">Start Time <span className="text-slate-400 font-normal">(optional)</span></label>
+          <input type="time" value={form.startTime} onChange={e => set('startTime', e.target.value)} className="form-input" />
+        </div>
+        <div>
+          <label className="form-label">End Time <span className="text-slate-400 font-normal">(optional)</span></label>
+          <input type="time" value={form.endTime} onChange={e => set('endTime', e.target.value)} className="form-input" />
+        </div>
+      </div>
+      <p className="-mt-2 text-xs text-slate-400">Times are shown to the team in ACST/ACDT. Leave blank if timing is flexible or unknown.</p>
       <div>
         <label className="form-label">Products / Categories Covered <span className="text-slate-400 font-normal">(optional)</span></label>
         <input type="text" value={form.productsCovered} onChange={e => set('productsCovered', e.target.value)}
@@ -211,25 +240,27 @@ function ReactivateForm({
   promo, onSave, onCancel, saving,
 }: {
   promo: Promotion;
-  onSave: (newStart: string, newEnd: string) => void;
+  onSave: (newStart: string, newEnd: string, newStartTime: string, newEndTime: string) => void;
   onCancel: () => void;
   saving: boolean;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [startDate, setStartDate] = useState(today);
+  const [startTime, setStartTime] = useState('');
   const [endDate, setEndDate]     = useState('');
+  const [endTime, setEndTime]     = useState('');
   const [err, setErr]             = useState('');
 
   function submit() {
     if (!startDate) return setErr('Start date is required');
     setErr('');
-    onSave(startDate, endDate);
+    onSave(startDate, endDate, startTime, endTime);
   }
 
   // All previous runs including the current (now-ended) one
   const allPrevious = [
     ...promo.previousRuns,
-    { startDate: promo.startDate, endDate: promo.endDate },
+    { startDate: promo.startDate, startTime: promo.startTime, endDate: promo.endDate, endTime: promo.endTime },
   ];
 
   return (
@@ -240,7 +271,7 @@ function ReactivateForm({
         {allPrevious.map((r, i) => (
           <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
             <RotateCcw size={11} className="text-slate-400 flex-shrink-0" />
-            <span>{fmtDate(r.startDate)} – {r.endDate ? fmtDate(r.endDate) : 'ongoing'}</span>
+            <span>{fmtPromoRange(r.startDate, r.startTime, r.endDate, r.endTime)}</span>
           </div>
         ))}
       </div>
@@ -255,6 +286,16 @@ function ReactivateForm({
           <div>
             <label className="form-label">New End Date <span className="text-slate-400 font-normal">(optional)</span></label>
             <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="form-input" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div>
+            <label className="form-label">New Start Time <span className="text-slate-400 font-normal">(optional)</span></label>
+            <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="form-input" />
+          </div>
+          <div>
+            <label className="form-label">New End Time <span className="text-slate-400 font-normal">(optional)</span></label>
+            <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="form-input" />
           </div>
         </div>
       </div>
@@ -375,11 +416,11 @@ export default function PromotionsPage() {
     }
   }
 
-  async function reactivatePromo(promo: Promotion, newStart: string, newEnd: string) {
+  async function reactivatePromo(promo: Promotion, newStart: string, newEnd: string, newStartTime: string, newEndTime: string) {
     setSaving(true);
     try {
       // Save old dates into previous_runs
-      const newRun = { startDate: promo.startDate, endDate: promo.endDate };
+      const newRun = { startDate: promo.startDate, startTime: promo.startTime, endDate: promo.endDate, endTime: promo.endTime };
       const updatedRuns = [...promo.previousRuns, newRun];
 
       await fetch(`/api/promotions/${promo.id}`, {
@@ -387,7 +428,9 @@ export default function PromotionsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startDate:    newStart,
+          startTime:    newStartTime,
           endDate:      newEnd || null,
+          endTime:      newEndTime,
           enabled:      true,
           previousRuns: updatedRuns,
         }),
@@ -486,7 +529,7 @@ export default function PromotionsPage() {
                     {p.code && <span className="font-mono text-xs bg-white border border-brand-200 px-1.5 py-0.5 rounded">{p.code}</span>}
                     {p.discountValue && <span className="text-brand-600 text-xs">{p.discountValue}{p.discountType === '% Off' ? '% off' : p.discountType === '$ Off' ? ' off' : ''}</span>}
                     <StorePill store={p.platform} />
-                    <span className="text-xs text-slate-400 ml-auto">{fmtDate(p.startDate)} – {p.endDate ? fmtDate(p.endDate) : 'ongoing'}</span>
+                    <span className="text-xs text-slate-400 ml-auto">{fmtPromoRange(p.startDate, p.startTime, p.endDate, p.endTime)}</span>
                   </div>
                 ))}
               </div>
@@ -535,8 +578,9 @@ export default function PromotionsPage() {
                     <span className="flex items-center gap-1">
                       <Calendar size={11} /> Started {fmtDate(p.startDate)}
                     </span>
+                    {p.startTime && <span className="flex items-center gap-1"><Clock size={11} /> {fmtTime(p.startTime)}</span>}
                     {p.endDate ? (
-                      <span>Ends {fmtDate(p.endDate)}</span>
+                      <span>Ends {fmtPromoDateTime(p.endDate, p.endTime)}</span>
                     ) : (
                       <span className="text-amber-500">No end date set</span>
                     )}
@@ -602,7 +646,8 @@ export default function PromotionsPage() {
                     <span className="flex items-center gap-1">
                       <Calendar size={11} /> Started {fmtDate(p.startDate)}
                     </span>
-                    {p.endDate ? <span>Ends {fmtDate(p.endDate)}</span> : <span className="text-amber-500">No end date set</span>}
+                    {p.startTime && <span className="flex items-center gap-1"><Clock size={11} /> {fmtTime(p.startTime)}</span>}
+                    {p.endDate ? <span>Ends {fmtPromoDateTime(p.endDate, p.endTime)}</span> : <span className="text-amber-500">No end date set</span>}
                     <DaysLeftBadge endDate={p.endDate ?? null} />
                   </div>
                   {p.description && <p className="text-xs text-slate-400 mt-1">{p.description}</p>}
@@ -652,7 +697,7 @@ export default function PromotionsPage() {
                     )}
                   </div>
                   <p className="text-xs text-slate-400 mt-1">
-                    {fmtDate(p.startDate)} – {p.endDate ? fmtDate(p.endDate) : '?'}
+                    {fmtPromoRange(p.startDate, p.startTime, p.endDate, p.endTime)}
                     {p.productsCovered && ` · ${p.productsCovered}`}
                   </p>
                   {p.description && <p className="text-xs text-slate-400 mt-0.5">{p.description}</p>}
@@ -696,7 +741,7 @@ export default function PromotionsPage() {
         {reactivating && (
           <ReactivateForm
             promo={reactivating}
-            onSave={(s, e) => reactivatePromo(reactivating, s, e)}
+            onSave={(s, e, st, et) => reactivatePromo(reactivating, s, e, st, et)}
             onCancel={() => setReactivating(null)}
             saving={saving}
           />

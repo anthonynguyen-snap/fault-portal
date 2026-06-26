@@ -1255,7 +1255,7 @@ function AiBriefingCard() {
 type PromoStrip = {
   id: string; name: string; code: string; platform: string;
   description: string; discountType: string; discountValue: string;
-  productsCovered: string; notes: string; startDate: string; endDate: string | null;
+  productsCovered: string; notes: string; startDate: string; startTime: string; endDate: string | null; endTime: string;
   isMajor: boolean; enabled?: boolean;
 };
 
@@ -1270,6 +1270,16 @@ const STORE_META: Record<string, { label: string; bg: string; text: string }> = 
 
 function fmtShort(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
+function fmtPromoTime(time?: string | null) {
+  if (!time) return '';
+  const [hh = '0', mm = '0'] = time.split(':');
+  const date = new Date();
+  date.setHours(Number(hh), Number(mm), 0, 0);
+  return date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+}
+function fmtShortDateTime(date: string, time?: string | null) {
+  return `${fmtShort(date)}${time ? `, ${fmtPromoTime(time)}` : ''}`;
 }
 function daysUntil(isoDate: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -1358,7 +1368,7 @@ function MajorSaleBanner() {
                     </span>
                   )}
                   <span className="text-xs text-slate-400">
-                    {fmtShort(p.startDate)} → {p.endDate ? fmtShort(p.endDate) : 'ongoing'}
+                    {fmtShortDateTime(p.startDate, p.startTime)} → {p.endDate ? fmtShortDateTime(p.endDate, p.endTime) : 'ongoing'}
                   </span>
                 </div>
                 {p.notes && (
@@ -1481,7 +1491,7 @@ function ActivePromosStrip() {
 
                 {/* Date range */}
                 <span className="flex-shrink-0 text-xs text-slate-400 whitespace-nowrap hidden md:inline">
-                  {fmtShort(p.startDate)} → {p.endDate ? fmtShort(p.endDate) : <span className="italic">ongoing</span>}
+                  {fmtShortDateTime(p.startDate, p.startTime)} → {p.endDate ? fmtShortDateTime(p.endDate, p.endTime) : <span className="italic">ongoing</span>}
                 </span>
 
                 {/* Countdown / upcoming badge */}
