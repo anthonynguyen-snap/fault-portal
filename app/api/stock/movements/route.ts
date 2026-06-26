@@ -1,89 +1,113 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { StockMovement, StockMovementItem } from '@/types';
+import { adjustStockQuantity, getAllStockItems } from '@/lib/stock-sheets';
+import type { StockMovement, StockMovementItem } from '@/types';
 
 export const runtime = 'nodejs';
 
-function fromRow(row: Record<string, unknown>): StockMovement {
-  const rawItems = Array.isArray(row.stock_movement_items)
-    ? (row.stock_movement_items as Record<string, unknown>[])
-    : [];
-  const items: StockMovementItem[] = rawItems.map(i => ({
-    id:            String(i.id ?? ''),
-    movementId:    String(i.movement_id ?? ''),
-    stockItemId:   String(i.stock_item_id ?? ''),
-    stockItemName: String((i.stock_items as Record<string, unknown>)?.name ?? ''),
-    quantity:      Number(i.quantity ?? 0),
-  }));
-  return {
-    id:        String(row.id ?? ''),
-    type:      row.type as 'in' | 'out',
-    reason:    String(row.reason ?? ''),
-    notes:     String(row.notes ?? ''),
-    createdAt: String(row.created_at ?? ''),
-    items,
-  };
-}
+// ─── GET ──────────────────────────────────────────────────────────────────────
+// Reads movement history from activity_log (entity_type = 'stock_movement').
 
 export async function GET() {
   try {
     const { data, error } = await getSupabase()
-      .from('stock_movements')
-      .select('*, stock_movement_items(*, stock_items(name))')
-      .order('created_at', { ascending: false })
+      .from('activity_log')
+      .select('entity_id, detail, ts')
+      .eq('entity_type', 'stock_movement')
+      .eq('action', 'stock_movement_created')
+      .order('ts', { ascending: false })
       .limit(50);
     if (error) throw error;
-    return NextResponse.json({ data: (data ?? []).map(fromRow) });
+
+    const movements: StockMovement[] = (data ?? []).map((row) => {
+      const d = (row.detail ?? {}) as {
+        type:   'in' | 'out';
+        reason: string;
+        notes:  string;
+        items:  StockMovementItem[];
+      };
+      return {
+        id:        String(row.entity_id ?? ''),
+        type:      d.type   ?? 'in',
+        reason:    d.reason ?? '',
+        notes:     d.notes  ?? '',
+        createdAt: String(row.ts ?? ''),
+        items:     Array.isArray(d.items) ? d.items : [],
+      };
+    });
+
+    return NextResponse.json({ data: movements });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
 }
 
+// ─── POST ─────────────────────────────────────────────────────────────────────
+// Adjusts quantities in Google Sheets, then logs the movement to activity_log.
+
 export async function POST(req: NextRequest) {
   try {
-    const { type, reason, notes, items } = await req.json();
+    const { type, reason, notes, items } = await req.json() as {
+      type:   'in' | 'out';
+      reason: string;
+      notes?: string;
+      items:  { stockItemId: string; quantity: number }[];
+    };
+
     if (!type || !reason || !items?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // 1. Insert movement
-    const { data: movement, error: mvErr } = await getSupabase()
-      .from('stock_movements')
-      .insert({ type, reason, notes: notes ?? '' })
-      .select()
-      .single();
-    if (mvErr) throw mvErr;
+    // Build a SKU→name map so we can store names in the log without a
+    // separate lookup per item (one read, then N writes).
+    const allItems  = await getAllStockItems();
+    const nameBysku = new Map(allItems.map((i) => [i.sku, i.name]));
 
-    // 2. Insert movement items
-    const itemRows = items.map((i: { stockItemId: string; quantity: number }) => ({
-      movement_id:   movement.id,
-      stock_item_id: i.stockItemId,
-      quantity:      i.quantity,
-    }));
-    const { error: itemErr } = await getSupabase()
-      .from('stock_movement_items')
-      .insert(itemRows);
-    if (itemErr) throw itemErr;
+    // Adjust quantities in Google Sheets.
+    const movementItems: StockMovementItem[] = [];
+    const movementId = crypto.randomUUID();
 
-    // 3. Update stock quantities
-    for (const item of items as { stockItemId: string; quantity: number }[]) {
-      const { data: current, error: fetchErr } = await getSupabase()
-        .from('stock_items')
-        .select('quantity')
-        .eq('id', item.stockItemId)
-        .single();
-      if (fetchErr) throw fetchErr;
-      const newQty = type === 'in'
-        ? Number(current.quantity) + item.quantity
-        : Math.max(0, Number(current.quantity) - item.quantity);
-      const { error: updateErr } = await getSupabase()
-        .from('stock_items')
-        .update({ quantity: newQty })
-        .eq('id', item.stockItemId);
-      if (updateErr) throw updateErr;
+    for (const lineItem of items) {
+      const sku   = lineItem.stockItemId;  // after migration, stockItemId IS the sku
+      const delta = type === 'in' ? lineItem.quantity : -lineItem.quantity;
+      const note  = `${type.toUpperCase()} · ${reason}${notes ? ' · ' + notes : ''}`;
+
+      const { newQuantity, itemName } = await adjustStockQuantity(sku, delta, note);
+
+      movementItems.push({
+        id:            crypto.randomUUID(),
+        movementId,
+        stockItemId:   sku,
+        stockItemName: itemName || nameBysku.get(sku) || sku,
+        quantity:      lineItem.quantity,
+      });
+
+      // Keep the local allItems list in sync so that if the same SKU appears
+      // twice in one movement, the second delta sees the updated quantity.
+      const cached = allItems.find((i) => i.sku === sku);
+      if (cached) cached.quantity = newQuantity;
     }
 
-    return NextResponse.json({ data: movement }, { status: 201 });
+    // Record the movement in activity_log so the history tab can show it.
+    const { error: logErr } = await getSupabase().from('activity_log').insert({
+      actor:        'Stock',
+      action:       'stock_movement_created',
+      entity_type:  'stock_movement',
+      entity_id:    movementId,
+      entity_label: `${type.toUpperCase()} · ${reason}`,
+      detail: {
+        type,
+        reason,
+        notes: notes ?? '',
+        items: movementItems,
+      },
+    });
+    if (logErr) {
+      // Non-fatal: quantities are already updated in Sheets; just log the error.
+      console.error('activity_log insert failed:', logErr.message);
+    }
+
+    return NextResponse.json({ data: { id: movementId } }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }
