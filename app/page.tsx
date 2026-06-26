@@ -430,6 +430,9 @@ export default function DashboardPage() {
         </Link>
       )}
 
+      {/* ── Major sale team alert ───────────────────────────────────────────── */}
+      <MajorSaleBanner />
+
       {/* ── Quick Stat Strip ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <QuickStat
@@ -820,7 +823,6 @@ export default function DashboardPage() {
       {isAdmin && <ReplenishmentSummaryRow />}
 
       {/* ── Promotions strip ─────────────────────────────────────────────────── */}
-      <MajorSaleBanner />
       <ActivePromosStrip />
 
     </div>
@@ -1253,7 +1255,7 @@ function AiBriefingCard() {
 type PromoStrip = {
   id: string; name: string; code: string; platform: string;
   description: string; discountType: string; discountValue: string;
-  productsCovered: string; startDate: string; endDate: string | null;
+  productsCovered: string; notes: string; startDate: string; endDate: string | null;
   isMajor: boolean; enabled?: boolean;
 };
 
@@ -1289,8 +1291,14 @@ function MajorSaleBanner() {
       .then(r => r.json())
       .then(d => {
         const today = new Date().toISOString().slice(0, 10);
+        const todayStart = new Date(today + 'T00:00:00');
+        const soonCutoff = new Date(todayStart);
+        soonCutoff.setDate(soonCutoff.getDate() + 14);
         setSales((d.data ?? []).filter((p: PromoStrip) =>
-          p.isMajor && p.enabled !== false && (!p.endDate || p.endDate >= today)
+          p.isMajor &&
+          p.enabled !== false &&
+          (!p.endDate || p.endDate >= today) &&
+          new Date(p.startDate + 'T00:00:00') <= soonCutoff
         ));
       })
       .catch(err => console.error('[MajorSaleBanner]', err));
@@ -1302,23 +1310,33 @@ function MajorSaleBanner() {
     <>
       {sales.map(p => {
         const today = new Date(); today.setHours(0, 0, 0, 0);
+        const startsAt = new Date(p.startDate + 'T00:00:00');
+        const startsIn = Math.ceil((startsAt.getTime() - today.getTime()) / 86400000);
+        const isUpcoming = startsIn > 0;
         const daysLeft = p.endDate ? Math.ceil((new Date(p.endDate + 'T00:00:00').getTime() - today.getTime()) / 86400000) : null;
         const disc = discountStr(p);
 
         return (
-          <div key={p.id} className="card overflow-hidden border-amber-200">
+          <div key={p.id} className={`card overflow-hidden ${isUpcoming ? 'border-orange-300 shadow-sm shadow-orange-100' : 'border-amber-200'}`}>
             {/* Amber header bar */}
-            <div className="flex items-center gap-2.5 px-5 py-3 bg-amber-50 border-b border-amber-200">
+            <div className={`flex items-center gap-2.5 px-5 py-3 border-b ${isUpcoming ? 'bg-orange-50 border-orange-200' : 'bg-amber-50 border-amber-200'}`}>
               <span className="relative flex h-2 w-2 flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isUpcoming ? 'bg-orange-400' : 'bg-amber-400'}`} />
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${isUpcoming ? 'bg-orange-500' : 'bg-amber-500'}`} />
               </span>
-              <span className="text-xs font-bold text-amber-700 uppercase tracking-widest">Major Sale Active</span>
-              <span className="text-xs text-amber-600 opacity-70">— all other promotions are overridden</span>
+              <span className={`text-xs font-bold uppercase tracking-widest ${isUpcoming ? 'text-orange-700' : 'text-amber-700'}`}>
+                {isUpcoming ? 'Major Sale Coming Soon' : 'Major Sale Active'}
+              </span>
+              <span className={`text-xs opacity-80 ${isUpcoming ? 'text-orange-700' : 'text-amber-600'}`}>
+                {isUpcoming ? '— prepare team replies and order expectations' : '— all other promotions are overridden'}
+              </span>
+              <Link href="/promotions" className={`ml-auto hidden sm:flex items-center gap-1 text-xs font-semibold hover:underline ${isUpcoming ? 'text-orange-700' : 'text-amber-700'}`}>
+                View details <ArrowRight size={11} />
+              </Link>
             </div>
 
             {/* Body */}
-            <div className="px-5 py-4 flex items-center gap-5">
+            <div className="px-5 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
               {/* Main info */}
               <div className="flex-1 min-w-0">
                 <p className="text-lg font-bold text-slate-900 leading-snug">{p.name}</p>
@@ -1343,14 +1361,23 @@ function MajorSaleBanner() {
                     {fmtShort(p.startDate)} → {p.endDate ? fmtShort(p.endDate) : 'ongoing'}
                   </span>
                 </div>
+                {p.notes && (
+                  <p className={`mt-2 text-sm italic ${isUpcoming ? 'text-orange-700' : 'text-amber-700'}`}>
+                    {p.notes}
+                  </p>
+                )}
               </div>
 
               {/* Countdown */}
-              {daysLeft !== null && daysLeft >= 0 && (
-                <div className="flex-shrink-0 text-center bg-amber-50 border border-amber-200 rounded-xl px-5 py-3">
-                  <p className="text-3xl font-extrabold text-amber-600 leading-none">{daysLeft}</p>
-                  <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wide mt-1">
-                    {daysLeft === 1 ? 'day left' : 'days left'}
+              {(isUpcoming || (daysLeft !== null && daysLeft >= 0)) && (
+                <div className={`flex-shrink-0 text-center rounded-xl border px-5 py-3 ${isUpcoming ? 'bg-orange-50 border-orange-200' : 'bg-amber-50 border-amber-200'}`}>
+                  <p className={`text-3xl font-extrabold leading-none ${isUpcoming ? 'text-orange-600' : 'text-amber-600'}`}>
+                    {isUpcoming ? startsIn : daysLeft}
+                  </p>
+                  <p className={`text-[10px] font-semibold uppercase tracking-wide mt-1 ${isUpcoming ? 'text-orange-500' : 'text-amber-500'}`}>
+                    {isUpcoming
+                      ? startsIn === 1 ? 'day until start' : 'days until start'
+                      : daysLeft === 1 ? 'day left' : 'days left'}
                   </p>
                 </div>
               )}

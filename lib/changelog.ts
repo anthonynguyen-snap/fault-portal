@@ -54,6 +54,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Replenishment', text: 'Replenishment detail pages now have clearer item editing controls, including a header Add item button and Edit items button for locked dispatched orders.' },
       { category: 'Replenishment', text: 'Adding items to an existing replenishment order now works with SKU-backed stock items instead of relying on the old Supabase stock item ID.' },
       { category: 'Replenishment', text: 'Storeroom dispatch now deducts stock through the current SKU-backed Stock Room sheet instead of the old Supabase stock tables.' },
+      { category: 'Dashboard', text: 'Major Sale promotions now appear near the top of the home dashboard when active or starting within 14 days, with start countdown and team-facing notes.' },
     ],
   },
   {
