@@ -2219,7 +2219,9 @@ function ProductLaunchesPanel() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch('/api/product-launches').then(r => r.json());
+    // Keep expired launches available here for editing or reference; the
+    // dashboard endpoint hides them automatically after 14 days.
+    const res = await fetch('/api/product-launches?includeExpired=true').then(r => r.json());
     setLaunches(res.data ?? []);
     setLoading(false);
   }
@@ -2305,7 +2307,7 @@ function ProductLaunchesPanel() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-slate-900">Product Launches</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Add upcoming or current launches — they appear as a tile on the dashboard for all staff.</p>
+          <p className="text-sm text-slate-500 mt-0.5">Launches appear on the dashboard until 14 days after their launch date.</p>
         </div>
         <button onClick={openNew} className="btn-primary gap-2"><Plus size={14} /> Add Launch</button>
       </div>

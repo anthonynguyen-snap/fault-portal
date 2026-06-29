@@ -55,6 +55,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Replenishment', text: 'Adding items to an existing replenishment order now works with SKU-backed stock items instead of relying on the old Supabase stock item ID.' },
       { category: 'Replenishment', text: 'Storeroom dispatch now deducts stock through the current SKU-backed Stock Room sheet instead of the old Supabase stock tables.' },
       { category: 'Dashboard', text: 'Major Sale promotions now appear near the top of the home dashboard when active or starting within 14 days, with start countdown and team-facing notes.' },
+      { category: 'Dashboard', text: 'Product launch announcements now disappear automatically 14 days after launch, while remaining available in Admin for reference or editing.' },
       { category: 'Promotions', text: 'Promotions now support optional start and end times, so major sale alerts can show exactly when a sale begins and finishes.' },
       { category: 'Cases', text: 'All Cases now includes permanent Fault Insights showing the biggest fault this month and all time, top rankings by case count or cost, month-over-month volume, and recent monthly leaders.' },
       { category: 'Returns', text: 'Return creation and editing now save the return, all line items, and linked refund closure in one database transaction, preventing partial or empty records.' },

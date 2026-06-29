@@ -3,15 +3,50 @@ import { getSupabase } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+const LAUNCH_VISIBILITY_DAYS = 14;
+const PORTAL_TIME_ZONE = 'Australia/Adelaide';
+
+function portalDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PORTAL_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find(part => part.type === type)?.value ?? '';
+
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+function isVisibleLaunch(launchDate: string | null, today = portalDateKey()) {
+  // Launches without a date remain visible until an admin gives them one.
+  if (!launchDate) return true;
+
+  const [year, month, day] = launchDate.split('-').map(Number);
+  const expiresOn = new Date(Date.UTC(year, month - 1, day + LAUNCH_VISIBILITY_DAYS))
+    .toISOString()
+    .slice(0, 10);
+
+  return today < expiresOn;
+}
+
+export async function GET(req: NextRequest) {
   try {
+    const includeExpired = req.nextUrl.searchParams.get('includeExpired') === 'true';
     const { data, error } = await getSupabase()
       .from('product_launches')
       .select('*')
       .eq('archived', false)
       .order('launch_date', { ascending: true });
     if (error) throw error;
-    return NextResponse.json({ data: data ?? [] });
+    const launches = data ?? [];
+    return NextResponse.json({
+      data: includeExpired
+        ? launches
+        : launches.filter(launch => isVisibleLaunch(launch.launch_date)),
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
