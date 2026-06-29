@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   Download, CheckSquare, Square, X, RefreshCw,
   Copy, Check, User, ChevronRight as ChevronRightSm,
+  BarChart3, Trophy, TrendingDown, TrendingUp,
 } from 'lucide-react';
 import { FaultCase, ClaimStatus, FaultType } from '@/types';
 import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge, STATUS_STYLES } from '@/lib/utils';
@@ -17,6 +18,15 @@ import { useAuth } from '@/components/auth/AuthProvider';
 const PAGE_SIZE = 20;
 type SortKey = keyof FaultCase;
 type SortDir = 'asc' | 'desc';
+type FaultMetric = { name: string; count: number; cost: number };
+type FaultInsights = {
+  currentMonth: string;
+  thisMonthTotal: number;
+  previousMonthTotal: number;
+  thisMonthRanking: FaultMetric[];
+  allTimeRanking: FaultMetric[];
+  monthlyLeaders: Array<{ month: string; total: number; leader: FaultMetric | null }>;
+};
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function isoToday() { return new Date().toISOString().slice(0, 10); }
@@ -309,6 +319,140 @@ function FaultSummaryStrip({
   );
 }
 
+function FaultInsightsPanel({
+  insights,
+  onFaultTypeClick,
+}: {
+  insights: FaultInsights;
+  onFaultTypeClick: (faultType: string) => void;
+}) {
+  const [range, setRange] = useState<'month' | 'all'>('month');
+  const [metric, setMetric] = useState<'count' | 'cost'>('count');
+  const ranking = range === 'month' ? insights.thisMonthRanking : insights.allTimeRanking;
+  const ranked = [...ranking]
+    .sort((a, b) => metric === 'count' ? b.count - a.count : b.cost - a.cost)
+    .slice(0, 5);
+  const topValue = ranked[0]?.[metric] ?? 0;
+  const leader = ranked[0];
+  const totalForRange = range === 'month'
+    ? insights.thisMonthTotal
+    : insights.allTimeRanking.reduce((sum, item) => sum + item.count, 0);
+  const change = insights.previousMonthTotal > 0
+    ? Math.round(((insights.thisMonthTotal - insights.previousMonthTotal) / insights.previousMonthTotal) * 100)
+    : null;
+
+  function formatMonth(month: string, long = false) {
+    const [year, monthNumber] = month.split('-').map(Number);
+    return new Date(year, monthNumber - 1, 1).toLocaleDateString('en-AU', {
+      month: long ? 'long' : 'short', year: 'numeric',
+    });
+  }
+
+  return (
+    <section className="card overflow-hidden" aria-labelledby="fault-insights-title">
+      <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <span className="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+            <BarChart3 size={18} />
+          </span>
+          <div>
+            <h2 id="fault-insights-title" className="text-sm font-semibold text-slate-900">Fault Insights</h2>
+            <p className="text-xs text-slate-500">What customers are reporting most often</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5" aria-label="Analysis period">
+            {([['month', 'This month'], ['all', 'All time']] as const).map(([value, label]) => (
+              <button key={value} onClick={() => setRange(value)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${range === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5" aria-label="Ranking metric">
+            {([['count', 'Cases'], ['cost', 'Cost']] as const).map(([value, label]) => (
+              <button key={value} onClick={() => setMetric(value)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${metric === value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="p-5 border-b lg:border-b-0 lg:border-r border-slate-100">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase">Biggest fault · {range === 'month' ? formatMonth(insights.currentMonth, true) : 'All time'}</p>
+              {leader ? (
+                <button onClick={() => onFaultTypeClick(leader.name)} className="mt-1 text-left group">
+                  <span className="text-lg font-semibold text-slate-900 group-hover:text-brand-600 transition-colors">{leader.name}</span>
+                  <span className="ml-2 text-sm text-slate-500">
+                    {metric === 'count' ? `${leader.count} cases` : formatCurrency(leader.cost)}
+                  </span>
+                </button>
+              ) : <p className="mt-1 text-sm text-slate-500">No faults recorded this month</p>}
+            </div>
+            {leader && <Trophy size={20} className="text-amber-500 flex-shrink-0" />}
+          </div>
+
+          <div className="space-y-3">
+            {ranked.map((item, index) => {
+              const value = item[metric];
+              const share = totalForRange > 0 ? Math.round((item.count / totalForRange) * 100) : 0;
+              return (
+                <button key={item.name} onClick={() => onFaultTypeClick(item.name)}
+                  className="w-full text-left group" title={`Filter cases to ${item.name}`}>
+                  <div className="flex items-center gap-3 mb-1.5">
+                    <span className="w-4 text-xs font-semibold text-slate-400">{index + 1}</span>
+                    <span className="text-sm text-slate-700 group-hover:text-brand-700 truncate flex-1">{item.name}</span>
+                    <span className="text-xs font-semibold text-slate-800">
+                      {metric === 'count' ? item.count : formatCurrency(item.cost)}
+                    </span>
+                    <span className="w-9 text-right text-[11px] text-slate-400">{share}%</span>
+                  </div>
+                  <div className="ml-7 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-sky-500 rounded-full transition-all" style={{ width: `${topValue ? Math.max(5, (value / topValue) * 100) : 0}%` }} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {range === 'month' && change !== null && (
+            <div className={`mt-5 pt-4 border-t border-slate-100 flex items-center gap-2 text-xs ${change > 0 ? 'text-amber-700' : change < 0 ? 'text-emerald-700' : 'text-slate-500'}`}>
+              {change > 0 ? <TrendingUp size={14} /> : change < 0 ? <TrendingDown size={14} /> : null}
+              <span className="font-medium">{Math.abs(change)}% {change > 0 ? 'more' : change < 0 ? 'fewer' : 'change'} faults than last month</span>
+              <span className="text-slate-400">({insights.thisMonthTotal} vs {insights.previousMonthTotal})</span>
+            </div>
+          )}
+        </div>
+
+        <div className="p-5">
+          <h3 className="text-[11px] font-semibold text-slate-400 uppercase mb-3">Monthly leaders</h3>
+          <div className="divide-y divide-slate-100">
+            {insights.monthlyLeaders.map(({ month, total, leader: monthLeader }) => (
+              <div key={month} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-medium text-slate-500">{formatMonth(month)}</span>
+                  <span className="text-[11px] text-slate-400">{total} total</span>
+                </div>
+                {monthLeader && (
+                  <button onClick={() => onFaultTypeClick(monthLeader.name)} className="mt-1 flex items-center justify-between gap-3 w-full text-left group">
+                    <span className="text-sm text-slate-800 group-hover:text-brand-700 truncate">{monthLeader.name}</span>
+                    <span className="text-xs font-semibold text-slate-600 flex-shrink-0">{monthLeader.count}</span>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function CasesPage() {
   const { user } = useAuth();
 
@@ -319,6 +463,7 @@ export default function CasesPage() {
   const [faultSummary, setFaultSummary] = useState<Record<string, number>>({});
   const [monthSummary, setMonthSummary] = useState<Record<string, number>>({});
   const [otherNotes, setOtherNotes]     = useState<Record<string, number>>({});
+  const [faultInsights, setFaultInsights] = useState<FaultInsights | null>(null);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
   const [faultTypes, setFaultTypes]       = useState<string[]>([]);
   const [nonClaimableProducts, setNonClaimableProducts] = useState<Set<string>>(new Set());
@@ -414,6 +559,7 @@ export default function CasesPage() {
         setFaultSummary(json.byFaultType ?? {});
         setMonthSummary(json.byMonth ?? {});
         setOtherNotes(json.otherNotes ?? {});
+        setFaultInsights(json.insights ?? null);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -591,6 +737,16 @@ export default function CasesPage() {
           </Link>
         </div>
       </div>
+
+      {!loading && faultInsights && (
+        <FaultInsightsPanel
+          insights={faultInsights}
+          onFaultTypeClick={faultType => {
+            if (faultType !== 'Not specified') setFaultTypeFilter([faultType]);
+            setPage(1);
+          }}
+        />
+      )}
 
       {/* Fault Summary Strip */}
       {isFiltered && !loading && total > 0 && Object.keys(faultSummary).length > 0 && (

@@ -56,6 +56,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Replenishment', text: 'Storeroom dispatch now deducts stock through the current SKU-backed Stock Room sheet instead of the old Supabase stock tables.' },
       { category: 'Dashboard', text: 'Major Sale promotions now appear near the top of the home dashboard when active or starting within 14 days, with start countdown and team-facing notes.' },
       { category: 'Promotions', text: 'Promotions now support optional start and end times, so major sale alerts can show exactly when a sale begins and finishes.' },
+      { category: 'Cases', text: 'All Cases now includes permanent Fault Insights showing the biggest fault this month and all time, top rankings by case count or cost, month-over-month volume, and recent monthly leaders.' },
     ],
   },
   {

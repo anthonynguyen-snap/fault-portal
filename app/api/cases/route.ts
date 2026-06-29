@@ -7,6 +7,59 @@ export async function GET(req: NextRequest) {
   try {
     const cases = await getCases();
 
+    type FaultMetric = { name: string; count: number; cost: number };
+    const aggregateFaults = (source: typeof cases): FaultMetric[] => {
+      const totals = new Map<string, FaultMetric>();
+      for (const faultCase of source) {
+        const name = faultCase.faultType?.trim() || 'Not specified';
+        const current = totals.get(name) ?? { name, count: 0, cost: 0 };
+        current.count += 1;
+        current.cost += Number(faultCase.unitCostUSD) || 0;
+        totals.set(name, current);
+      }
+      return Array.from(totals.values()).sort((a, b) => b.count - a.count || b.cost - a.cost);
+    };
+
+    const adelaideDateParts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Australia/Adelaide', year: 'numeric', month: '2-digit',
+    }).formatToParts(new Date());
+    const currentYear = adelaideDateParts.find(part => part.type === 'year')?.value;
+    const currentMonthNumber = adelaideDateParts.find(part => part.type === 'month')?.value;
+    const currentMonth = `${currentYear}-${currentMonthNumber}`;
+    const currentMonthDate = new Date(Number(currentYear), Number(currentMonthNumber) - 1, 1);
+    const previousMonthDate = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() - 1, 1);
+    const previousMonth = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonthCases = cases.filter(faultCase => faultCase.date?.slice(0, 7) === currentMonth);
+    const previousMonthCases = cases.filter(faultCase => faultCase.date?.slice(0, 7) === previousMonth);
+    const allTimeRanking = aggregateFaults(cases);
+    const thisMonthRanking = aggregateFaults(thisMonthCases);
+
+    const monthlyGroups = new Map<string, typeof cases>();
+    for (const faultCase of cases) {
+      const month = faultCase.date?.slice(0, 7);
+      if (!month) continue;
+      const group = monthlyGroups.get(month) ?? [];
+      group.push(faultCase);
+      monthlyGroups.set(month, group);
+    }
+    const monthlyLeaders = Array.from(monthlyGroups.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .slice(0, 6)
+      .map(([month, monthCases]) => ({
+        month,
+        total: monthCases.length,
+        leader: aggregateFaults(monthCases)[0] ?? null,
+      }));
+
+    const insights = {
+      currentMonth,
+      thisMonthTotal: thisMonthCases.length,
+      previousMonthTotal: previousMonthCases.length,
+      thisMonthRanking,
+      allTimeRanking,
+      monthlyLeaders,
+    };
+
     // Optional query filters
     const { searchParams } = new URL(req.url);
     const search      = searchParams.get('search')?.toLowerCase();
@@ -94,7 +147,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ data: paged, total, page, pages, limit, byFaultType, byMonth, otherNotes });
+    return NextResponse.json({ data: paged, total, page, pages, limit, byFaultType, byMonth, otherNotes, insights });
   } catch (error) {
     console.error('[GET /api/cases]', error);
     return NextResponse.json({ error: 'Failed to fetch cases' }, { status: 500 });
