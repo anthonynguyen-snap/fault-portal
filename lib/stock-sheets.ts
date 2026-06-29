@@ -274,3 +274,95 @@ export async function adjustStockQuantity(
 
   return { newQuantity: newQty, itemName: item.name };
 }
+
+export interface StockDeductionPlanItem {
+  sku: string;
+  itemName: string;
+  rowIndex: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  quantityDeducted: number;
+}
+
+export interface StockDeductionPlan {
+  items: StockDeductionPlanItem[];
+}
+
+/** Validate a multi-SKU dispatch without changing the sheet. */
+export async function planStockDeductions(
+  deductions: Array<{ sku: string; quantity: number }>,
+): Promise<StockDeductionPlan> {
+  const combined = new Map<string, number>();
+  for (const deduction of deductions) {
+    const sku = deduction.sku.trim();
+    const quantity = Math.trunc(Number(deduction.quantity));
+    if (!sku) throw new Error('Every storeroom item must have a SKU');
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error(`Dispatch quantity must be greater than zero for ${sku}`);
+    }
+    combined.set(sku, (combined.get(sku) ?? 0) + quantity);
+  }
+
+  const rows = await fetchAllRows();
+  const items = Array.from(combined.entries()).map(([sku, quantity]) => {
+    const row = rows.find(candidate => candidate.sku === sku);
+    if (!row) throw new Error(`SKU not found in Stock Room: ${sku}`);
+    if (row.quantity < quantity) {
+      throw new Error(`${row.name} (${sku}) only has ${row.quantity} in stock; ${quantity} requested`);
+    }
+    return {
+      sku,
+      itemName: row.name,
+      rowIndex: row.rowIndex,
+      quantityBefore: row.quantity,
+      quantityAfter: row.quantity - quantity,
+      quantityDeducted: quantity,
+    };
+  });
+
+  return { items };
+}
+
+async function writePlannedQuantities(
+  plan: StockDeductionPlan,
+  direction: 'apply' | 'restore',
+): Promise<void> {
+  if (!plan.items.length) return;
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SHEET_ID(),
+    requestBody: {
+      valueInputOption: 'USER_ENTERED',
+      data: plan.items.map(item => ({
+        range: `${SHEET_NAME}!E${item.rowIndex}`,
+        values: [[direction === 'apply' ? item.quantityAfter : item.quantityBefore]],
+      })),
+    },
+  });
+}
+
+/** Apply every quantity in one Google Sheets request. */
+export async function applyStockDeductionPlan(plan: StockDeductionPlan, note: string): Promise<void> {
+  await writePlannedQuantities(plan, 'apply');
+  try {
+    await ensureLogSheet();
+    const sheets = getSheets();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID(),
+      range: `${LOG_NAME}!A:F`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: plan.items.map(item => [
+          new Date().toISOString(), item.sku, item.itemName, 'OUT', item.quantityDeducted, note,
+        ]),
+      },
+    });
+  } catch (error) {
+    console.error('[stock-sheets] quantities updated but dispatch log append failed', error);
+  }
+}
+
+/** Compensating write used if Supabase cannot finalize a sheet-backed dispatch. */
+export async function restoreStockDeductionPlan(plan: StockDeductionPlan): Promise<void> {
+  await writePlannedQuantities(plan, 'restore');
+}

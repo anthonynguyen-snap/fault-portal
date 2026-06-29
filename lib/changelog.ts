@@ -57,6 +57,8 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Dashboard', text: 'Major Sale promotions now appear near the top of the home dashboard when active or starting within 14 days, with start countdown and team-facing notes.' },
       { category: 'Promotions', text: 'Promotions now support optional start and end times, so major sale alerts can show exactly when a sale begins and finishes.' },
       { category: 'Cases', text: 'All Cases now includes permanent Fault Insights showing the biggest fault this month and all time, top rankings by case count or cost, month-over-month volume, and recent monthly leaders.' },
+      { category: 'Returns', text: 'Return creation and editing now save the return, all line items, and linked refund closure in one database transaction, preventing partial or empty records.' },
+      { category: 'Replenishment', text: 'Storeroom dispatch now validates every SKU and available quantity before saving, deducts stock in one batch, blocks repeat dispatches, and restores quantities if finalisation fails.' },
     ],
   },
   {

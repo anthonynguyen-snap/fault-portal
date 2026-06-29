@@ -58,29 +58,6 @@ function fromRow(row: Record<string, unknown>): Return {
   };
 }
 
-function toSnake(updates: Record<string, unknown>): Record<string, unknown> {
-  const map: Record<string, string> = {
-    orderNumber:           'order_number',
-    customerName:          'customer_name',
-    customerEmail:         'customer_email',
-    assignedTo:            'assigned_to',
-    followUpStatus:        'follow_up_status',
-    followUpNotes:         'follow_up_notes',
-    processedBy:           'processed_by',
-    conversationLink:      'conversation_link',
-    trackingNumber:        'tracking_number',
-    parcelReceived:        'parcel_received',
-    linkedRequestId:       'linked_request_id',
-    stage:                 'stage',
-    starshipitOrderNumber: 'starshipit_order_number',
-  };
-  const result: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(updates)) {
-    result[map[k] ?? k] = v;
-  }
-  return result;
-}
-
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
@@ -98,37 +75,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
   }
 }
 
-// Auto-close any Pending refund requests for the same order number
-async function autoCloseRefunds(orderNumber: string, processedBy: string) {
-  if (!orderNumber) return;
-  const supabase = getSupabase();
-  const { data: matches } = await supabase
-    .from('refund_requests')
-    .select('id')
-    .eq('order_number', orderNumber)
-    .eq('status', 'Pending');
-  if (!matches?.length) return;
-  const now = new Date().toISOString();
-  await supabase
-    .from('refund_requests')
-    .update({
-      status:          'Processed',
-      processed_notes: 'Auto-closed — linked return was processed.',
-      processed_at:    now,
-    })
-    .eq('order_number', orderNumber)
-    .eq('status', 'Pending');
-  for (const r of matches) {
-    void logActivity({
-      actor:       processedBy || 'system',
-      action:      'refund.processed',
-      entityType:  'Refund',
-      entityId:    r.id as string,
-      entityLabel: orderNumber,
-      detail:      { note: 'Auto-closed when return was processed' },
-    });
-  }
-}
+type ReturnWriteResult = { returnId: string; closedRefundIds?: string[] };
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -144,65 +91,41 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const session = await verifySession();
       if (session?.name) headerUpdates.processedBy = session.name;
     }
-    const snakeUpdates = toSnake(headerUpdates);
+    const shouldCloseRefunds = headerUpdates.status === 'Processed';
+    const { data: writeResult, error: writeError } = await getSupabase().rpc('update_return_with_items', {
+      p_return_id: id,
+      p_header: headerUpdates,
+      p_items: Array.isArray(items) ? items : null,
+      p_replace_items: Array.isArray(items),
+      p_close_refunds: shouldCloseRefunds,
+    });
+    if (writeError) throw writeError;
+    const result = writeResult as ReturnWriteResult;
 
-    // Update header fields
-    const { data, error } = await getSupabase()
+    const { data: full, error: reloadError } = await getSupabase()
       .from('returns')
-      .update(snakeUpdates)
-      .eq('id', id)
       .select('*, return_items(*)')
+      .eq('id', id)
       .single();
+    if (reloadError || !full) throw reloadError ?? new Error('Return could not be reloaded');
 
-    if (error) throw error;
-
-    // If items were passed, replace them
-    if (items && Array.isArray(items)) {
-      await getSupabase().from('return_items').delete().eq('return_id', id);
-      if (items.length > 0) {
-        await getSupabase().from('return_items').insert(
-          items.map((item: Record<string, unknown>) => ({
-            return_id:      id,
-            product:        String(item.product ?? ''),
-            condition:      item.condition,
-            decision:       item.decision,
-            refund_amount:  Number(item.refundAmount) || 0,
-            restocking_fee: Number(item.restockingFee) || 0,
-          }))
-        );
-      }
-      // Re-fetch with updated items
-      const { data: full } = await getSupabase()
-        .from('returns')
-        .select('*, return_items(*)')
-        .eq('id', id)
-        .single();
-      void logActivity({
-        actor:       String(full?.processed_by ?? ''),
-        action:      'return.updated',
-        entityType:  'Return',
-        entityId:    id,
-        entityLabel: String(full?.order_number ?? ''),
-        detail:      { customerName: String(full?.customer_name ?? '') },
-      });
-      if (headerUpdates.status === 'Processed') {
-        void autoCloseRefunds(String(full?.order_number ?? ''), String(full?.processed_by ?? ''));
-      }
-      return NextResponse.json({ data: fromRow(full) });
-    }
-
-    void logActivity({
-      actor:       String(data.processed_by ?? ''),
+    await logActivity({
+      actor:       String(full.processed_by ?? ''),
       action:      'return.updated',
       entityType:  'Return',
       entityId:    id,
-      entityLabel: String(data.order_number ?? ''),
-      detail:      { customerName: String(data.customer_name ?? '') },
+      entityLabel: String(full.order_number ?? ''),
+      detail:      { customerName: String(full.customer_name ?? '') },
     });
-    if (headerUpdates.status === 'Processed') {
-      void autoCloseRefunds(String(data.order_number ?? ''), String(data.processed_by ?? ''));
-    }
-    return NextResponse.json({ data: fromRow(data) });
+    await Promise.all((result?.closedRefundIds ?? []).map(refundId => logActivity({
+      actor: String(full.processed_by ?? '') || 'system',
+      action: 'refund.processed',
+      entityType: 'Refund',
+      entityId: refundId,
+      entityLabel: String(full.order_number ?? ''),
+      detail: { note: 'Auto-closed when return was processed' },
+    })));
+    return NextResponse.json({ data: fromRow(full) });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: msg }, { status: 500 });

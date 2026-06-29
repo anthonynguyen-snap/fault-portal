@@ -6,35 +6,17 @@ import { verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
-async function autoCloseRefunds(orderNumber: string, processedBy: string) {
-  if (!orderNumber) return;
-  const supabase = getSupabase();
-  const { data: matches } = await supabase
-    .from('refund_requests')
-    .select('id')
-    .eq('order_number', orderNumber)
-    .eq('status', 'Pending');
-  if (!matches?.length) return;
-  const now = new Date().toISOString();
-  await supabase
-    .from('refund_requests')
-    .update({
-      status:          'Processed',
-      processed_notes: 'Auto-closed — linked return was processed.',
-      processed_at:    now,
-    })
-    .eq('order_number', orderNumber)
-    .eq('status', 'Pending');
-  for (const r of matches) {
-    void logActivity({
-      actor:       processedBy || 'system',
-      action:      'refund.processed',
-      entityType:  'Refund',
-      entityId:    r.id as string,
-      entityLabel: orderNumber,
-      detail:      { note: 'Auto-closed when return was processed' },
-    });
-  }
+type ReturnWriteResult = { returnId: string; closedRefundIds?: string[] };
+
+async function logClosedRefunds(ids: string[], orderNumber: string, actor: string) {
+  await Promise.all(ids.map(id => logActivity({
+    actor: actor || 'system',
+    action: 'refund.processed',
+    entityType: 'Refund',
+    entityId: id,
+    entityLabel: orderNumber,
+    detail: { note: 'Auto-closed when return was processed' },
+  })));
 }
 
 function fromItemRow(row: Record<string, unknown>): ReturnItem {
@@ -173,7 +155,7 @@ export async function POST(req: NextRequest) {
       starshipitOrderNumber,
     } = body;
     const session = await verifySession();
-    const loggedBy = String(processedBy || session?.name || '');
+    const loggedBy = String(session?.name || processedBy || '');
 
     if (!orderNumber || !customerName || !items?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -185,70 +167,50 @@ export async function POST(req: NextRequest) {
       .map((item: Record<string, unknown>) => `Restocking fee reason (${item.product}): ${item.restockingReason}`)
       .join('\n');
 
-    // Insert return header (legacy item fields left empty for new returns)
-    const { data: ret, error: retErr } = await getSupabase()
-      .from('returns')
-      .insert({
-        stage:             stage || 'processed',
-        date:             date || new Date().toISOString().slice(0, 10),
-        order_number:     orderNumber,
-        customer_name:    customerName,
-        customer_email:   customerEmail || '',
-        tracking_number:  trackingNumber || '',
-        parcel_received:         false,
-        linked_request_id:       linkedRequestId || null,
-        starshipit_order_number: starshipitOrderNumber || '',
-        product:          '',
-        condition:        'Sealed',
-        decision:         'Pending',
-        restocking_fee:   0,
-        refund_amount:    0,
-        assigned_to:      assignedTo || '',
-        follow_up_status: needsFollowUp ? 'Pending' : 'N/A',
-        follow_up_notes:  followUpNotes || '',
-        notes:            [notes || '', restockingNotes].filter(Boolean).join('\n\n'),
-        status:           stage === 'requested' ? 'Received' : (needsFollowUp ? 'Processed' : 'Closed'),
-        processed_by:     loggedBy,
-        conversation_link: conversationLink || '',
-      })
-      .select()
-      .single();
-
-    if (retErr) throw retErr;
-
-    // Insert line items
-    const itemRows = items.map((item: Record<string, unknown>) => ({
-      return_id:     ret.id,
-      product:       String(item.product ?? ''),
-      condition:     item.condition,
-      decision:      item.decision,
-      refund_amount: Number(item.refundAmount) || 0,
-      restocking_fee: Number(item.restockingFee) || 0,
-    }));
-
-    const { error: itemErr } = await getSupabase().from('return_items').insert(itemRows);
-    if (itemErr) throw itemErr;
+    const shouldCloseRefunds = (stage || 'processed') === 'processed';
+    const { data: writeResult, error: writeError } = await getSupabase().rpc('create_return_with_items', {
+      p_return: {
+        stage: stage || 'processed',
+        date: date || new Date().toISOString().slice(0, 10),
+        orderNumber,
+        customerName,
+        customerEmail: customerEmail || '',
+        trackingNumber: trackingNumber || '',
+        parcelReceived: false,
+        linkedRequestId: linkedRequestId || null,
+        starshipitOrderNumber: starshipitOrderNumber || '',
+        assignedTo: assignedTo || '',
+        followUpStatus: needsFollowUp ? 'Pending' : 'N/A',
+        followUpNotes: followUpNotes || '',
+        notes: [notes || '', restockingNotes].filter(Boolean).join('\n\n'),
+        status: stage === 'requested' ? 'Received' : (needsFollowUp ? 'Processed' : 'Closed'),
+        processedBy: loggedBy,
+        conversationLink: conversationLink || '',
+      },
+      p_items: items,
+      p_close_refunds: shouldCloseRefunds,
+    });
+    if (writeError) throw writeError;
+    const result = writeResult as ReturnWriteResult;
+    if (!result?.returnId) throw new Error('Return transaction did not return an ID');
 
     // Fetch back with items
-    const { data: full } = await getSupabase()
+    const { data: full, error: reloadError } = await getSupabase()
       .from('returns')
       .select('*, return_items(*)')
-      .eq('id', ret.id)
+      .eq('id', result.returnId)
       .single();
+    if (reloadError || !full) throw reloadError ?? new Error('Return was saved but could not be reloaded');
 
-    void logActivity({
+    await logActivity({
       actor:       loggedBy,
       action:      'return.logged',
       entityType:  'Return',
-      entityId:    ret.id,
+      entityId:    result.returnId,
       entityLabel: orderNumber,
       detail:      { customerName, itemCount: items?.length ?? 0 },
     });
-
-    // Auto-close any Pending refund requests for the same order when processing a return
-    if ((stage || 'processed') === 'processed') {
-      void autoCloseRefunds(orderNumber, loggedBy);
-    }
+    await logClosedRefunds(result.closedRefundIds ?? [], orderNumber, loggedBy);
 
     return NextResponse.json({ data: fromRow(full) }, { status: 201 });
   } catch (error) {
