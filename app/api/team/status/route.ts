@@ -31,6 +31,19 @@ function effectiveShift(shiftType: ShiftType, today: Date, rotationStart: Date):
   return shiftType === 'tue-sat' ? 'sun-thu' : 'tue-sat';
 }
 
+function addDays(date: Date, amount: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + amount);
+  return result;
+}
+
+function mondayOf(date: Date) {
+  const result = new Date(date);
+  const day = result.getDay();
+  result.setDate(result.getDate() + (day === 0 ? -6 : 1 - day));
+  return result;
+}
+
 export async function GET() {
   const session = await verifySession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -85,5 +98,24 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ data: team });
+  // Flag a monthly weekend rotation whenever the first of a month falls in
+  // this Monday–Sunday week. This also covers months that begin mid-week.
+  const weekStart = mondayOf(today);
+  const changeDate = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index))
+    .find(date => date.getDate() === 1);
+  const rotatingAgents = (agents || []).filter(
+    (agent: { shift_type: string }) => agent.shift_type !== 'mon-fri',
+  );
+  const changeover = changeDate
+    ? {
+        date: changeDate.toISOString().slice(0, 10),
+        members: rotatingAgents.map((agent: { id: string; name: string; shift_type: string }) => ({
+          id: agent.id,
+          name: agent.name,
+          shift: effectiveShift(agent.shift_type as ShiftType, changeDate, rotationStart),
+        })),
+      }
+    : null;
+
+  return NextResponse.json({ data: team, changeover });
 }

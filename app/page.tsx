@@ -59,20 +59,32 @@ type TeamMember = {
   statusLabel?: string;
   notes?: string;
 };
+type RosterChangeover = {
+  date: string;
+  members: { id: string; name: string; shift: string }[];
+};
 
 function TodaysTeam() {
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [changeover, setChangeover] = useState<RosterChangeover | null>(null);
   useEffect(() => {
-    fetch('/api/team/status').then(r => r.json()).then(d => setTeam(d.data || [])).catch(() => {});
+    fetch('/api/team/status').then(r => r.json()).then(d => {
+      setTeam(d.data || []);
+      setChangeover(d.changeover || null);
+    }).catch(() => {});
   }, []);
   if (!team.length) return null;
   const onShift = team.filter(m => m.scheduled);
   const offShift = team.filter(m => !m.scheduled);
   const missingLoginCount = onShift.filter(m => !m.loggedIn).length;
+  const changeoverDate = changeover
+    ? new Date(`${changeover.date}T00:00:00`).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' })
+    : '';
   return (
-    <div className="card px-4 py-3 flex items-center gap-4 flex-wrap">
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">Today&apos;s Team</span>
-      <div className="flex items-center gap-3 flex-wrap flex-1">
+    <div className="card overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-4 flex-wrap">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide flex-shrink-0">Today&apos;s Team</span>
+        <div className="flex items-center gap-3 flex-wrap flex-1">
         {onShift.map(m => (
           <div
             key={m.id}
@@ -123,11 +135,26 @@ function TodaysTeam() {
             ))}
           </>
         )}
+        </div>
+        <div className="text-[10px] hidden sm:flex items-center gap-3 text-slate-400 flex-shrink-0">
+          <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1" />signed in</span>
+          {missingLoginCount > 0 && <span className="text-red-500 font-semibold">{missingLoginCount} not signed in</span>}
+        </div>
       </div>
-      <div className="text-[10px] hidden sm:flex items-center gap-3 text-slate-400 flex-shrink-0">
-        <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1" />signed in</span>
-        {missingLoginCount > 0 && <span className="text-red-500 font-semibold">{missingLoginCount} not signed in</span>}
-      </div>
+      {changeover && changeover.members.length > 0 && (
+        <Link
+          href={`/roster?date=${changeover.date}`}
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800 transition-colors hover:bg-amber-100"
+        >
+          <RotateCcw size={13} className="flex-shrink-0" />
+          <span className="font-semibold">Weekend roster changeover this week</span>
+          <span className="text-amber-700">From {changeoverDate}:</span>
+          <span>
+            {changeover.members.map(member => `${member.name} → ${SHIFT_LABELS[member.shift] ?? member.shift}`).join(' · ')}
+          </span>
+          <ArrowRight size={12} className="ml-auto flex-shrink-0" />
+        </Link>
+      )}
     </div>
   );
 }
