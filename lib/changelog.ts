@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v8.5',
+    label: 'Major Sale Suppression',
+    date: '2026-07-01',
+    isLatest: true,
+    summary: 'Major Sale promotions now automatically suppress other promotions on the same storefront while live, and correctly show as upcoming instead of active before they actually start.',
+    changes: [
+      { category: 'Promotions', text: 'Other promotions on the same storefront are now automatically suppressed while a Major Sale is live, and resume automatically the moment the sale ends or is paused — no manual pausing required.' },
+      { category: 'Promotions', text: 'Suppressed promotions show a clear "Suppressed by [Major Sale]" badge on both the Promotions page and the dashboard Live Promotions strip.' },
+      { category: 'Promotions', text: 'Fixed promotions showing a misleading "X days left" countdown before their start date/time had actually arrived — they now show "Starts in X days" until live.' },
+    ],
+  },
+  {
     version: 'v8.3',
     label: 'Evidence Folders',
     date: '2026-06-01',
-    isLatest: true,
+    isLatest: false,
     summary: 'Monthly evidence folders can now be configured in Admin — the correct folder link appears automatically on the fault case form, with alerts when a month is missing or the year rolls over.',
     changes: [
       { category: 'Admin', text: 'New Evidence Folders tab in Admin Settings — paste a Google Drive folder URL for each month of the year once, and the portal handles the rest automatically' },

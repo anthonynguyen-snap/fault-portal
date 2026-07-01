@@ -7,6 +7,7 @@ import {
 import { Promotion, PromoRun, PROMO_STORES, PROMO_DISCOUNT_TYPES } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
+import { computeSuppressions, promoHasNotStartedYet } from '@/lib/promotions';
 
 // ── Slide-over ────────────────────────────────────────────────────────────────
 function SlideOver({ open, onClose, title, children }: {
@@ -70,6 +71,17 @@ function DaysLeftBadge({ endDate }: { endDate: string | null }) {
 
   return (
     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+function StartsInBadge({ startDate }: { startDate: string }) {
+  const days = daysUntil(startDate);
+  if (days < 0) return null; // already started
+  const label = days === 0 ? 'Starts today' : days === 1 ? 'Starts tomorrow' : `Starts in ${days} days`;
+  return (
+    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-sky-50 text-sky-600 border border-sky-200">
       {label}
     </span>
   );
@@ -465,6 +477,12 @@ export default function PromotionsPage() {
   const paused   = useMemo(() => promos.filter(p => p.isActive && !p.enabled && !p.endDate),    [promos]);
   const archived = useMemo(() => promos.filter(p => !p.isActive || (!p.enabled && p.endDate)),  [promos]);
 
+  // Promos currently overridden by a live major sale on the same storefront —
+  // computed fresh from the loaded data each render, nothing is written to
+  // the DB, so there's nothing to get stuck: it un-suppresses itself the
+  // moment the major sale's window ends or it's paused.
+  const suppressions = useMemo(() => computeSuppressions(promos), [promos]);
+
   // Date lookup results
   const lookupResults = useMemo(() => {
     if (!lookupDate) return [];
@@ -560,12 +578,23 @@ export default function PromotionsPage() {
           </div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {live.map(p => (
-              <div key={p.id} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors group">
+            {live.map(p => {
+              const notStarted  = promoHasNotStartedYet(p);
+              const suppressedBy = suppressions.get(p.id);
+              return (
+              <div key={p.id} className={`flex items-start gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors group ${suppressedBy ? 'opacity-60' : ''}`}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-slate-800">{p.name}</span>
                     {p.isMajor && <span className="badge bg-amber-100 text-amber-700 border border-amber-200">⭐ Major Sale</span>}
+                    {suppressedBy && (
+                      <span
+                        className="badge bg-slate-200 text-slate-600 border border-slate-300"
+                        title={`Suppressed while "${suppressedBy.name}" is running`}
+                      >
+                        ⏸ Suppressed by {suppressedBy.name}
+                      </span>
+                    )}
                     {p.code && <span className="font-mono text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600">{p.code}</span>}
                     <StorePill store={p.platform} />
                     {p.discountValue && (
@@ -584,11 +613,16 @@ export default function PromotionsPage() {
                     ) : (
                       <span className="text-amber-500">No end date set</span>
                     )}
-                    <DaysLeftBadge endDate={p.endDate ?? null} />
+                    {notStarted ? <StartsInBadge startDate={p.startDate} /> : <DaysLeftBadge endDate={p.endDate ?? null} />}
                     {p.productsCovered && <span>· {p.productsCovered}</span>}
                   </div>
                   {p.description && <p className="text-xs text-slate-500 mt-1">{p.description}</p>}
                   {p.notes && <p className="text-xs text-slate-400 mt-1 italic">{p.notes}</p>}
+                  {suppressedBy && (
+                    <p className="text-xs text-slate-400 mt-1">
+                      Auto-suppressed while <span className="font-medium text-slate-500">{suppressedBy.name}</span> is running — resumes automatically when it ends.
+                    </p>
+                  )}
                   <PreviousRuns runs={p.previousRuns} />
                 </div>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -614,7 +648,8 @@ export default function PromotionsPage() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

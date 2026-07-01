@@ -38,6 +38,7 @@ const WeeklyFaultChart = dynamic(
   { ssr: false, loading: () => <WeeklyFaultChartSkeleton /> },
 );
 import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge } from '@/lib/utils';
+import { computeSuppressions } from '@/lib/promotions';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { WhatsNewModal } from '@/components/ui/WhatsNewModal';
@@ -1429,13 +1430,21 @@ function MajorSaleBanner() {
 // ── Active Promotions Strip ────────────────────────────────────────────────────
 function ActivePromosStrip() {
   const [promos, setPromos] = useState<PromoStrip[]>([]);
+  const [suppressed, setSuppressed] = useState<Map<string, PromoStrip>>(new Map());
 
   useEffect(() => {
     fetch('/api/promotions')
       .then(r => r.json())
       .then(d => {
+        const all: PromoStrip[] = d.data ?? [];
         const today = new Date().toISOString().slice(0, 10);
-        setPromos((d.data ?? []).filter((p: PromoStrip) =>
+        // Suppression needs the major sales too, so compute it against the
+        // full list before filtering down to what this strip displays.
+        const suppressionMap = computeSuppressions(
+          all.map(p => ({ ...p, enabled: p.enabled !== false })),
+        );
+        setSuppressed(suppressionMap);
+        setPromos(all.filter((p: PromoStrip) =>
           !p.isMajor && p.enabled !== false && (!p.endDate || p.endDate >= today)
         ));
       })
@@ -1460,7 +1469,10 @@ function ActivePromosStrip() {
           </span>
           <Tag size={13} className="text-slate-400" />
           <h3 className="text-sm font-semibold text-slate-800">Live Promotions</h3>
-          <span className="text-xs text-slate-400">{promos.length} active</span>
+          <span className="text-xs text-slate-400">
+            {promos.length - suppressed.size} active
+            {suppressed.size > 0 && `, ${suppressed.size} suppressed`}
+          </span>
         </div>
         <Link href="/promotions" className="text-xs text-brand-600 font-medium hover:underline flex items-center gap-1">
           Manage <ArrowRight size={11} />
@@ -1479,9 +1491,10 @@ function ActivePromosStrip() {
             const expiring = days !== null && days <= 7 && days >= 0;
             const urgent   = days !== null && days <= 2 && days >= 0;
             const disc = discountStr(p);
+            const suppressedBy = suppressed.get(p.id);
 
             return (
-              <div key={p.id} className={`flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors ${upcoming ? 'opacity-60' : ''}`}>
+              <div key={p.id} className={`flex items-center gap-4 px-5 py-3.5 hover:bg-slate-50 transition-colors ${(upcoming || suppressedBy) ? 'opacity-60' : ''}`}>
 
                 {/* Store badge — only show on first item of each group */}
                 <div className="w-14 flex-shrink-0">
@@ -1494,8 +1507,10 @@ function ActivePromosStrip() {
 
                 {/* Name + description */}
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold text-slate-800 truncate ${upcoming ? 'text-slate-400' : ''}`}>{p.name}</p>
-                  {p.description && (
+                  <p className={`text-sm font-semibold text-slate-800 truncate ${(upcoming || suppressedBy) ? 'text-slate-400' : ''}`}>{p.name}</p>
+                  {suppressedBy ? (
+                    <p className="text-xs text-slate-400 truncate mt-0.5">⏸ Suppressed by {suppressedBy.name}</p>
+                  ) : p.description && (
                     <p className="text-xs text-slate-400 truncate mt-0.5">{p.description}</p>
                   )}
                 </div>
@@ -1521,14 +1536,19 @@ function ActivePromosStrip() {
                   {fmtShortDateTime(p.startDate, p.startTime)} → {p.endDate ? fmtShortDateTime(p.endDate, p.endTime) : <span className="italic">ongoing</span>}
                 </span>
 
-                {/* Countdown / upcoming badge */}
+                {/* Countdown / upcoming / suppressed badge */}
                 <div className="flex-shrink-0 w-20 text-right">
-                  {upcoming && daysToStart !== null && (
+                  {suppressedBy && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 whitespace-nowrap">
+                      suppressed
+                    </span>
+                  )}
+                  {!suppressedBy && upcoming && daysToStart !== null && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 whitespace-nowrap">
                       {daysToStart === 1 ? 'tomorrow' : `in ${daysToStart}d`}
                     </span>
                   )}
-                  {!upcoming && expiring && days !== null && (
+                  {!suppressedBy && !upcoming && expiring && days !== null && (
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${urgent ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                       {days === 0 ? 'ends today' : days === 1 ? 'ends tomorrow' : `${days}d left`}
                     </span>
