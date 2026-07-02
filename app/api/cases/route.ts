@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCases, createCase } from '@/lib/google-sheets';
 import { logActivity } from '@/lib/activity';
+import { getFaultSubtypes, isFaultParentType, isValidFaultSubtype, requiresFaultNotes } from '@/lib/fault-taxonomy';
 
 // GET /api/cases — returns all fault cases
 export async function GET(req: NextRequest) {
@@ -174,8 +175,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (body.faultType === 'Cable Fault' && !['USB-C', 'Lightning', 'Other cable'].includes(body.faultSubtype)) {
-      return NextResponse.json({ error: 'A valid cable type is required' }, { status: 400 });
+    if (!isFaultParentType(body.faultType)) {
+      return NextResponse.json({ error: 'A valid fault type is required' }, { status: 400 });
+    }
+    if (!isValidFaultSubtype(body.faultType, body.faultSubtype || '')) {
+      const required = getFaultSubtypes(body.faultType).length > 0;
+      return NextResponse.json({ error: required ? 'A valid fault subtype is required' : 'This fault type does not use a subtype' }, { status: 400 });
+    }
+    if (requiresFaultNotes(body.faultType, body.faultSubtype || '') && !String(body.faultNotes || '').trim()) {
+      return NextResponse.json({ error: 'Fault notes are required for safety-critical or Other faults' }, { status: 400 });
     }
 
     // Validate unitCostUSD bounds

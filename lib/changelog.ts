@@ -33,10 +33,24 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v10.0',
+    label: 'Structured Fault Taxonomy',
+    date: '2026-07-02',
+    isLatest: true,
+    summary: 'New fault submissions now use clear parent types and conditional subtypes, with dedicated safety categories and better fallback notes.',
+    changes: [
+      { category: 'Cases', text: 'New submissions use 15 consistent parent fault types with focused subtype choices, replacing the growing flat list of overlapping labels.' },
+      { category: 'Cases', text: 'Battery swelling, overheating, fire/smoke/burning, and electrical short/fuse/spark remain separate safety-critical categories.' },
+      { category: 'Cases', text: 'Every subtype family includes an Other option; notes are required for Other selections, unclassified faults, and all safety-critical cases.' },
+      { category: 'Cases', text: 'Historical cases remain readable with their original labels and are not changed by this release.' },
+      { category: 'UI/UX', text: 'The submission form reveals subtype choices only after a parent type is selected, keeping classification clear for staff.' },
+    ],
+  },
+  {
     version: 'v9.0',
     label: 'Cable Fault Pilot',
     date: '2026-07-02',
-    isLatest: true,
+    isLatest: false,
     summary: 'The first fault-taxonomy pilot groups cable faults together while preserving whether the cable is USB-C or Lightning.',
     changes: [
       { category: 'Cases', text: 'New Cable Fault parent type with required USB-C, Lightning or Other cable detail on new submissions.' },
