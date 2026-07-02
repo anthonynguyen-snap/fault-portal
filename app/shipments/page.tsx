@@ -260,7 +260,7 @@ function SlideOver({ open, onClose, title, children }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function ShipmentsPage() {
   const { effectiveRole } = useAuth();
-  const canEdit = effectiveRole === 'admin';
+  const canEdit = effectiveRole === 'admin' || effectiveRole === 'management';
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading]     = useState(true);

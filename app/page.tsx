@@ -229,7 +229,7 @@ function SectionHeader({
 // ── Main Dashboard Page ────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { effectiveRole, viewingAsTeam, setViewingAsTeam } = useAuth();
-  const isAdmin = effectiveRole === 'admin';
+  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'management';
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [allReturns, setAllReturns] = useState<Return[]>([]);

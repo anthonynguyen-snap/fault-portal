@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   // Look up agent by email
   const { data: agent, error } = await supabase
     .from('roster_agents')
-    .select('id, name, email, password_hash, role')
+    .select('id, name, email, password_hash, role, active, is_admin')
     .eq('email', email.toLowerCase().trim())
     .single();
 
@@ -32,25 +32,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   }
 
-  // Clock in: create shift log (date in ACST/ACDT)
-  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Adelaide' });
-  const { data: shiftLog } = await supabase
-    .from('shift_logs')
-    .insert([{
-      agent_id: agent.id,
-      date: today,
-      clock_in: new Date().toISOString(),
-    }])
-    .select('id')
-    .single();
+  // Portal-only management accounts are stored as protected, inactive roster
+  // records so they stay out of rosters without requiring a second auth system.
+  const role = agent.role === 'staff' && agent.active === false && agent.is_admin === true
+    ? 'management'
+    : agent.role as 'admin' | 'staff';
+
+  // Only rostered team members create attendance records.
+  let shiftLogId: string | undefined;
+  if (role !== 'management') {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Adelaide' });
+    const { data: shiftLog } = await supabase
+      .from('shift_logs')
+      .insert([{
+        agent_id: agent.id,
+        date: today,
+        clock_in: new Date().toISOString(),
+      }])
+      .select('id')
+      .single();
+    shiftLogId = shiftLog?.id;
+  }
 
   // Create session
   await createSession({
     agentId: agent.id,
     name: agent.name,
     email: agent.email,
-    role: agent.role as 'admin' | 'staff',
-    shiftLogId: shiftLog?.id,
+    role,
+    shiftLogId,
   });
 
   return NextResponse.json({
@@ -59,7 +69,7 @@ export async function POST(req: Request) {
       id: agent.id,
       name: agent.name,
       email: agent.email,
-      role: agent.role,
+      role,
     },
   });
 }

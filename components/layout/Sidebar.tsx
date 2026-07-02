@@ -221,8 +221,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
   const { user, effectiveRole, viewingAsTeam, setViewingAsTeam, loading, logout } = useAuth();
-  const isAdmin = effectiveRole === 'admin';
-  const canPreviewTeam = user?.role === 'admin';
+  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'management';
+  const isManagement = effectiveRole === 'management';
+  const canSeeManagementPages = isAdmin || isManagement;
+  const canPreviewTeam = user?.role === 'admin' || user?.role === 'management';
 
   const [collapsed, setCollapsed] = useState(false);
   const [tooltip, setTooltip] = useState<{ label: string; y: number } | null>(null);
@@ -378,8 +380,10 @@ export function Sidebar() {
           {/* Groups */}
           <div className={cn('space-y-4', collapsed && 'space-y-2')}>
             {navGroups.map((group) => {
-              if (group.adminOnly && !isAdmin) return null;
-              const visibleItems = group.items.filter(item => !item.adminOnly || isAdmin);
+              if (group.adminOnly && !canSeeManagementPages) return null;
+              const visibleItems = group.items.filter(item =>
+                !item.adminOnly || isAdmin
+              );
               if (visibleItems.length === 0) return null;
 
               return (
@@ -525,9 +529,13 @@ export function Sidebar() {
                 <p className="text-xs font-medium text-slate-300 truncate">
                   {loading ? 'Checking session…' : user?.name || 'Not signed in'}
                 </p>
-                <Link href="/account/password" className="text-[10px] text-slate-500 hover:text-slate-400 transition-colors">
-                  Change password
-                </Link>
+                {user?.role === 'management' ? (
+                  <p className="text-[10px] font-medium text-amber-400">Management · admin access</p>
+                ) : (
+                  <Link href="/account/password" className="text-[10px] text-slate-500 hover:text-slate-400 transition-colors">
+                    Change password
+                  </Link>
+                )}
               </div>
               <button
                 onClick={logout}

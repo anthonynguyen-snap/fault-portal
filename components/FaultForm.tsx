@@ -27,7 +27,7 @@ function today() {
 export function FaultForm({ staffName = "" }: Props) {
   const router = useRouter();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'management';
   // Staff always use their own name; admin can type freely
   const resolvedName = isAdmin ? staffName : (user?.name ?? staffName);
   const fileRef = useRef<HTMLInputElement>(null);

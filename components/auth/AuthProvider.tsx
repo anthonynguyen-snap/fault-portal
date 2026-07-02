@@ -7,12 +7,12 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'staff';
+  role: 'admin' | 'management' | 'staff';
 }
 
 interface AuthContextValue {
   user: User | null;
-  effectiveRole: 'admin' | 'staff' | null;
+  effectiveRole: 'admin' | 'management' | 'staff' | null;
   viewingAsTeam: boolean;
   setViewingAsTeam: (value: boolean) => void;
   loading: boolean;
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         if (cancelled) return;
         setUser(data?.user ?? null);
-        if (data?.user?.role !== 'admin') setViewingAsTeamState(false);
+        if (!['admin', 'management'].includes(data?.user?.role)) setViewingAsTeamState(false);
       })
       .catch(() => {
         if (!cancelled) setUser(null);
@@ -81,10 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const effectiveRole = user?.role === 'admin' && viewingAsTeam ? 'staff' : user?.role ?? null;
+  const hasAdminAccess = user?.role === 'admin' || user?.role === 'management';
+  const effectiveRole = hasAdminAccess && viewingAsTeam ? 'staff' : user?.role ?? null;
 
   return (
-    <AuthContext.Provider value={{ user, effectiveRole, viewingAsTeam: user?.role === 'admin' && viewingAsTeam, setViewingAsTeam, loading, logout }}>
+    <AuthContext.Provider value={{ user, effectiveRole, viewingAsTeam: hasAdminAccess && viewingAsTeam, setViewingAsTeam, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

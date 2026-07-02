@@ -145,7 +145,7 @@ function LogRequestSlideOver({
   editing?: Return | null;
   currentUser?: { name: string; role: string } | null;
 }) {
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'management';
   const [form, setForm] = useState<RequestForm>(blankRequest());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');

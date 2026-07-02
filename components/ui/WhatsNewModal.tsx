@@ -13,6 +13,7 @@ const CATEGORY_STYLES: Record<ChangeCategory, string> = {
   Roster:        'bg-amber-100 text-amber-700',
   Admin:         'bg-slate-100 text-slate-600',
   Cases:         'bg-rose-100 text-rose-700',
+  Claims:        'bg-cyan-100 text-cyan-700',
   Orders:        'bg-indigo-100 text-indigo-700',
   Inventory:     'bg-orange-100 text-orange-700',
   Promotions:    'bg-pink-100 text-pink-700',

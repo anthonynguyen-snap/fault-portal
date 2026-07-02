@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { verifySession } from '@/lib/auth';
+import { hasAdminAccess, verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -36,7 +36,7 @@ function errorMessage(error: unknown): string {
 
 async function requireAdmin() {
   const session = await verifySession();
-  return session?.role === 'admin';
+  return hasAdminAccess(session?.role);
 }
 
 export async function GET() {

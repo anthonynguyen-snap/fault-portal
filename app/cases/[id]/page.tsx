@@ -316,6 +316,17 @@ export default function CaseDetailPage() {
           {/* Evidence */}
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-slate-700 mb-3">Evidence</h2>
+            {c.commslayerChatLink && (
+              <a
+                href={c.commslayerChatLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm font-medium text-brand-700 hover:bg-brand-100"
+              >
+                <span>Open Commslayer chat</span>
+                <ExternalLink size={14} />
+              </a>
+            )}
             {c.evidenceLink ? (
               <div className="space-y-2">
                 {c.evidenceLink.split(',').filter(Boolean).map((link, idx, arr) => (

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { verifySession } from '@/lib/auth';
+import { hasAdminAccess, verifySession } from '@/lib/auth';
 
 export async function GET(req: Request) {
   const session = await verifySession();
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const to = searchParams.get('to');
 
   // Staff can only see their own shifts
-  const targetAgentId = session.role === 'admin' && agentId ? agentId : session.agentId;
+  const targetAgentId = hasAdminAccess(session.role) && agentId ? agentId : session.agentId;
 
   let query = supabase
     .from('shift_logs')

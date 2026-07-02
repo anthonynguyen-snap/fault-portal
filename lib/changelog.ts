@@ -4,6 +4,7 @@
 
 export type ChangeCategory =
   | 'Cases'
+  | 'Claims'
   | 'Returns'
   | 'Refunds'
   | 'Orders'
@@ -65,6 +66,21 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Promotions', text: 'Other promotions on the same storefront are now automatically suppressed while a Major Sale is live, and resume automatically the moment the sale ends or is paused — no manual pausing required.' },
       { category: 'Promotions', text: 'Suppressed promotions show a clear "Suppressed by [Major Sale]" badge on both the Promotions page and the dashboard Live Promotions strip.' },
       { category: 'Promotions', text: 'Fixed promotions showing a misleading "X days left" countdown before their start date/time had actually arrived — they now show "Starts in X days" until live.' },
+    ],
+  },
+  {
+    version: 'v8.4',
+    label: 'Claims & Management Access',
+    date: '2026-07-01',
+    isLatest: false,
+    summary: 'Monthly claim batches now use every fault in the selected month, management accounts have admin access without affecting the roster, and fault cases capture their Commslayer conversation.',
+    changes: [
+      { category: 'Claims', text: 'New Claim Batch now calculates from the complete month of fault cases instead of only the first 20 cases returned by the cases list.' },
+      { category: 'Claims', text: 'The manufacturer selector now shows every manufacturer with faults in the selected month, including accurate unit counts and cost at risk.' },
+      { category: 'Claims', text: 'Claim totals and linked case IDs are recalculated on the server when a batch is created, preventing partial browser data from being saved.' },
+      { category: 'Security', text: 'Management logins now have the same portal permissions as admins while remaining hidden from the roster and excluded from clock-in records.' },
+      { category: 'Admin', text: 'Admin → Logins now creates dedicated management accounts directly, without first adding the person as a rostered team member.' },
+      { category: 'Cases', text: 'Fault submission now requires a valid Commslayer chat link and stores it with the case for quick access from case details.' },
     ],
   },
   {

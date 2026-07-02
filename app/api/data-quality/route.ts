@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { verifySession } from '@/lib/auth';
+import { hasAdminAccess, verifySession } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -19,7 +19,7 @@ function isBlank(value: unknown) {
 
 export async function GET() {
   const session = await verifySession();
-  if (!session || session.role !== 'admin') {
+  if (!session || !hasAdminAccess(session.role)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -33,6 +33,7 @@ interface FormData {
   faultType: string;
   faultSubtype: string;
   faultNotes: string;
+  commslayerChatLink: string;
   evidenceLink: string;
   unitCostUSD: number;
   submittedBy: string;
@@ -198,7 +199,7 @@ export default function NewCasePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'management';
   const [products, setProducts] = useState<Product[]>([]);
   const [faultTypes, setFaultTypes] = useState<FaultType[]>([]);
   const handleFaultTypeAdded = useCallback((ft: FaultType) => setFaultTypes(prev => [...prev, ft]), []);
@@ -217,6 +218,7 @@ export default function NewCasePage() {
     faultType: '',
     faultSubtype: '',
     faultNotes: '',
+    commslayerChatLink: '',
     evidenceLink: '',
     unitCostUSD: 0,
     submittedBy: '',
@@ -435,6 +437,16 @@ export default function NewCasePage() {
     if (form.faultType === CABLE_FAULT_TYPE && !form.faultSubtype) {
       newErrors.faultSubtype = 'Cable type is required';
     }
+    if (!form.commslayerChatLink) {
+      newErrors.commslayerChatLink = 'Commslayer chat link is required';
+    } else {
+      try {
+        const url = new URL(form.commslayerChatLink);
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        newErrors.commslayerChatLink = 'Enter a valid Commslayer chat link';
+      }
+    }
     if (!form.evidenceLink) newErrors.file = 'Evidence upload is required';
     if (!ewasteAdvised)     (newErrors as Record<string, string>).ewaste = 'You must confirm the customer has been directed to an e-waste collection point before submitting';
 
@@ -496,6 +508,7 @@ export default function NewCasePage() {
       faultType: '',
       faultSubtype: '',
       faultNotes: '',
+      commslayerChatLink: '',
       evidenceLink: '',
       unitCostUSD: 0,
       submittedBy: preservedName,
@@ -870,6 +883,30 @@ export default function NewCasePage() {
             </div>
           </div>
         )}
+
+        {/* Commslayer Chat */}
+        <div className="card p-6">
+          <h2 className="text-sm font-semibold text-slate-900 mb-1 pb-2 border-b border-slate-100">
+            Commslayer Chat Link <span className="text-red-500">*</span>
+          </h2>
+          <p className="text-xs text-slate-500 mb-3">
+            Paste the link to the customer conversation in Commslayer so the team can review the chat history.
+          </p>
+          <input
+            type="url"
+            value={form.commslayerChatLink}
+            onChange={e => handleChange('commslayerChatLink', e.target.value)}
+            placeholder="https://..."
+            autoComplete="url"
+            className={`form-input text-sm ${errors.commslayerChatLink ? 'border-red-300' : ''}`}
+          />
+          {errors.commslayerChatLink && (
+            <div className="flex items-center gap-2 mt-2">
+              <AlertCircle size={14} className="text-red-500" />
+              <p className="form-error mt-0">{errors.commslayerChatLink}</p>
+            </div>
+          )}
+        </div>
 
         {/* Evidence Links */}
         <div className="card p-6">

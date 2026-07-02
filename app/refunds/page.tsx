@@ -141,7 +141,7 @@ export default function RefundsPage() {
 function RefundsInner() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'management';
 
   const [requests, setRequests]   = useState<RefundRequest[]>([]);
   const [staff, setStaff]         = useState<StaffMember[]>([]);

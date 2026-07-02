@@ -263,7 +263,7 @@ function TOC({ activeId }: { activeId: string }) {
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function SOPPage() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'management';
   const [activeId, setActiveId] = useState(SOP_TOP_LEVEL[0]?.id ?? '');
   const contentRef = useRef<HTMLDivElement>(null);
 

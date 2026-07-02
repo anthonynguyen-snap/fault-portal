@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { verifySession } from '@/lib/auth';
+import { hasAdminAccess, verifySession } from '@/lib/auth';
 
 export async function POST(req: Request) {
   const session = await verifySession();
-  if (!session || session.role !== 'admin') {
+  if (!session || !hasAdminAccess(session.role)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
   }
 

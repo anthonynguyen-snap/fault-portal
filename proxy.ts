@@ -103,7 +103,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Verify token
-  let payload: { agentId: string; name: string; email: string; role: string; shiftLogId?: string };
+  let payload: { agentId: string; name: string; email: string; role: 'admin' | 'management' | 'staff'; shiftLogId?: string };
   try {
     const { payload: p } = await jwtVerify(token, getSecretKey());
     payload = p as typeof payload;

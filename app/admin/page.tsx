@@ -30,6 +30,7 @@ import {
   Rocket,
   ImageIcon,
   Link as LinkIcon,
+  UserPlus,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
@@ -859,9 +860,10 @@ interface AgentWithAuth {
   id: string;
   name: string;
   email: string | null;
-  role: 'admin' | 'staff';
+  role: 'admin' | 'management' | 'staff';
   hasPassword: boolean;
   lastLogin: string | null;
+  portalOnly?: boolean;
 }
 
 function formatLastLogin(iso: string | null): string {
@@ -885,7 +887,10 @@ function LoginsPanel() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<AgentWithAuth | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '', role: 'staff' as 'admin' | 'staff' });
+  const [form, setForm] = useState({ email: '', password: '', confirmPassword: '', role: 'staff' as 'admin' | 'management' | 'staff' });
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [createError, setCreateError] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -907,6 +912,36 @@ function LoginsPanel() {
     setError('');
     setShowPw(false);
     setShowModal(true);
+  }
+
+  async function handleCreateManagement() {
+    if (createForm.password !== createForm.confirmPassword) {
+      setCreateError('Passwords do not match');
+      return;
+    }
+    if (createForm.password.length < 10) {
+      setCreateError('Password must be at least 10 characters');
+      return;
+    }
+    setSaving(true); setCreateError('');
+    try {
+      const res = await fetch('/api/staff/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createForm),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || 'Failed to create account');
+      setShowCreate(false);
+      setCreateForm({ name: '', email: '', password: '', confirmPassword: '' });
+      setSuccess(`${json.data.name} can now access the portal.`);
+      setTimeout(() => setSuccess(''), 3000);
+      await load();
+    } catch (err: unknown) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create account');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSave() {
@@ -931,11 +966,13 @@ function LoginsPanel() {
       if (emailJson.error) throw new Error(emailJson.error);
 
       // Update role
-      await fetch('/api/staff/auth', {
+      const roleRes = await fetch('/api/staff/auth', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId: editing.id, role: form.role }),
       });
+      const roleJson = await roleRes.json();
+      if (!roleRes.ok || roleJson.error) throw new Error(roleJson.error || 'Failed to update access level');
 
       // Update password if provided
       if (form.password) {
@@ -966,11 +1003,19 @@ function LoginsPanel() {
           <h2 className="font-semibold text-slate-900">Staff Logins</h2>
           <p className="text-xs text-slate-500">Set email, password and role for each team member's portal access</p>
         </div>
-        {success && (
-          <span className="flex items-center gap-1.5 text-emerald-700 text-xs font-medium">
-            <CheckCircle size={13} /> {success}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {success && (
+            <span className="flex items-center gap-1.5 text-emerald-700 text-xs font-medium">
+              <CheckCircle size={13} /> {success}
+            </span>
+          )}
+          <button
+            onClick={() => { setCreateError(''); setShowCreate(true); }}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            <UserPlus size={14} /> Add Management Login
+          </button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">
@@ -999,7 +1044,8 @@ function LoginsPanel() {
                   <td className="text-slate-500 text-xs">{agent.email || <span className="text-amber-500 italic">Not set</span>}</td>
                   <td>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      agent.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                      agent.role === 'admin' ? 'bg-indigo-100 text-indigo-700' :
+                      agent.role === 'management' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {agent.role}
                     </span>
@@ -1031,8 +1077,7 @@ function LoginsPanel() {
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-        <strong>Note:</strong> Staff members need an email and password to log in. Admins have access to all pages; staff see a limited view.
-        Login automatically clocks staff in, and logout clocks them out.
+        <strong>Access levels:</strong> Management accounts have the same editing and administration access as admins, but stay off the roster and never create clock-in records.
       </div>
 
       <LoginHistoryFeed agents={agents.map(a => ({ id: a.id, name: a.name }))} />
@@ -1062,10 +1107,11 @@ function LoginsPanel() {
                 <label className="form-label">Role</label>
                 <select
                   value={form.role}
-                  onChange={e => setForm(f => ({ ...f, role: e.target.value as 'admin' | 'staff' }))}
+                  onChange={e => setForm(f => ({ ...f, role: e.target.value as 'admin' | 'management' | 'staff' }))}
                   className="form-input"
                 >
                   <option value="staff">Staff</option>
+                  <option value="management">Management (admin access)</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -1111,6 +1157,50 @@ function LoginsPanel() {
               <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
               <button onClick={handleSave} disabled={saving} className="btn-primary">
                 {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h2 className="font-semibold text-slate-900">Add Management Login</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Full admin access without roster or clock-in activity</p>
+              </div>
+              <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600 p-1"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="form-label">Full name</label>
+                <input value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} className="form-input" placeholder="e.g. Jane Smith" />
+              </div>
+              <div>
+                <label className="form-label">Email address</label>
+                <input type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} className="form-input" placeholder="name@example.com" />
+              </div>
+              <div>
+                <label className="form-label">Temporary password</label>
+                <input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} className="form-input" placeholder="At least 10 characters" />
+              </div>
+              <div>
+                <label className="form-label">Confirm password</label>
+                <input type="password" value={createForm.confirmPassword} onChange={e => setCreateForm(f => ({ ...f, confirmPassword: e.target.value }))} className="form-input" placeholder="Repeat temporary password" />
+              </div>
+              {createError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle size={14} className="text-red-500" />
+                  <p className="text-xs text-red-700">{createError}</p>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <button onClick={() => setShowCreate(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleCreateManagement} disabled={saving || !createForm.name || !createForm.email || !createForm.password} className="btn-primary">
+                {saving ? 'Creating…' : 'Create Login'}
               </button>
             </div>
           </div>

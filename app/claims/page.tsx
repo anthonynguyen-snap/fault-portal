@@ -15,7 +15,7 @@ import {
   BarChart2,
   CircleDot,
 } from 'lucide-react';
-import { Claim, ClaimStatus, FaultCase } from '@/types';
+import { Claim, ClaimStatus } from '@/types';
 import { formatCurrency, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -29,6 +29,12 @@ const MONTHS = [
 const currentYear = new Date().getFullYear();
 const YEARS = [currentYear, currentYear - 1, currentYear - 2].map(String);
 
+interface ClaimPreview {
+  manufacturer: string;
+  faultCount: number;
+  costAtRisk: number;
+}
+
 // Statuses that represent a terminal outcome — trigger the outcome modal
 const OUTCOME_STATUSES: ClaimStatus[] = ['Credit Received', 'Partial Credit', 'Rejected'];
 const NOTES_STATUSES:   ClaimStatus[] = ['Acknowledged', 'Claim Raised'];  // trigger modal for notes only
@@ -41,7 +47,8 @@ function fmtDate(iso: string) {
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [cases, setCases] = useState<FaultCase[]>([]);
+  const [claimPreview, setClaimPreview] = useState<ClaimPreview[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -73,15 +80,10 @@ export default function ClaimsPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [claimsRes, casesRes] = await Promise.all([
-        fetch('/api/claims'),
-        fetch('/api/cases'),
-      ]);
+      const claimsRes = await fetch('/api/claims');
       const claimsJson = await claimsRes.json();
       if (claimsJson.error) throw new Error(claimsJson.error);
       setClaims(claimsJson.data || []);
-      const casesJson = await casesRes.json();
-      setCases(casesJson.data || []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -98,24 +100,37 @@ export default function ClaimsPage() {
     } catch { /* silent */ }
   }
 
-  const manufacturers = useMemo(() => {
-    const names = new Set(cases.map(c => c.manufacturerName).filter(Boolean));
-    return Array.from(names).sort();
-  }, [cases]);
+  useEffect(() => {
+    if (!showModal || editingClaim || !formData.month || !formData.year) return;
+    let cancelled = false;
+    setPreviewLoading(true);
+    const params = new URLSearchParams({ preview: '1', month: formData.month, year: formData.year });
+    fetch(`/api/claims?${params}`)
+      .then(res => res.json())
+      .then(json => {
+        if (cancelled) return;
+        const nextPreview = json.data || [];
+        setClaimPreview(nextPreview);
+        setFormData(current => (
+          current.manufacturer && !nextPreview.some((item: ClaimPreview) => item.manufacturer === current.manufacturer)
+            ? { ...current, manufacturer: '' }
+            : current
+        ));
+      })
+      .catch(() => { if (!cancelled) setClaimPreview([]); })
+      .finally(() => { if (!cancelled) setPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [showModal, editingClaim, formData.month, formData.year]);
 
-  const matchingCases = useMemo(() => {
-    if (!formData.manufacturer || !formData.month || !formData.year) return [];
-    const targetMonthIndex = MONTHS.indexOf(formData.month);
-    const targetYear = parseInt(formData.year);
-    return cases.filter(c => {
-      if (c.manufacturerName !== formData.manufacturer) return false;
-      try {
-        const dateStr = c.date.includes('T') ? c.date : c.date + 'T00:00:00';
-        const d = new Date(dateStr);
-        return d.getMonth() === targetMonthIndex && d.getFullYear() === targetYear;
-      } catch { return false; }
-    });
-  }, [cases, formData.manufacturer, formData.month, formData.year]);
+  const manufacturers = useMemo(
+    () => editingClaim ? [editingClaim.manufacturer] : claimPreview.map(item => item.manufacturer),
+    [claimPreview, editingClaim]
+  );
+
+  const matchingBatch = useMemo(
+    () => claimPreview.find(item => item.manufacturer === formData.manufacturer) ?? null,
+    [claimPreview, formData.manufacturer]
+  );
 
   // ── Recovery stats ─────────────────────────────────────────────────────────
   const recoveryStats = useMemo(() => {
@@ -176,14 +191,9 @@ export default function ClaimsPage() {
     setSaveError('');
     try {
       const method = editingClaim ? 'PATCH' : 'POST';
-      const autoFields = !editingClaim ? {
-        faultCount: matchingCases.length,
-        costAtRisk: matchingCases.reduce((s, c) => s + c.unitCostUSD, 0),
-        caseIds: matchingCases.map(c => c.id),
-      } : {};
       const body = editingClaim
         ? { ...formData, id: editingClaim.id }
-        : { ...formData, ...autoFields };
+        : formData;
 
       const res = await fetch('/api/claims', {
         method,
@@ -541,10 +551,14 @@ export default function ClaimsPage() {
                   value={formData.manufacturer || ''}
                   onChange={e => setFormData(f => ({ ...f, manufacturer: e.target.value }))}
                   className="form-input"
+                  disabled={!editingClaim && previewLoading}
                 >
-                  <option value="">Select manufacturer…</option>
+                  <option value="">{previewLoading ? 'Loading manufacturers…' : 'Select manufacturer…'}</option>
                   {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
+                {!editingClaim && !previewLoading && manufacturers.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1.5">No fault cases were found for this month.</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -563,12 +577,12 @@ export default function ClaimsPage() {
               </div>
 
               {!editingClaim && formData.manufacturer && (
-                <div className={`rounded-xl p-4 border ${matchingCases.length > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
-                  {matchingCases.length > 0 ? (
+                <div className={`rounded-xl p-4 border ${matchingBatch ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                  {matchingBatch ? (
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-semibold text-emerald-800">
-                          {matchingCases.length} fault{matchingCases.length !== 1 ? 's' : ''} found
+                          {matchingBatch.faultCount} fault{matchingBatch.faultCount !== 1 ? 's' : ''} found
                         </p>
                         <p className="text-xs text-emerald-600 mt-0.5">
                           {formData.manufacturer} · {formData.month} {formData.year}
@@ -576,7 +590,7 @@ export default function ClaimsPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-bold text-emerald-800">
-                          {formatCurrency(matchingCases.reduce((s, c) => s + c.unitCostUSD, 0))}
+                          {formatCurrency(matchingBatch.costAtRisk)}
                         </p>
                         <p className="text-xs text-emerald-600">cost at risk</p>
                       </div>
@@ -617,7 +631,7 @@ export default function ClaimsPage() {
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="btn-primary">
+              <button onClick={handleSave} disabled={saving || (!editingClaim && (!matchingBatch || previewLoading))} className="btn-primary">
                 {saving ? 'Saving…' : editingClaim ? 'Save Changes' : 'Create Batch'}
               </button>
             </div>

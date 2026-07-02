@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
     // Validate required fields
     const required = [
       'date', 'orderNumber', 'customerName', 'product',
-      'manufacturerName', 'faultType', 'evidenceLink',
+      'manufacturerName', 'faultType', 'commslayerChatLink', 'evidenceLink',
     ];
     for (const field of required) {
       if (!body[field]) {
@@ -189,6 +189,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Evidence link is required' }, { status: 400 });
     }
 
+    // A case must link back to the Commslayer customer conversation.
+    if (typeof body.commslayerChatLink !== 'string') {
+      return NextResponse.json({ error: 'A valid Commslayer chat link is required' }, { status: 400 });
+    }
+    try {
+      const commslayerUrl = new URL(body.commslayerChatLink.trim());
+      if (!['http:', 'https:'].includes(commslayerUrl.protocol)) throw new Error('Invalid protocol');
+    } catch {
+      return NextResponse.json({ error: 'A valid Commslayer chat link is required' }, { status: 400 });
+    }
+
     const newCase = await createCase({
       date:               body.date,
       orderNumber:        body.orderNumber.trim(),
@@ -199,6 +210,7 @@ export async function POST(req: NextRequest) {
       faultType:          body.faultType,
       faultSubtype:       body.faultSubtype || '',
       faultNotes:         body.faultNotes || '',
+      commslayerChatLink: body.commslayerChatLink.trim(),
       evidenceLink:       body.evidenceLink.trim(),
       unitCostUSD:        unitCost,
       claimStatus:        body.claimStatus || 'Unsubmitted',

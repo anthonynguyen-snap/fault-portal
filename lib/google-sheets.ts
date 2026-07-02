@@ -67,7 +67,7 @@ function rowToCase(row: string[]): FaultCase {
     createdAt:          row[13] || '',
     internalNotes,
     commslayerChatLink: row[15] || '',
-    faultSubtype:      row[16] || '',
+    faultSubtype:       row[16] || '',
   };
 }
 
@@ -93,13 +93,13 @@ function caseToRow(c: FaultCase): string[] {
   ];
 }
 
-async function ensureCasePilotHeaders(): Promise<void> {
+async function ensureCaseHeaders(): Promise<void> {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: 'Cases!Q1',
+    range: 'Cases!P1:Q1',
     valueInputOption: 'RAW',
-    requestBody: { values: [['Fault Subtype']] },
+    requestBody: { values: [['Commslayer Chat Link', 'Fault Subtype']] },
   });
 }
 
@@ -129,7 +129,7 @@ export async function createCase(
     createdAt: new Date().toISOString(),
   };
 
-  await ensureCasePilotHeaders();
+  await ensureCaseHeaders();
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
@@ -153,7 +153,7 @@ export async function updateCase(
   const updated: FaultCase = { ...allCases[idx], ...updates };
   const sheetRow = idx + 2; // +1 header, +1 for 1-based index
 
-  await ensureCasePilotHeaders();
+  await ensureCaseHeaders();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
     range: `Cases!A${sheetRow}:Q${sheetRow}`,
@@ -627,7 +627,7 @@ export async function bulkUpdateCaseStatuses(
 ): Promise<void> {
   if (!caseIds.length) return;
   const sheets = getSheets();
-  await ensureCasePilotHeaders();
+  await ensureCaseHeaders();
   const allCases = await getCases();
 
   const data: { range: string; values: string[][] }[] = [];

@@ -19,8 +19,12 @@ export interface SessionPayload {
   agentId: string;
   name: string;
   email: string;
-  role: 'admin' | 'staff';
+  role: 'admin' | 'management' | 'staff';
   shiftLogId?: string;
+}
+
+export function hasAdminAccess(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'management';
 }
 
 function getZonedParts(date: Date, timeZone: string) {

@@ -126,7 +126,7 @@ function fmt(dateStr: string): string {
 export default function LeavePage() {
   const { success: toastSuccess, error: toastError } = useToast();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'management';
 
   const [agents, setAgents]   = useState<RosterAgent[]>([]);
   const [config, setConfig]   = useState<RosterConfig | null>(null);

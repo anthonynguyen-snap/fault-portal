@@ -70,7 +70,7 @@ function SlideOver({ open, onClose, title, children }: {
 
 export default function RestockTrackerPage() {
   const { effectiveRole } = useAuth();
-  const canEdit = effectiveRole === 'admin';
+  const canEdit = effectiveRole === 'admin' || effectiveRole === 'management';
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [items, setItems]     = useState<RestockItem[]>([]);
   const [loading, setLoading] = useState(true);
