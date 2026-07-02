@@ -14,6 +14,15 @@ import { formatCurrency } from '@/lib/utils';
 
 type Mode = 'standard' | 'quick';
 
+const CABLE_FAULT_TYPE = 'Cable Fault';
+const CABLE_SUBTYPES = ['USB-C', 'Lightning', 'Other cable'] as const;
+const LEGACY_CABLE_TYPES = new Set([
+  'usb-c cable (broke/not working)',
+  'lightning cable (broke/not working)',
+  'lightning cable fault',
+  'lightning cable plug broken',
+]);
+
 interface FormData {
   date: string;
   orderNumber: string;
@@ -22,6 +31,7 @@ interface FormData {
   manufacturerName: string;
   manufacturerNumber: string;
   faultType: string;
+  faultSubtype: string;
   faultNotes: string;
   evidenceLink: string;
   unitCostUSD: number;
@@ -84,7 +94,7 @@ function FaultTypeSelector({ value, onChange, faultTypes, onFaultTypeAdded, erro
     setNewName('');
     setSimilar([]);
   }
-  function useSuggested(ft: FaultType) {
+  function chooseSuggested(ft: FaultType) {
     onChange(ft.name);
     cancelAdd();
   }
@@ -132,7 +142,7 @@ function FaultTypeSelector({ value, onChange, faultTypes, onFaultTypeAdded, erro
             <p className="text-xs font-medium text-amber-700">⚠ Similar fault types already exist — use one of these instead?</p>
             <div className="flex flex-wrap gap-2">
               {similar.map(ft => (
-                <button key={ft.id} type="button" onClick={() => useSuggested(ft)}
+                <button key={ft.id} type="button" onClick={() => chooseSuggested(ft)}
                   className="text-xs px-3 py-1.5 bg-white border border-amber-300 text-amber-800 rounded-full hover:bg-amber-100 transition-colors">
                   {ft.name}
                 </button>
@@ -170,6 +180,20 @@ function FaultTypeSelector({ value, onChange, faultTypes, onFaultTypeAdded, erro
   );
 }
 
+function CableSubtypeSelect({ value, onChange, error }: { value: string; onChange: (value: string) => void; error?: string }) {
+  return (
+    <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3">
+      <label className="form-label">Cable Type <span className="text-red-500">*</span></label>
+      <select value={value} onChange={e => onChange(e.target.value)} className={`form-input bg-white ${error ? 'border-red-300' : ''}`}>
+        <option value="">Select cable type…</option>
+        {CABLE_SUBTYPES.map(subtype => <option key={subtype} value={subtype}>{subtype}</option>)}
+      </select>
+      <p className="mt-1.5 text-xs text-slate-500">This keeps Cable Fault reporting together while preserving the connector type.</p>
+      {error && <p className="form-error">{error}</p>}
+    </div>
+  );
+}
+
 export default function NewCasePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -191,6 +215,7 @@ export default function NewCasePage() {
     manufacturerName: '',
     manufacturerNumber: '',
     faultType: '',
+    faultSubtype: '',
     faultNotes: '',
     evidenceLink: '',
     unitCostUSD: 0,
@@ -227,7 +252,13 @@ export default function NewCasePage() {
       fetch('/api/staff').then(r => r.json()),
     ]).then(([pRes, ftRes, sRes]) => {
       setProducts(pRes.data || []);
-      setFaultTypes(ftRes.data || []);
+      const configured: FaultType[] = ftRes.data || [];
+      const withoutLegacyCableTypes = configured.filter(ft => !LEGACY_CABLE_TYPES.has(ft.name.trim().toLowerCase()));
+      setFaultTypes(
+        withoutLegacyCableTypes.some(ft => ft.name === CABLE_FAULT_TYPE)
+          ? withoutLegacyCableTypes
+          : [{ id: 'pilot-cable-fault', name: CABLE_FAULT_TYPE, description: 'USB-C, Lightning or other cable fault' }, ...withoutLegacyCableTypes]
+      );
       setStaff(sRes.data || []);
     });
   }, []);
@@ -265,7 +296,11 @@ export default function NewCasePage() {
   }
 
   function handleChange(field: keyof FormData, value: string | number) {
-    setForm(f => ({ ...f, [field]: value }));
+    setForm(f => ({
+      ...f,
+      [field]: value,
+      ...(field === 'faultType' && value !== CABLE_FAULT_TYPE ? { faultSubtype: '' } : {}),
+    }));
     setErrors(e => ({ ...e, [field]: '' }));
   }
 
@@ -397,6 +432,9 @@ export default function NewCasePage() {
     if (!form.orderNumber)  newErrors.orderNumber = 'Order number is required';
     if (!form.product)      newErrors.product = 'Product is required';
     if (!form.faultType)    newErrors.faultType = 'Fault type is required';
+    if (form.faultType === CABLE_FAULT_TYPE && !form.faultSubtype) {
+      newErrors.faultSubtype = 'Cable type is required';
+    }
     if (!form.evidenceLink) newErrors.file = 'Evidence upload is required';
     if (!ewasteAdvised)     (newErrors as Record<string, string>).ewaste = 'You must confirm the customer has been directed to an e-waste collection point before submitting';
 
@@ -456,6 +494,7 @@ export default function NewCasePage() {
       manufacturerName: '',
       manufacturerNumber: '',
       faultType: '',
+      faultSubtype: '',
       faultNotes: '',
       evidenceLink: '',
       unitCostUSD: 0,
@@ -688,6 +727,9 @@ export default function NewCasePage() {
                     error={errors.faultType}
                   />
                   {errors.faultType && <p className="form-error">{errors.faultType}</p>}
+                  {form.faultType === CABLE_FAULT_TYPE && (
+                    <CableSubtypeSelect value={form.faultSubtype} onChange={v => handleChange('faultSubtype', v)} error={errors.faultSubtype} />
+                  )}
                 </div>
                 <div>
                   <label className="form-label">Fault Notes</label>
@@ -750,6 +792,9 @@ export default function NewCasePage() {
                 error={errors.faultType}
               />
               {errors.faultType && <p className="form-error">{errors.faultType}</p>}
+              {form.faultType === CABLE_FAULT_TYPE && (
+                <CableSubtypeSelect value={form.faultSubtype} onChange={v => handleChange('faultSubtype', v)} error={errors.faultSubtype} />
+              )}
             </div>
 
             {/* More Details collapsible */}

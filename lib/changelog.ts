@@ -33,10 +33,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v9.0',
+    label: 'Cable Fault Pilot',
+    date: '2026-07-02',
+    isLatest: true,
+    summary: 'The first fault-taxonomy pilot groups cable faults together while preserving whether the cable is USB-C or Lightning.',
+    changes: [
+      { category: 'Cases', text: 'New Cable Fault parent type with required USB-C, Lightning or Other cable detail on new submissions.' },
+      { category: 'Cases', text: 'Case details, search and CSV reports now preserve and display the cable subtype while remaining compatible with historical cases.' },
+      { category: 'UI/UX', text: 'Legacy USB-C and Lightning cable choices are consolidated into one clearer selection flow for staff.' },
+    ],
+  },
+  {
     version: 'v8.6',
     label: 'Persistent Case Search',
     date: '2026-07-02',
-    isLatest: true,
+    isLatest: false,
     summary: 'Case searches now stay in place while viewing a customer case, with one clear action to reset the full search view.',
     changes: [
       { category: 'Cases', text: 'Search terms, filters, sorting, and the current results page are now restored when returning from an individual fault case.' },

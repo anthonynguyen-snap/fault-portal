@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
         c.product.toLowerCase().includes(search)          ||
         c.manufacturerName.toLowerCase().includes(search) ||
         c.faultType.toLowerCase().includes(search)        ||
+        (c.faultSubtype || '').toLowerCase().includes(search) ||
         (c.faultNotes || '').toLowerCase().includes(search)
       );
     }
@@ -173,6 +174,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (body.faultType === 'Cable Fault' && !['USB-C', 'Lightning', 'Other cable'].includes(body.faultSubtype)) {
+      return NextResponse.json({ error: 'A valid cable type is required' }, { status: 400 });
+    }
+
     // Validate unitCostUSD bounds
     const unitCost = parseFloat(body.unitCostUSD) || 0;
     if (unitCost < 0 || unitCost > 99999) {
@@ -192,6 +197,7 @@ export async function POST(req: NextRequest) {
       manufacturerName:   body.manufacturerName,
       manufacturerNumber: body.manufacturerNumber || '',
       faultType:          body.faultType,
+      faultSubtype:       body.faultSubtype || '',
       faultNotes:         body.faultNotes || '',
       evidenceLink:       body.evidenceLink.trim(),
       unitCostUSD:        unitCost,

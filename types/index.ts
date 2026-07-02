@@ -27,7 +27,9 @@ export interface FaultCase {
   manufacturerName: string;     // Auto-filled from product
   manufacturerNumber: string;   // Selected from product's preset list
   faultType: string;
+  faultSubtype?: string;         // Optional detail for parent fault types (pilot: Cable Fault)
   faultNotes: string;
+  commslayerChatLink?: string;   // Existing sheet column P; preserved during row updates
   evidenceLink: string;         // Google Drive shareable link
   unitCostUSD: number;          // Auto-filled from product
   claimStatus: ClaimStatus;

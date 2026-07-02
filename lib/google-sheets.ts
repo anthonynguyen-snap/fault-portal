@@ -42,8 +42,8 @@ const SHEET_ID = process.env.GOOGLE_SPREADSHEET_ID!;
 // FAULT CASES
 // =========================================================
 
-const CASES_RANGE = 'Cases!A2:O';
-const CASES_COLUMNS = 'Cases!A:O';
+const CASES_RANGE = 'Cases!A2:Q';
+const CASES_COLUMNS = 'Cases!A:Q';
 
 function rowToCase(row: string[]): FaultCase {
   let internalNotes: FaultCase['internalNotes'] = [];
@@ -66,6 +66,8 @@ function rowToCase(row: string[]): FaultCase {
     submittedBy:        row[12] || '',
     createdAt:          row[13] || '',
     internalNotes,
+    commslayerChatLink: row[15] || '',
+    faultSubtype:      row[16] || '',
   };
 }
 
@@ -86,7 +88,19 @@ function caseToRow(c: FaultCase): string[] {
     c.submittedBy,
     c.createdAt,
     JSON.stringify(c.internalNotes || []),
+    c.commslayerChatLink || '',
+    c.faultSubtype || '',
   ];
+}
+
+async function ensureCasePilotHeaders(): Promise<void> {
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: 'Cases!Q1',
+    valueInputOption: 'RAW',
+    requestBody: { values: [['Fault Subtype']] },
+  });
 }
 
 export async function getCases(): Promise<FaultCase[]> {
@@ -115,6 +129,8 @@ export async function createCase(
     createdAt: new Date().toISOString(),
   };
 
+  await ensureCasePilotHeaders();
+
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
     range: CASES_COLUMNS,
@@ -137,9 +153,10 @@ export async function updateCase(
   const updated: FaultCase = { ...allCases[idx], ...updates };
   const sheetRow = idx + 2; // +1 header, +1 for 1-based index
 
+  await ensureCasePilotHeaders();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `Cases!A${sheetRow}:O${sheetRow}`,
+    range: `Cases!A${sheetRow}:Q${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [caseToRow(updated)] },
   });
@@ -610,6 +627,7 @@ export async function bulkUpdateCaseStatuses(
 ): Promise<void> {
   if (!caseIds.length) return;
   const sheets = getSheets();
+  await ensureCasePilotHeaders();
   const allCases = await getCases();
 
   const data: { range: string; values: string[][] }[] = [];
@@ -619,7 +637,7 @@ export async function bulkUpdateCaseStatuses(
     const sheetRow = idx + 2;
     const updated = { ...allCases[idx], claimStatus: status };
     data.push({
-      range: `Cases!A${sheetRow}:O${sheetRow}`,
+      range: `Cases!A${sheetRow}:Q${sheetRow}`,
       values: [caseToRow(updated)],
     });
   }

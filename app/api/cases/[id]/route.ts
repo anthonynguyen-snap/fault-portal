@@ -28,6 +28,9 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
+    if (body.faultType === 'Cable Fault' && !['USB-C', 'Lightning', 'Other cable'].includes(body.faultSubtype)) {
+      return NextResponse.json({ error: 'A valid cable type is required' }, { status: 400 });
+    }
     const updated = await updateCase(id, body);
     void logActivity({
       actor:       body.submittedBy ?? '',

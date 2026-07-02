@@ -281,8 +281,19 @@ export default function CaseDetailPage() {
               <div className="space-y-3">
                 <div>
                   <label className="form-label">Fault Type</label>
-                  <input type="text" value={editForm.faultType || ''} onChange={e => setEditForm(f => ({...f, faultType: e.target.value}))} className="form-input" />
+                  <input type="text" value={editForm.faultType || ''} onChange={e => setEditForm(f => ({...f, faultType: e.target.value, faultSubtype: e.target.value === 'Cable Fault' ? f.faultSubtype : ''}))} className="form-input" />
                 </div>
+                {editForm.faultType === 'Cable Fault' && (
+                  <div>
+                    <label className="form-label">Cable Type</label>
+                    <select value={editForm.faultSubtype || ''} onChange={e => setEditForm(f => ({...f, faultSubtype: e.target.value}))} className="form-input">
+                      <option value="">Select cable type…</option>
+                      <option value="USB-C">USB-C</option>
+                      <option value="Lightning">Lightning</option>
+                      <option value="Other cable">Other cable</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <label className="form-label">Fault Notes</label>
                   <textarea value={editForm.faultNotes || ''} onChange={e => setEditForm(f => ({...f, faultNotes: e.target.value}))} rows={4} className="form-input resize-none" />
@@ -291,6 +302,7 @@ export default function CaseDetailPage() {
             ) : (
               <div className="space-y-4">
                 <InfoField icon={AlertTriangle} label="Fault Type" value={c.faultType} />
+                {c.faultSubtype && <InfoField icon={AlertTriangle} label="Fault Subtype" value={c.faultSubtype} />}
                 {c.faultNotes && (
                   <div className="pt-1">
                     <p className="text-xs text-slate-400 mb-1.5">Notes</p>
