@@ -33,10 +33,21 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v8.6',
+    label: 'Persistent Case Search',
+    date: '2026-07-02',
+    isLatest: true,
+    summary: 'Case searches now stay in place while viewing a customer case, with one clear action to reset the full search view.',
+    changes: [
+      { category: 'Cases', text: 'Search terms, filters, sorting, and the current results page are now restored when returning from an individual fault case.' },
+      { category: 'UI/UX', text: 'Added Clear all inside the case search bar to reset the saved search and every active filter in one click.' },
+    ],
+  },
+  {
     version: 'v8.5',
     label: 'Major Sale Suppression',
     date: '2026-07-01',
-    isLatest: true,
+    isLatest: false,
     summary: 'Major Sale promotions now automatically suppress other promotions on the same storefront while live, and correctly show as upcoming instead of active before they actually start.',
     changes: [
       { category: 'Promotions', text: 'Other promotions on the same storefront are now automatically suppressed while a Major Sale is live, and resume automatically the moment the sale ends or is paused — no manual pausing required.' },

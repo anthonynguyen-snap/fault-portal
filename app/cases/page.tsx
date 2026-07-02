@@ -16,6 +16,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/components/auth/AuthProvider';
 
 const PAGE_SIZE = 20;
+const CASES_VIEW_STORAGE_KEY = 'fault-portal:cases-view';
 type SortKey = keyof FaultCase;
 type SortDir = 'asc' | 'desc';
 type FaultMetric = { name: string; count: number; cost: number };
@@ -496,6 +497,44 @@ export default function CasesPage() {
   const [batchError, setBatchError]   = useState('');
   const { success, error: toastError } = useToast();
   const [noteTooltip, setNoteTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [viewRestored, setViewRestored] = useState(false);
+
+  // Restore the cases view after returning from a case. sessionStorage keeps it
+  // scoped to this browser tab and lets "Clear all" remain the explicit reset.
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(CASES_VIEW_STORAGE_KEY);
+      if (saved) {
+        const view = JSON.parse(saved);
+        setSearch(typeof view.search === 'string' ? view.search : '');
+        setSearchInput(typeof view.search === 'string' ? view.search : '');
+        setStatusFilter(typeof view.statusFilter === 'string' ? view.statusFilter : '');
+        setManufacturerFilter(typeof view.manufacturerFilter === 'string' ? view.manufacturerFilter : '');
+        setFaultTypeFilter(Array.isArray(view.faultTypeFilter) ? view.faultTypeFilter : []);
+        setFromDate(typeof view.fromDate === 'string' ? view.fromDate : '');
+        setToDate(typeof view.toDate === 'string' ? view.toDate : '');
+        setMineOnly(view.mineOnly === true);
+        setClaimableOnly(view.claimableOnly === true);
+        setShowFilters(view.showFilters === true);
+        setSortKey(typeof view.sortKey === 'string' ? view.sortKey as SortKey : 'createdAt');
+        setSortDir(view.sortDir === 'asc' ? 'asc' : 'desc');
+        setPage(Number.isInteger(view.page) && view.page > 0 ? view.page : 1);
+      }
+    } catch {
+      sessionStorage.removeItem(CASES_VIEW_STORAGE_KEY);
+    } finally {
+      setViewRestored(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!viewRestored) return;
+    sessionStorage.setItem(CASES_VIEW_STORAGE_KEY, JSON.stringify({
+      search, statusFilter, manufacturerFilter, faultTypeFilter,
+      fromDate, toDate, mineOnly, claimableOnly, showFilters,
+      sortKey, sortDir, page,
+    }));
+  }, [viewRestored, search, statusFilter, manufacturerFilter, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -565,7 +604,9 @@ export default function CasesPage() {
       .finally(() => setLoading(false));
   }, [search, statusFilter, manufacturerFilter, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (viewRestored) load();
+  }, [load, viewRestored]);
 
   // Inline status update — optimistic
   function handleInlineStatusChange(id: string, newStatus: ClaimStatus) {
@@ -650,6 +691,8 @@ export default function CasesPage() {
   }
 
   function clearFilters() {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    sessionStorage.removeItem(CASES_VIEW_STORAGE_KEY);
     setSearchInput('');
     setSearch('');
     setStatusFilter('');
@@ -677,7 +720,7 @@ export default function CasesPage() {
     if (!showFilters) setShowFilters(true);
   }
 
-  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly);
+  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
@@ -806,8 +849,18 @@ export default function CasesPage() {
               placeholder="Search by order number, customer, product, fault type or notes…"
               value={searchInput}
               onChange={e => handleSearchInput(e.target.value)}
-              className="form-input pl-9"
+              className={`form-input pl-9 ${isFiltered ? 'pr-20' : ''}`}
             />
+            {isFiltered && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                aria-label="Clear all search terms and filters"
+              >
+                Clear all
+              </button>
+            )}
           </div>
           <button
             onClick={() => { setMineOnly(v => !v); setPage(1); }}
