@@ -8,20 +8,12 @@ import {
 import Link from 'next/link';
 import { Product, FaultType } from '@/types';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { FAULT_PARENT_TYPES, getFaultSubtypes, requiresFaultNotes, SAFETY_FAULT_TYPES } from '@/lib/fault-taxonomy';
 
 interface StaffMember { id: string; name: string; }
 import { formatCurrency } from '@/lib/utils';
 
 type Mode = 'standard' | 'quick';
-
-const CABLE_FAULT_TYPE = 'Cable Fault';
-const CABLE_SUBTYPES = ['USB-C', 'Lightning', 'Other cable'] as const;
-const LEGACY_CABLE_TYPES = new Set([
-  'usb-c cable (broke/not working)',
-  'lightning cable (broke/not working)',
-  'lightning cable fault',
-  'lightning cable plug broken',
-]);
 
 interface FormData {
   date: string;
@@ -175,21 +167,22 @@ function FaultTypeSelector({ value, onChange, faultTypes, onFaultTypeAdded, erro
         className={`form-input ${error ? 'border-red-300' : ''}`}>
         <option value="">Select fault type…</option>
         {faultTypes.map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
-        <option value="__add_new__">＋ Add new fault type…</option>
       </select>
     </div>
   );
 }
 
-function CableSubtypeSelect({ value, onChange, error }: { value: string; onChange: (value: string) => void; error?: string }) {
+function FaultSubtypeSelect({ parent, value, onChange, error }: { parent: string; value: string; onChange: (value: string) => void; error?: string }) {
+  const subtypes = getFaultSubtypes(parent);
+  if (subtypes.length === 0) return null;
   return (
     <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3">
-      <label className="form-label">Cable Type <span className="text-red-500">*</span></label>
+      <label className="form-label">Fault Subtype <span className="text-red-500">*</span></label>
       <select value={value} onChange={e => onChange(e.target.value)} className={`form-input bg-white ${error ? 'border-red-300' : ''}`}>
-        <option value="">Select cable type…</option>
-        {CABLE_SUBTYPES.map(subtype => <option key={subtype} value={subtype}>{subtype}</option>)}
+        <option value="">Select subtype…</option>
+        {subtypes.map(subtype => <option key={subtype} value={subtype}>{subtype}</option>)}
       </select>
-      <p className="mt-1.5 text-xs text-slate-500">This keeps Cable Fault reporting together while preserving the connector type.</p>
+      <p className="mt-1.5 text-xs text-slate-500">Choose the closest match. Select the Other option and add notes if the issue is not listed.</p>
       {error && <p className="form-error">{error}</p>}
     </div>
   );
@@ -254,13 +247,7 @@ export default function NewCasePage() {
       fetch('/api/staff').then(r => r.json()),
     ]).then(([pRes, ftRes, sRes]) => {
       setProducts(pRes.data || []);
-      const configured: FaultType[] = ftRes.data || [];
-      const withoutLegacyCableTypes = configured.filter(ft => !LEGACY_CABLE_TYPES.has(ft.name.trim().toLowerCase()));
-      setFaultTypes(
-        withoutLegacyCableTypes.some(ft => ft.name === CABLE_FAULT_TYPE)
-          ? withoutLegacyCableTypes
-          : [{ id: 'pilot-cable-fault', name: CABLE_FAULT_TYPE, description: 'USB-C, Lightning or other cable fault' }, ...withoutLegacyCableTypes]
-      );
+      setFaultTypes(FAULT_PARENT_TYPES.map(name => ({ id: `v10-${name}`, name, description: SAFETY_FAULT_TYPES.has(name) ? 'Safety-critical fault' : '' })));
       setStaff(sRes.data || []);
     });
   }, []);
@@ -301,7 +288,7 @@ export default function NewCasePage() {
     setForm(f => ({
       ...f,
       [field]: value,
-      ...(field === 'faultType' && value !== CABLE_FAULT_TYPE ? { faultSubtype: '' } : {}),
+      ...(field === 'faultType' ? { faultSubtype: '' } : {}),
     }));
     setErrors(e => ({ ...e, [field]: '' }));
   }
@@ -434,8 +421,11 @@ export default function NewCasePage() {
     if (!form.orderNumber)  newErrors.orderNumber = 'Order number is required';
     if (!form.product)      newErrors.product = 'Product is required';
     if (!form.faultType)    newErrors.faultType = 'Fault type is required';
-    if (form.faultType === CABLE_FAULT_TYPE && !form.faultSubtype) {
-      newErrors.faultSubtype = 'Cable type is required';
+    if (getFaultSubtypes(form.faultType).length > 0 && !form.faultSubtype) {
+      newErrors.faultSubtype = 'Fault subtype is required';
+    }
+    if (requiresFaultNotes(form.faultType, form.faultSubtype) && !form.faultNotes.trim()) {
+      newErrors.faultNotes = 'Please add notes for safety-critical or Other faults';
     }
     if (!form.commslayerChatLink) {
       newErrors.commslayerChatLink = 'Commslayer chat link is required';
@@ -740,17 +730,16 @@ export default function NewCasePage() {
                     error={errors.faultType}
                   />
                   {errors.faultType && <p className="form-error">{errors.faultType}</p>}
-                  {form.faultType === CABLE_FAULT_TYPE && (
-                    <CableSubtypeSelect value={form.faultSubtype} onChange={v => handleChange('faultSubtype', v)} error={errors.faultSubtype} />
-                  )}
+                  <FaultSubtypeSelect parent={form.faultType} value={form.faultSubtype} onChange={v => handleChange('faultSubtype', v)} error={errors.faultSubtype} />
                 </div>
                 <div>
-                  <label className="form-label">Fault Notes</label>
+                  <label className="form-label">Fault Notes {requiresFaultNotes(form.faultType, form.faultSubtype) && <span className="text-red-500">*</span>}</label>
                   <textarea value={form.faultNotes}
                     onChange={e => handleChange('faultNotes', e.target.value)}
                     rows={4}
                     placeholder="Describe the fault in detail — what happened, how it was discovered, customer feedback…"
                     className="form-input resize-none" />
+                  {errors.faultNotes && <p className="form-error">{errors.faultNotes}</p>}
                 </div>
               </div>
             </div>
@@ -805,9 +794,7 @@ export default function NewCasePage() {
                 error={errors.faultType}
               />
               {errors.faultType && <p className="form-error">{errors.faultType}</p>}
-              {form.faultType === CABLE_FAULT_TYPE && (
-                <CableSubtypeSelect value={form.faultSubtype} onChange={v => handleChange('faultSubtype', v)} error={errors.faultSubtype} />
-              )}
+              <FaultSubtypeSelect parent={form.faultType} value={form.faultSubtype} onChange={v => handleChange('faultSubtype', v)} error={errors.faultSubtype} />
             </div>
 
             {/* More Details collapsible */}
@@ -871,12 +858,13 @@ export default function NewCasePage() {
                     </div>
                   </div>
                   <div>
-                    <label className="form-label">Fault Notes</label>
+                    <label className="form-label">Fault Notes {requiresFaultNotes(form.faultType, form.faultSubtype) && <span className="text-red-500">*</span>}</label>
                     <textarea value={form.faultNotes}
                       onChange={e => handleChange('faultNotes', e.target.value)}
                       rows={3}
                       placeholder="Describe the fault in detail…"
                       className="form-input resize-none" />
+                    {errors.faultNotes && <p className="form-error">{errors.faultNotes}</p>}
                   </div>
                 </div>
               )}

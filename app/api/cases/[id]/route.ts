@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCaseById, updateCase } from '@/lib/google-sheets';
 import { logActivity } from '@/lib/activity';
+import { getFaultSubtypes, isFaultParentType, isValidFaultSubtype, requiresFaultNotes } from '@/lib/fault-taxonomy';
 
 // GET /api/cases/[id] — get a single case
 export async function GET(
@@ -28,8 +29,14 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    if (body.faultType === 'Cable Fault' && !['USB-C', 'Lightning', 'Other cable'].includes(body.faultSubtype)) {
-      return NextResponse.json({ error: 'A valid cable type is required' }, { status: 400 });
+    if (body.faultType && isFaultParentType(body.faultType)) {
+      if (!isValidFaultSubtype(body.faultType, body.faultSubtype || '')) {
+        const required = getFaultSubtypes(body.faultType).length > 0;
+        return NextResponse.json({ error: required ? 'A valid fault subtype is required' : 'This fault type does not use a subtype' }, { status: 400 });
+      }
+      if (requiresFaultNotes(body.faultType, body.faultSubtype || '') && !String(body.faultNotes || '').trim()) {
+        return NextResponse.json({ error: 'Fault notes are required for safety-critical or Other faults' }, { status: 400 });
+      }
     }
     const updated = await updateCase(id, body);
     void logActivity({

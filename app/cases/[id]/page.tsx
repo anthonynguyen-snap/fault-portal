@@ -21,6 +21,7 @@ import {
 import { FaultCase, ClaimStatus, Product, InternalNote } from '@/types';
 import { formatCurrency, formatDate, formatDateTime, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
 import { InternalNotes } from '@/components/ui/InternalNotes';
+import { FAULT_PARENT_TYPES, getFaultSubtypes, isFaultParentType, requiresFaultNotes } from '@/lib/fault-taxonomy';
 
 // Grid-friendly field — no bottom border, just label + value
 function InfoField({ icon: Icon, label, value, href, className = '' }: {
@@ -59,6 +60,7 @@ export default function CaseDetailPage() {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [editForm, setEditForm] = useState<Partial<FaultCase>>({});
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
@@ -85,6 +87,17 @@ export default function CaseDetailPage() {
 
   async function handleSave() {
     if (!caseData) return;
+    const parent = editForm.faultType || '';
+    const subtype = editForm.faultSubtype || '';
+    if (isFaultParentType(parent) && getFaultSubtypes(parent).length > 0 && !subtype) {
+      setSaveError('Please select a fault subtype.');
+      return;
+    }
+    if (isFaultParentType(parent) && requiresFaultNotes(parent, subtype) && !editForm.faultNotes?.trim()) {
+      setSaveError('Please add notes for safety-critical or Other faults.');
+      return;
+    }
+    setSaveError('');
     setSaving(true);
     try {
       const res = await fetch(`/api/cases/${id}`, {
@@ -100,7 +113,7 @@ export default function CaseDetailPage() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
-      setError(err.message);
+      setSaveError(err.message);
     } finally {
       setSaving(false);
     }
@@ -281,16 +294,19 @@ export default function CaseDetailPage() {
               <div className="space-y-3">
                 <div>
                   <label className="form-label">Fault Type</label>
-                  <input type="text" value={editForm.faultType || ''} onChange={e => setEditForm(f => ({...f, faultType: e.target.value, faultSubtype: e.target.value === 'Cable Fault' ? f.faultSubtype : ''}))} className="form-input" />
+                  <select value={editForm.faultType || ''} onChange={e => setEditForm(f => ({...f, faultType: e.target.value, faultSubtype: ''}))} className="form-input">
+                    {!isFaultParentType(editForm.faultType || '') && editForm.faultType && (
+                      <option value={editForm.faultType}>{editForm.faultType} (legacy)</option>
+                    )}
+                    {FAULT_PARENT_TYPES.map(parent => <option key={parent} value={parent}>{parent}</option>)}
+                  </select>
                 </div>
-                {editForm.faultType === 'Cable Fault' && (
+                {getFaultSubtypes(editForm.faultType || '').length > 0 && (
                   <div>
-                    <label className="form-label">Cable Type</label>
+                    <label className="form-label">Fault Subtype</label>
                     <select value={editForm.faultSubtype || ''} onChange={e => setEditForm(f => ({...f, faultSubtype: e.target.value}))} className="form-input">
-                      <option value="">Select cable type…</option>
-                      <option value="USB-C">USB-C</option>
-                      <option value="Lightning">Lightning</option>
-                      <option value="Other cable">Other cable</option>
+                      <option value="">Select subtype…</option>
+                      {getFaultSubtypes(editForm.faultType || '').map(subtype => <option key={subtype} value={subtype}>{subtype}</option>)}
                     </select>
                   </div>
                 )}
@@ -298,6 +314,7 @@ export default function CaseDetailPage() {
                   <label className="form-label">Fault Notes</label>
                   <textarea value={editForm.faultNotes || ''} onChange={e => setEditForm(f => ({...f, faultNotes: e.target.value}))} rows={4} className="form-input resize-none" />
                 </div>
+                {saveError && <p className="text-xs text-red-600">{saveError}</p>}
               </div>
             ) : (
               <div className="space-y-4">
