@@ -21,7 +21,7 @@ import {
 import { FaultCase, ClaimStatus, Product, InternalNote } from '@/types';
 import { formatCurrency, formatDate, formatDateTime, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
 import { InternalNotes } from '@/components/ui/InternalNotes';
-import { FAULT_PARENT_TYPES, getFaultSubtypes, isFaultParentType, requiresFaultNotes } from '@/lib/fault-taxonomy';
+import { FAULT_PARENT_TYPES, getFaultSubtypes, isFaultParentType, requiresFaultNotes, SAFETY_FAULT_TYPES } from '@/lib/fault-taxonomy';
 
 // Grid-friendly field — no bottom border, just label + value
 function InfoField({ icon: Icon, label, value, href, className = '' }: {
@@ -298,7 +298,12 @@ export default function CaseDetailPage() {
                     {!isFaultParentType(editForm.faultType || '') && editForm.faultType && (
                       <option value={editForm.faultType}>{editForm.faultType} (legacy)</option>
                     )}
-                    {FAULT_PARENT_TYPES.map(parent => <option key={parent} value={parent}>{parent}</option>)}
+                    <optgroup label="Common fault types">
+                      {FAULT_PARENT_TYPES.filter(parent => !SAFETY_FAULT_TYPES.has(parent)).map(parent => <option key={parent} value={parent}>{parent}</option>)}
+                    </optgroup>
+                    <optgroup label="⚠ Safety issues">
+                      {FAULT_PARENT_TYPES.filter(parent => SAFETY_FAULT_TYPES.has(parent)).map(parent => <option key={parent} value={parent}>⚠ SAFETY — {parent}</option>)}
+                    </optgroup>
                   </select>
                 </div>
                 {getFaultSubtypes(editForm.faultType || '').length > 0 && (

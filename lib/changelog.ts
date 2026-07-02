@@ -45,6 +45,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Cases', text: 'Every subtype family includes an Other option; notes are required for Other selections, unclassified faults, and all safety-critical cases.' },
       { category: 'Cases', text: 'Historical cases remain readable with their original labels and are not changed by this release.' },
       { category: 'UI/UX', text: 'The submission form reveals subtype choices only after a parent type is selected, keeping classification clear for staff.' },
+      { category: 'UI/UX', text: 'Safety-critical fault types are grouped at the bottom of selectors with a clear SAFETY label while retaining clean values in reports and Google Sheets.' },
     ],
   },
   {

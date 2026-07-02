@@ -166,7 +166,16 @@ function FaultTypeSelector({ value, onChange, faultTypes, onFaultTypeAdded, erro
         }}
         className={`form-input ${error ? 'border-red-300' : ''}`}>
         <option value="">Select fault type…</option>
-        {faultTypes.map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
+        <optgroup label="Common fault types">
+          {faultTypes
+            .filter(ft => !SAFETY_FAULT_TYPES.has(ft.name as never))
+            .map(ft => <option key={ft.id} value={ft.name}>{ft.name}</option>)}
+        </optgroup>
+        <optgroup label="⚠ Safety issues">
+          {faultTypes
+            .filter(ft => SAFETY_FAULT_TYPES.has(ft.name as never))
+            .map(ft => <option key={ft.id} value={ft.name}>⚠ SAFETY — {ft.name}</option>)}
+        </optgroup>
       </select>
     </div>
   );
