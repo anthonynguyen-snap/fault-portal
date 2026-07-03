@@ -42,8 +42,8 @@ const SHEET_ID = process.env.GOOGLE_SPREADSHEET_ID!;
 // FAULT CASES
 // =========================================================
 
-const CASES_RANGE = 'Cases!A2:Q';
-const CASES_COLUMNS = 'Cases!A:Q';
+const CASES_RANGE = 'Cases!A2:S';
+const CASES_COLUMNS = 'Cases!A:S';
 
 function rowToCase(row: string[]): FaultCase {
   let internalNotes: FaultCase['internalNotes'] = [];
@@ -68,6 +68,8 @@ function rowToCase(row: string[]): FaultCase {
     internalNotes,
     commslayerChatLink: row[15] || '',
     faultSubtype:       row[16] || '',
+    taxonomyStatus:     (row[17] as FaultCase['taxonomyStatus']) || undefined,
+    originalFaultType:  row[18] || '',
   };
 }
 
@@ -90,6 +92,8 @@ function caseToRow(c: FaultCase): string[] {
     JSON.stringify(c.internalNotes || []),
     c.commslayerChatLink || '',
     c.faultSubtype || '',
+    c.taxonomyStatus || '',
+    c.originalFaultType || '',
   ];
 }
 
@@ -97,9 +101,9 @@ async function ensureCaseHeaders(): Promise<void> {
   const sheets = getSheets();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: 'Cases!P1:Q1',
+    range: 'Cases!P1:S1',
     valueInputOption: 'RAW',
-    requestBody: { values: [['Commslayer Chat Link', 'Fault Subtype']] },
+    requestBody: { values: [['Commslayer Chat Link', 'Fault Subtype', 'Taxonomy Status', 'Original Fault Type']] },
   });
 }
 
@@ -124,6 +128,7 @@ export async function createCase(
   const sheets = getSheets();
   const newCase: FaultCase = {
     ...data,
+    taxonomyStatus: data.taxonomyStatus || 'Current taxonomy',
     id: `CASE-${Date.now()}`,
     claimStatus: data.claimStatus || 'Unsubmitted',
     createdAt: new Date().toISOString(),
@@ -156,7 +161,7 @@ export async function updateCase(
   await ensureCaseHeaders();
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `Cases!A${sheetRow}:Q${sheetRow}`,
+    range: `Cases!A${sheetRow}:S${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [caseToRow(updated)] },
   });
@@ -637,7 +642,7 @@ export async function bulkUpdateCaseStatuses(
     const sheetRow = idx + 2;
     const updated = { ...allCases[idx], claimStatus: status };
     data.push({
-      range: `Cases!A${sheetRow}:Q${sheetRow}`,
+      range: `Cases!A${sheetRow}:S${sheetRow}`,
       values: [caseToRow(updated)],
     });
   }

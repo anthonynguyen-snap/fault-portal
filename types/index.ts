@@ -27,7 +27,9 @@ export interface FaultCase {
   manufacturerName: string;     // Auto-filled from product
   manufacturerNumber: string;   // Selected from product's preset list
   faultType: string;
-  faultSubtype?: string;         // Optional detail for parent fault types (pilot: Cable Fault)
+  faultSubtype?: string;         // Optional detail within the parent fault type
+  taxonomyStatus?: 'Historical — migrated' | 'Current taxonomy';
+  originalFaultType?: string;    // Preserved legacy value after historical migration
   faultNotes: string;
   commslayerChatLink?: string;   // Existing sheet column P; preserved during row updates
   evidenceLink: string;         // Google Drive shareable link

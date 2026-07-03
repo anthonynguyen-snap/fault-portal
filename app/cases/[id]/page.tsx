@@ -325,6 +325,12 @@ export default function CaseDetailPage() {
               <div className="space-y-4">
                 <InfoField icon={AlertTriangle} label="Fault Type" value={c.faultType} />
                 {c.faultSubtype && <InfoField icon={AlertTriangle} label="Fault Subtype" value={c.faultSubtype} />}
+                {c.taxonomyStatus === 'Historical — migrated' && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                    <p className="text-xs font-semibold text-amber-700">Historical migration</p>
+                    <p className="mt-0.5 text-xs text-amber-600">Original fault type: {c.originalFaultType || 'Not recorded'}</p>
+                  </div>
+                )}
                 {c.faultNotes && (
                   <div className="pt-1">
                     <p className="text-xs text-slate-400 mb-1.5">Notes</p>

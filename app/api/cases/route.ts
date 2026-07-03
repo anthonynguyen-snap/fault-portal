@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
         c.manufacturerName.toLowerCase().includes(search) ||
         c.faultType.toLowerCase().includes(search)        ||
         (c.faultSubtype || '').toLowerCase().includes(search) ||
+        (c.originalFaultType || '').toLowerCase().includes(search) ||
         (c.faultNotes || '').toLowerCase().includes(search)
       );
     }
@@ -217,6 +218,8 @@ export async function POST(req: NextRequest) {
       manufacturerNumber: body.manufacturerNumber || '',
       faultType:          body.faultType,
       faultSubtype:       body.faultSubtype || '',
+      taxonomyStatus:     'Current taxonomy',
+      originalFaultType:  '',
       faultNotes:         body.faultNotes || '',
       commslayerChatLink: body.commslayerChatLink.trim(),
       evidenceLink:       body.evidenceLink.trim(),

@@ -740,10 +740,10 @@ export default function CasesPage() {
       ? (json.data ?? []).filter((c: FaultCase) => !nonClaimableProducts.has(c.product.toLowerCase().trim()))
       : (json.data ?? []);
 
-    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Manufacturer Number','Fault Type','Fault Subtype','Fault Notes','Status','Evidence Link'];
+    const headers = ['ID','Date','Order #','Customer','Product','Manufacturer','Manufacturer Number','Fault Type','Fault Subtype','Taxonomy Status','Original Fault Type','Fault Notes','Status','Evidence Link'];
     const rows = allFiltered.map(c => [
       c.id, c.date, c.orderNumber, c.customerName, c.product,
-      c.manufacturerName, c.manufacturerNumber || '', c.faultType, c.faultSubtype || '', c.faultNotes || '', c.claimStatus,
+      c.manufacturerName, c.manufacturerNumber || '', c.faultType, c.faultSubtype || '', c.taxonomyStatus || '', c.originalFaultType || '', c.faultNotes || '', c.claimStatus,
       c.evidenceLink,
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
@@ -1061,6 +1061,9 @@ export default function CasesPage() {
                         </span>
                         {c.faultSubtype && (
                           <p className="text-[11px] font-medium text-brand-600 mt-1">{c.faultSubtype}</p>
+                        )}
+                        {c.taxonomyStatus === 'Historical — migrated' && (
+                          <p className="text-[10px] font-medium text-amber-600 mt-1">Historical</p>
                         )}
                         {c.faultNotes && (
                           <p className="text-xs text-slate-400 mt-1 max-w-[160px] truncate">
