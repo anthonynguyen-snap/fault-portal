@@ -36,17 +36,19 @@ export const CHANGELOG: ChangelogVersion[] = [
   {
     version: 'v10.0',
     label: 'Structured Fault Taxonomy',
-    date: '2026-07-02',
+    date: '2026-07-03',
     isLatest: true,
     summary: 'New fault submissions now use clear parent types and conditional subtypes, with dedicated safety categories and better fallback notes.',
     changes: [
       { category: 'Cases', text: 'New submissions use 15 consistent parent fault types with focused subtype choices, replacing the growing flat list of overlapping labels.' },
       { category: 'Cases', text: 'Battery swelling, overheating, fire/smoke/burning, and electrical short/fuse/spark remain separate safety-critical categories.' },
       { category: 'Cases', text: 'Every subtype family includes an Other option; notes are required for Other selections, unclassified faults, and all safety-critical cases.' },
-      { category: 'Cases', text: 'Historical cases remain readable with their original labels and are not changed by this release.' },
+      { category: 'Cases', text: 'Historical cases were migrated to the new parent and subtype structure while retaining their original labels for auditability.' },
       { category: 'UI/UX', text: 'The submission form reveals subtype choices only after a parent type is selected, keeping classification clear for staff.' },
       { category: 'UI/UX', text: 'Safety-critical fault types are grouped at the bottom of selectors with a clear SAFETY label while retaining clean values in reports and Google Sheets.' },
       { category: 'Cases', text: 'Historically migrated cases retain their original fault label and show a Historical migration marker for auditability.' },
+      { category: 'Cases', text: 'Removed exact duplicate historical imports and empty records after creating a complete rollback backup.' },
+      { category: 'UI/UX', text: 'Case filters now use the V10 parent categories and provide a dependent subtype filter instead of showing legacy fault labels.' },
     ],
   },
   {

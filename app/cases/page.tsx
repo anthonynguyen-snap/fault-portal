@@ -8,8 +8,9 @@ import {
   Copy, Check, User, ChevronRight as ChevronRightSm,
   BarChart3, Trophy, TrendingDown, TrendingUp,
 } from 'lucide-react';
-import { FaultCase, ClaimStatus, FaultType } from '@/types';
+import { FaultCase, ClaimStatus } from '@/types';
 import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge, STATUS_STYLES } from '@/lib/utils';
+import { FAULT_PARENT_TYPES, getFaultSubtypes } from '@/lib/fault-taxonomy';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
@@ -130,10 +131,14 @@ function FaultTypeMultiSelect({
   options,
   selected,
   onChange,
+  emptyLabel = 'All Fault Types',
+  pluralLabel = 'fault types',
 }: {
   options: string[];
   selected: string[];
   onChange: (vals: string[]) => void;
+  emptyLabel?: string;
+  pluralLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -156,9 +161,9 @@ function FaultTypeMultiSelect({
   }
 
   const label =
-    selected.length === 0 ? 'All Fault Types' :
+    selected.length === 0 ? emptyLabel :
     selected.length === 1 ? selected[0] :
-    selected.length + ' fault types';
+    selected.length + ` ${pluralLabel}`;
 
   return (
     <div ref={ref} className="relative">
@@ -466,7 +471,6 @@ export default function CasesPage() {
   const [otherNotes, setOtherNotes]     = useState<Record<string, number>>({});
   const [faultInsights, setFaultInsights] = useState<FaultInsights | null>(null);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
-  const [faultTypes, setFaultTypes]       = useState<string[]>([]);
   const [nonClaimableProducts, setNonClaimableProducts] = useState<Set<string>>(new Set());
   const [claimableOnly, setClaimableOnly] = useState(false);
   const [loading, setLoading]     = useState(true);
@@ -478,6 +482,7 @@ export default function CasesPage() {
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
   const [faultTypeFilter, setFaultTypeFilter]       = useState<string[]>([]);
+  const [faultSubtypeFilter, setFaultSubtypeFilter] = useState<string[]>([]);
   const [fromDate, setFromDate]   = useState('');
   const [toDate, setToDate]       = useState('');
   const [mineOnly, setMineOnly]   = useState(false);
@@ -511,6 +516,7 @@ export default function CasesPage() {
         setStatusFilter(typeof view.statusFilter === 'string' ? view.statusFilter : '');
         setManufacturerFilter(typeof view.manufacturerFilter === 'string' ? view.manufacturerFilter : '');
         setFaultTypeFilter(Array.isArray(view.faultTypeFilter) ? view.faultTypeFilter : []);
+        setFaultSubtypeFilter(Array.isArray(view.faultSubtypeFilter) ? view.faultSubtypeFilter : []);
         setFromDate(typeof view.fromDate === 'string' ? view.fromDate : '');
         setToDate(typeof view.toDate === 'string' ? view.toDate : '');
         setMineOnly(view.mineOnly === true);
@@ -530,11 +536,11 @@ export default function CasesPage() {
   useEffect(() => {
     if (!viewRestored) return;
     sessionStorage.setItem(CASES_VIEW_STORAGE_KEY, JSON.stringify({
-      search, statusFilter, manufacturerFilter, faultTypeFilter,
+      search, statusFilter, manufacturerFilter, faultTypeFilter, faultSubtypeFilter,
       fromDate, toDate, mineOnly, claimableOnly, showFilters,
       sortKey, sortDir, page,
     }));
-  }, [viewRestored, search, statusFilter, manufacturerFilter, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
+  }, [viewRestored, search, statusFilter, manufacturerFilter, faultTypeFilter, faultSubtypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -544,20 +550,14 @@ export default function CasesPage() {
     searchTimer.current = setTimeout(() => { setSearch(val); setPage(1); }, 300);
   }
 
-  // Load manufacturers + fault types once on mount
+  // Load editable supporting data once on mount. Fault types come from the
+  // canonical V10 taxonomy so legacy configuration cannot leak into filters.
   useEffect(() => {
     fetch('/api/manufacturers')
       .then(r => r.json())
       .then(json => {
         const names: string[] = (json.data ?? []).map((m: { name: string }) => m.name).sort();
         setManufacturers(names);
-      })
-      .catch(() => {});
-    fetch('/api/fault-types')
-      .then(r => r.json())
-      .then(json => {
-        const names: string[] = (json.data ?? []).map((ft: FaultType) => ft.name).sort();
-        setFaultTypes(names);
       })
       .catch(() => {});
     fetch('/api/products')
@@ -580,6 +580,7 @@ export default function CasesPage() {
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
+    faultSubtypeFilter.forEach(st => params.append('faultSubtype', st));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
     if (mineOnly && user?.name) params.set('submittedBy', user.name);
@@ -602,7 +603,7 @@ export default function CasesPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, manufacturerFilter, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
+  }, [search, statusFilter, manufacturerFilter, faultTypeFilter, faultSubtypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => {
     if (viewRestored) load();
@@ -698,6 +699,7 @@ export default function CasesPage() {
     setStatusFilter('');
     setManufacturerFilter('');
     setFaultTypeFilter([]);
+    setFaultSubtypeFilter([]);
     setFromDate('');
     setToDate('');
     setMineOnly(false);
@@ -720,7 +722,8 @@ export default function CasesPage() {
     if (!showFilters) setShowFilters(true);
   }
 
-  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
+  const availableFaultSubtypes = Array.from(new Set(faultTypeFilter.flatMap(type => [...getFaultSubtypes(type)])));
+  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter.length || faultSubtypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
@@ -728,6 +731,7 @@ export default function CasesPage() {
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
+    faultSubtypeFilter.forEach(st => params.append('faultSubtype', st));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
     if (mineOnly && user?.name) params.set('submittedBy', user.name);
@@ -943,7 +947,7 @@ export default function CasesPage() {
                 Claimable only
               </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <div>
                 <label className="form-label text-xs">Status</label>
                 <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="form-input text-xs">
@@ -954,9 +958,24 @@ export default function CasesPage() {
               <div>
                 <label className="form-label text-xs">Fault Type</label>
                 <FaultTypeMultiSelect
-                  options={faultTypes}
+                  options={[...FAULT_PARENT_TYPES]}
                   selected={faultTypeFilter}
-                  onChange={vals => { setFaultTypeFilter(vals); setPage(1); }}
+                  onChange={vals => {
+                    setFaultTypeFilter(vals);
+                    const validSubtypes = new Set(vals.flatMap(type => [...getFaultSubtypes(type)]));
+                    setFaultSubtypeFilter(current => current.filter(subtype => validSubtypes.has(subtype)));
+                    setPage(1);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="form-label text-xs">Fault Subtype</label>
+                <FaultTypeMultiSelect
+                  options={availableFaultSubtypes}
+                  selected={faultSubtypeFilter}
+                  onChange={vals => { setFaultSubtypeFilter(vals); setPage(1); }}
+                  emptyLabel={faultTypeFilter.length ? 'All Subtypes' : 'Select fault type first'}
+                  pluralLabel="subtypes"
                 />
               </div>
               <div>

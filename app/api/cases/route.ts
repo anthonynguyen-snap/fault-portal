@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
     const manufacturer= searchParams.get('manufacturer');
     const status      = searchParams.get('status');
     const faultTypes  = searchParams.getAll('faultType');
+    const faultSubtypes = searchParams.getAll('faultSubtype');
     const from        = searchParams.get('from');
     const to          = searchParams.get('to');
     const submittedBy = searchParams.get('submittedBy')?.toLowerCase();
@@ -89,6 +90,11 @@ export async function GET(req: NextRequest) {
     if (faultTypes.length > 0) {
       const lower = faultTypes.map(f => f.toLowerCase());
       filtered = filtered.filter(c => lower.includes(c.faultType.toLowerCase()));
+    }
+
+    if (faultSubtypes.length > 0) {
+      const lower = faultSubtypes.map(subtype => subtype.toLowerCase());
+      filtered = filtered.filter(c => lower.includes((c.faultSubtype || '').toLowerCase()));
     }
 
     if (manufacturer) {
