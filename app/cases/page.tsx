@@ -8,7 +8,7 @@ import {
   Copy, Check, User, ChevronRight as ChevronRightSm,
   BarChart3, Trophy, TrendingDown, TrendingUp,
 } from 'lucide-react';
-import { FaultCase, ClaimStatus } from '@/types';
+import { FaultCase, ClaimStatus, Product } from '@/types';
 import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge, STATUS_STYLES } from '@/lib/utils';
 import { FAULT_PARENT_TYPES, getFaultSubtypes } from '@/lib/fault-taxonomy';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -471,6 +471,7 @@ export default function CasesPage() {
   const [otherNotes, setOtherNotes]     = useState<Record<string, number>>({});
   const [faultInsights, setFaultInsights] = useState<FaultInsights | null>(null);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
+  const [products, setProducts]           = useState<Product[]>([]);
   const [nonClaimableProducts, setNonClaimableProducts] = useState<Set<string>>(new Set());
   const [claimableOnly, setClaimableOnly] = useState(false);
   const [loading, setLoading]     = useState(true);
@@ -481,6 +482,7 @@ export default function CasesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
+  const [productFilter, setProductFilter] = useState<string[]>([]);
   const [faultTypeFilter, setFaultTypeFilter]       = useState<string[]>([]);
   const [faultSubtypeFilter, setFaultSubtypeFilter] = useState<string[]>([]);
   const [fromDate, setFromDate]   = useState('');
@@ -515,6 +517,7 @@ export default function CasesPage() {
         setSearchInput(typeof view.search === 'string' ? view.search : '');
         setStatusFilter(typeof view.statusFilter === 'string' ? view.statusFilter : '');
         setManufacturerFilter(typeof view.manufacturerFilter === 'string' ? view.manufacturerFilter : '');
+        setProductFilter(Array.isArray(view.productFilter) ? view.productFilter : []);
         setFaultTypeFilter(Array.isArray(view.faultTypeFilter) ? view.faultTypeFilter : []);
         setFaultSubtypeFilter(Array.isArray(view.faultSubtypeFilter) ? view.faultSubtypeFilter : []);
         setFromDate(typeof view.fromDate === 'string' ? view.fromDate : '');
@@ -536,11 +539,11 @@ export default function CasesPage() {
   useEffect(() => {
     if (!viewRestored) return;
     sessionStorage.setItem(CASES_VIEW_STORAGE_KEY, JSON.stringify({
-      search, statusFilter, manufacturerFilter, faultTypeFilter, faultSubtypeFilter,
+      search, statusFilter, manufacturerFilter, productFilter, faultTypeFilter, faultSubtypeFilter,
       fromDate, toDate, mineOnly, claimableOnly, showFilters,
       sortKey, sortDir, page,
     }));
-  }, [viewRestored, search, statusFilter, manufacturerFilter, faultTypeFilter, faultSubtypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
+  }, [viewRestored, search, statusFilter, manufacturerFilter, productFilter, faultTypeFilter, faultSubtypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -563,8 +566,10 @@ export default function CasesPage() {
     fetch('/api/products')
       .then(r => r.json())
       .then(json => {
+        const loadedProducts: Product[] = json.data ?? [];
+        setProducts(loadedProducts);
         const nonClaimable = new Set<string>(
-          (json.data ?? []).filter((p: { name: string; claimable: boolean }) => p.claimable === false).map((p: { name: string }) => p.name.toLowerCase().trim())
+          loadedProducts.filter(p => p.claimable === false).map(p => p.name.toLowerCase().trim())
         );
         setNonClaimableProducts(nonClaimable);
       })
@@ -579,6 +584,7 @@ export default function CasesPage() {
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
+    productFilter.forEach(product => params.append('product', product));
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
     faultSubtypeFilter.forEach(st => params.append('faultSubtype', st));
     if (fromDate)            params.set('from', fromDate);
@@ -603,7 +609,7 @@ export default function CasesPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, manufacturerFilter, faultTypeFilter, faultSubtypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
+  }, [search, statusFilter, manufacturerFilter, productFilter, faultTypeFilter, faultSubtypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => {
     if (viewRestored) load();
@@ -698,6 +704,7 @@ export default function CasesPage() {
     setSearch('');
     setStatusFilter('');
     setManufacturerFilter('');
+    setProductFilter([]);
     setFaultTypeFilter([]);
     setFaultSubtypeFilter([]);
     setFromDate('');
@@ -723,13 +730,21 @@ export default function CasesPage() {
   }
 
   const availableFaultSubtypes = Array.from(new Set(faultTypeFilter.flatMap(type => [...getFaultSubtypes(type)])));
-  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter.length || faultSubtypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
+  const availableProducts = products
+    .filter(product => !manufacturerFilter || product.manufacturerName.trim().toLowerCase() === manufacturerFilter.trim().toLowerCase())
+    .map(product => product.name.trim())
+    .filter((name, index, names) => name && names.indexOf(name) === index)
+    .sort((a, b) => a.localeCompare(b));
+  const quickProducts = availableProducts.slice(0, 8);
+  const moreProducts = availableProducts.slice(8);
+  const isFiltered = !!(search || statusFilter || manufacturerFilter || productFilter.length || faultTypeFilter.length || faultSubtypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
+    productFilter.forEach(product => params.append('product', product));
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
     faultSubtypeFilter.forEach(st => params.append('faultSubtype', st));
     if (fromDate)            params.set('from', fromDate);
@@ -917,7 +932,7 @@ export default function CasesPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Manufacturer:</span>
                 {manufacturers.map(m => (
-                  <button key={m} onClick={() => { setManufacturerFilter(manufacturerFilter === m ? '' : m); setPage(1); }}
+                  <button key={m} onClick={() => { setManufacturerFilter(manufacturerFilter === m ? '' : m); setProductFilter([]); setPage(1); }}
                     className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
                       manufacturerFilter === m
                         ? 'bg-brand-50 border-brand-300 text-brand-700'
@@ -926,6 +941,43 @@ export default function CasesPage() {
                     {m}
                   </button>
                 ))}
+              </div>
+            )}
+            {manufacturerFilter && availableProducts.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Product:</span>
+                {quickProducts.map(product => (
+                  <button key={product} onClick={() => {
+                    setProductFilter(current => current.includes(product) ? current.filter(item => item !== product) : [...current, product]);
+                    setPage(1);
+                  }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                      productFilter.includes(product)
+                        ? 'bg-brand-50 border-brand-300 text-brand-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'
+                    }`}>
+                    {product}
+                  </button>
+                ))}
+                {moreProducts.length > 0 && (
+                  <div className="w-44">
+                    <FaultTypeMultiSelect
+                      options={moreProducts}
+                      selected={productFilter.filter(product => moreProducts.includes(product))}
+                      onChange={selectedMore => {
+                        setProductFilter([...productFilter.filter(product => quickProducts.includes(product)), ...selectedMore]);
+                        setPage(1);
+                      }}
+                      emptyLabel={`More products (${moreProducts.length})`}
+                      pluralLabel="products"
+                    />
+                  </div>
+                )}
+                {productFilter.length > 0 && (
+                  <button onClick={() => { setProductFilter([]); setPage(1); }} className="px-2 py-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
+                    Clear products
+                  </button>
+                )}
               </div>
             )}
             {(fromDate || toDate) && (
@@ -980,7 +1032,7 @@ export default function CasesPage() {
               </div>
               <div>
                 <label className="form-label text-xs">Manufacturer</label>
-                <select value={manufacturerFilter} onChange={e => { setManufacturerFilter(e.target.value); setPage(1); }} className="form-input text-xs">
+                <select value={manufacturerFilter} onChange={e => { setManufacturerFilter(e.target.value); setProductFilter([]); setPage(1); }} className="form-input text-xs">
                   <option value="">All Manufacturers</option>
                   {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>

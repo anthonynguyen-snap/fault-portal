@@ -49,6 +49,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Cases', text: 'Historically migrated cases retain their original fault label and show a Historical migration marker for auditability.' },
       { category: 'Cases', text: 'Removed exact duplicate historical imports and empty records after creating a complete rollback backup.' },
       { category: 'UI/UX', text: 'Case filters now use the V10 parent categories and provide a dependent subtype filter instead of showing legacy fault labels.' },
+      { category: 'UI/UX', text: 'Selecting a manufacturer now reveals quick product buttons plus a multi-select list for faster product-specific case searches.' },
     ],
   },
   {

@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search      = searchParams.get('search')?.toLowerCase();
     const manufacturer= searchParams.get('manufacturer');
+    const products     = searchParams.getAll('product');
     const status      = searchParams.get('status');
     const faultTypes  = searchParams.getAll('faultType');
     const faultSubtypes = searchParams.getAll('faultSubtype');
@@ -101,6 +102,11 @@ export async function GET(req: NextRequest) {
       filtered = filtered.filter(c =>
         c.manufacturerName.toLowerCase() === manufacturer.toLowerCase()
       );
+    }
+
+    if (products.length > 0) {
+      const lower = products.map(product => product.trim().toLowerCase());
+      filtered = filtered.filter(c => lower.includes(c.product.trim().toLowerCase()));
     }
 
     if (status) {
