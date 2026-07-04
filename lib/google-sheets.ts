@@ -44,6 +44,15 @@ const SHEET_ID = process.env.GOOGLE_SPREADSHEET_ID!;
 
 const CASES_RANGE = 'Cases!A2:S';
 const CASES_COLUMNS = 'Cases!A:S';
+const CASES_CACHE_TTL_MS = 30_000;
+let casesCache: FaultCase[] | null = null;
+let casesCacheTime = 0;
+let casesReadInFlight: Promise<FaultCase[]> | null = null;
+
+function invalidateCasesCache(): void {
+  casesCache = null;
+  casesCacheTime = 0;
+}
 
 function rowToCase(row: string[]): FaultCase {
   let internalNotes: FaultCase['internalNotes'] = [];
@@ -108,13 +117,26 @@ async function ensureCaseHeaders(): Promise<void> {
 }
 
 export async function getCases(): Promise<FaultCase[]> {
-  const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: CASES_RANGE,
-  });
-  const rows = res.data.values || [];
-  return rows.filter(r => r[0]).map(rowToCase);
+  if (casesCache && Date.now() - casesCacheTime < CASES_CACHE_TTL_MS) return casesCache;
+  if (casesReadInFlight) return casesReadInFlight;
+
+  casesReadInFlight = (async () => {
+    const sheets = getSheets();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: CASES_RANGE,
+    });
+    const rows = res.data.values || [];
+    casesCache = rows.filter(r => r[0]).map(rowToCase);
+    casesCacheTime = Date.now();
+    return casesCache;
+  })();
+
+  try {
+    return await casesReadInFlight;
+  } finally {
+    casesReadInFlight = null;
+  }
 }
 
 export async function getCaseById(id: string): Promise<FaultCase | null> {
@@ -142,6 +164,7 @@ export async function createCase(
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [caseToRow(newCase)] },
   });
+  invalidateCasesCache();
 
   return newCase;
 }
@@ -165,6 +188,7 @@ export async function updateCase(
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [caseToRow(updated)] },
   });
+  invalidateCasesCache();
 
   return updated;
 }

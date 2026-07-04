@@ -29,6 +29,7 @@ type FaultInsights = {
   allTimeRanking: FaultMetric[];
   monthlyLeaders: Array<{ month: string; total: number; leader: FaultMetric | null }>;
 };
+type SearchSuggestionGroup = { label: string; values: string[] };
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function isoToday() { return new Date().toISOString().slice(0, 10); }
@@ -480,6 +481,8 @@ export default function CasesPage() {
   // Filters
   const [search, setSearch]       = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [suggestionGroups, setSuggestionGroups] = useState<SearchSuggestionGroup[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
   const [productFilter, setProductFilter] = useState<string[]>([]);
@@ -547,10 +550,40 @@ export default function CasesPage() {
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionRequest = useRef<AbortController | null>(null);
+  const casesRequest = useRef<AbortController | null>(null);
   function handleSearchInput(val: string) {
     setSearchInput(val);
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    searchTimer.current = setTimeout(() => { setSearch(val); setPage(1); }, 300);
+    if (suggestionTimer.current) clearTimeout(suggestionTimer.current);
+    suggestionRequest.current?.abort();
+    const trimmed = val.trim();
+    if (trimmed.length >= 2) {
+      suggestionTimer.current = setTimeout(() => {
+        const controller = new AbortController();
+        suggestionRequest.current = controller;
+        fetch(`/api/cases/suggestions?q=${encodeURIComponent(trimmed)}`, { signal: controller.signal })
+          .then(response => response.json())
+          .then(json => {
+            setSuggestionGroups(json.groups ?? []);
+            setShowSuggestions(true);
+          })
+          .catch(error => { if (error.name !== 'AbortError') setSuggestionGroups([]); });
+      }, 160);
+    } else {
+      setSuggestionGroups([]);
+      setShowSuggestions(false);
+    }
+    searchTimer.current = setTimeout(() => { setSearch(val); setPage(1); }, 450);
+  }
+
+  function chooseSuggestion(value: string) {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    setSearchInput(value);
+    setSearch(value);
+    setShowSuggestions(false);
+    setPage(1);
   }
 
   // Load editable supporting data once on mount. Fault types come from the
@@ -578,6 +611,9 @@ export default function CasesPage() {
 
   // Main fetch
   const load = useCallback(() => {
+    casesRequest.current?.abort();
+    const controller = new AbortController();
+    casesRequest.current = controller;
     setLoading(true);
     setError('');
     const params = new URLSearchParams();
@@ -595,7 +631,7 @@ export default function CasesPage() {
     params.set('page', String(page));
     params.set('limit', String(PAGE_SIZE));
 
-    fetch(`/api/cases?${params}`)
+    fetch(`/api/cases?${params}`, { signal: controller.signal })
       .then(r => r.json())
       .then(json => {
         if (json.error) throw new Error(json.error);
@@ -607,12 +643,13 @@ export default function CasesPage() {
         setOtherNotes(json.otherNotes ?? {});
         setFaultInsights(json.insights ?? null);
       })
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch(err => { if (err.name !== 'AbortError') setError(err.message); })
+      .finally(() => { if (casesRequest.current === controller) setLoading(false); });
   }, [search, statusFilter, manufacturerFilter, productFilter, faultTypeFilter, faultSubtypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => {
     if (viewRestored) load();
+    return () => casesRequest.current?.abort();
   }, [load, viewRestored]);
 
   // Inline status update — optimistic
@@ -699,6 +736,8 @@ export default function CasesPage() {
 
   function clearFilters() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (suggestionTimer.current) clearTimeout(suggestionTimer.current);
+    suggestionRequest.current?.abort();
     sessionStorage.removeItem(CASES_VIEW_STORAGE_KEY);
     setSearchInput('');
     setSearch('');
@@ -711,6 +750,8 @@ export default function CasesPage() {
     setToDate('');
     setMineOnly(false);
     setClaimableOnly(false);
+    setSuggestionGroups([]);
+    setShowSuggestions(false);
     setPage(1);
   }
 
@@ -868,8 +909,36 @@ export default function CasesPage() {
               placeholder="Search by order number, manufacturer number, customer, product, fault type or notes…"
               value={searchInput}
               onChange={e => handleSearchInput(e.target.value)}
+              onFocus={() => suggestionGroups.length > 0 && setShowSuggestions(true)}
+              onBlur={() => setShowSuggestions(false)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (searchTimer.current) clearTimeout(searchTimer.current);
+                  setSearch(searchInput);
+                  setShowSuggestions(false);
+                  setPage(1);
+                }
+                if (e.key === 'Escape') setShowSuggestions(false);
+              }}
               className={`form-input pl-9 ${isFiltered ? 'pr-20' : ''}`}
             />
+            {showSuggestions && suggestionGroups.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                <div className="max-h-80 overflow-y-auto py-2">
+                  {suggestionGroups.map(group => (
+                    <div key={group.label} className="px-2 py-1">
+                      <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
+                      {group.values.map(value => (
+                        <button key={`${group.label}-${value}`} type="button" onMouseDown={event => event.preventDefault()} onClick={() => chooseSuggestion(value)}
+                          className="w-full rounded-lg px-2 py-2 text-left text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors">
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {isFiltered && (
               <button
                 type="button"
@@ -893,11 +962,25 @@ export default function CasesPage() {
             className={`btn-secondary gap-2 flex-shrink-0 ${showFilters ? 'bg-slate-100 border-slate-300' : ''}`}
           >
             <Filter size={14} /> Filters
-            {(statusFilter || manufacturerFilter || faultTypeFilter.length > 0 || fromDate || toDate) && (
+            {(statusFilter || manufacturerFilter || productFilter.length > 0 || faultTypeFilter.length > 0 || faultSubtypeFilter.length > 0 || fromDate || toDate || claimableOnly) && (
               <span className="w-2 h-2 bg-brand-600 rounded-full" />
             )}
           </button>
         </div>
+        {isFiltered && (
+          <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Active:</span>
+            {search && <button onClick={() => { setSearch(''); setSearchInput(''); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">Search: {search} ×</button>}
+            {manufacturerFilter && <button onClick={() => { setManufacturerFilter(''); setProductFilter([]); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">{manufacturerFilter} ×</button>}
+            {productFilter.map(product => <button key={product} onClick={() => { setProductFilter(current => current.filter(item => item !== product)); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">{product} ×</button>)}
+            {faultTypeFilter.map(type => <button key={type} onClick={() => { setFaultTypeFilter(current => current.filter(item => item !== type)); setFaultSubtypeFilter([]); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">{type} ×</button>)}
+            {faultSubtypeFilter.map(subtype => <button key={subtype} onClick={() => { setFaultSubtypeFilter(current => current.filter(item => item !== subtype)); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">{subtype} ×</button>)}
+            {statusFilter && <button onClick={() => { setStatusFilter(''); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">{statusFilter} ×</button>}
+            {mineOnly && <button onClick={() => { setMineOnly(false); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">Mine ×</button>}
+            {claimableOnly && <button onClick={() => { setClaimableOnly(false); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">Claimable only ×</button>}
+            {(fromDate || toDate) && <button onClick={() => { setFromDate(''); setToDate(''); setPage(1); }} className="badge bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-600">Date range ×</button>}
+          </div>
+        )}
         {showFilters && (
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <div className="flex items-center gap-2 flex-wrap">

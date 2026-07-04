@@ -51,6 +51,8 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'UI/UX', text: 'Case filters now use the V10 parent categories and provide a dependent subtype filter instead of showing legacy fault labels.' },
       { category: 'UI/UX', text: 'Selecting a manufacturer now reveals quick product buttons plus a multi-select list for faster product-specific case searches.' },
       { category: 'Cases', text: 'The main case search now also finds manufacturer numbers alongside orders, customers, products, fault types and notes.' },
+      { category: 'Cases', text: 'Case searches now use short-lived server caching and cancel stale browser requests, reducing Google Sheets delays and out-of-order results.' },
+      { category: 'UI/UX', text: 'Added grouped search suggestions, exact identifier prioritisation and removable active-filter chips for faster case discovery.' },
     ],
   },
   {

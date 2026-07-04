@@ -134,6 +134,16 @@ export async function GET(req: NextRequest) {
     const sortKey  = (searchParams.get('sortKey')  || 'createdAt') as keyof typeof filtered[0];
     const sortDir  = searchParams.get('sortDir') === 'asc' ? 1 : -1;
     filtered.sort((a, b) => {
+      if (search) {
+        const rank = (item: typeof a) => {
+          const identifiers = [item.orderNumber, item.manufacturerNumber || ''].map(value => value.trim().toLowerCase());
+          if (identifiers.some(value => value === search)) return 0;
+          if (identifiers.some(value => value.startsWith(search))) return 1;
+          return 2;
+        };
+        const rankDifference = rank(a) - rank(b);
+        if (rankDifference) return rankDifference;
+      }
       const av = String(a[sortKey] ?? '');
       const bv = String(b[sortKey] ?? '');
       return av < bv ? -sortDir : av > bv ? sortDir : 0;
