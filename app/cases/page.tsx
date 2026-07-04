@@ -865,7 +865,7 @@ export default function CasesPage() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by order number, customer, product, fault type or notes…"
+              placeholder="Search by order number, manufacturer number, customer, product, fault type or notes…"
               value={searchInput}
               onChange={e => handleSearchInput(e.target.value)}
               className={`form-input pl-9 ${isFiltered ? 'pr-20' : ''}`}

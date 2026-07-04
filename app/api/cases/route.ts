@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
         c.customerName.toLowerCase().includes(search)     ||
         c.product.toLowerCase().includes(search)          ||
         c.manufacturerName.toLowerCase().includes(search) ||
+        (c.manufacturerNumber || '').toLowerCase().includes(search) ||
         c.faultType.toLowerCase().includes(search)        ||
         (c.faultSubtype || '').toLowerCase().includes(search) ||
         (c.originalFaultType || '').toLowerCase().includes(search) ||
