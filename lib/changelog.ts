@@ -53,6 +53,7 @@ export const CHANGELOG: ChangelogVersion[] = [
       { category: 'Cases', text: 'The main case search now also finds manufacturer numbers alongside orders, customers, products, fault types and notes.' },
       { category: 'Cases', text: 'Case searches now use short-lived server caching and cancel stale browser requests, reducing Google Sheets delays and out-of-order results.' },
       { category: 'UI/UX', text: 'Added grouped search suggestions, exact identifier prioritisation and removable active-filter chips for faster case discovery.' },
+      { category: 'Cases', text: 'All new-fault links now open the V10 parent/subtype form; the legacy submission route redirects there automatically.' },
     ],
   },
   {

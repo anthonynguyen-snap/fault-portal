@@ -83,7 +83,7 @@ export function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Fault Log</h1>
           <p className="text-sm text-gray-500 mt-0.5">All submitted fault cases</p>
         </div>
-        <Link href="/new" className="btn-primary">
+        <Link href="/cases/new" className="btn-primary">
           + Log New Fault
         </Link>
       </div>
@@ -150,7 +150,7 @@ export function Dashboard() {
             <p className="text-4xl mb-3">📋</p>
             <p className="font-medium">{faults.length === 0 ? "No faults logged yet." : "No results match your filters."}</p>
             {faults.length === 0 && (
-              <Link href="/new" className="mt-4 inline-block btn-primary text-sm">Log your first fault</Link>
+              <Link href="/cases/new" className="mt-4 inline-block btn-primary text-sm">Log your first fault</Link>
             )}
           </div>
         ) : (

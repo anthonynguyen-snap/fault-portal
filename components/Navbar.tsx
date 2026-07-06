@@ -24,7 +24,7 @@ export function Navbar() {
             <NavLink href="/dashboard" active={pathname === "/dashboard"}>
               Dashboard
             </NavLink>
-            <NavLink href="/new" active={pathname === "/new"}>
+            <NavLink href="/cases/new" active={pathname === "/cases/new"}>
               + Log Fault
             </NavLink>
           </nav>
