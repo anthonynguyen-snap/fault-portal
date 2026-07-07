@@ -174,6 +174,11 @@ export async function updateCase(
 // =========================================================
 
 type ProductSheetLayout = 'legacy' | 'structured';
+type ProductSheetInfo = {
+  layout: ProductSheetLayout;
+  headers: string[];
+  columns: Partial<Record<'id' | 'name' | 'manufacturerName' | 'unitCostUSD' | 'manufacturerNumbers' | 'claimable' | 'category' | 'subcategory', number>>;
+};
 type ProductSaveResult = {
   product: Product;
   sheetRow: number;
@@ -185,14 +190,96 @@ function parseSheetMoney(value: string | undefined): number {
   return parseFloat(String(value ?? '').replace(/[^0-9.-]/g, '')) || 0;
 }
 
-async function getProductSheetLayout(): Promise<ProductSheetLayout> {
+function columnLetter(index: number): string {
+  let n = index + 1;
+  let letters = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+}
+
+function normaliseHeader(header: string): string {
+  return header.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getProductColumnMap(headers: string[], layout: ProductSheetLayout): ProductSheetInfo['columns'] {
+  const columns: ProductSheetInfo['columns'] = {};
+  headers.forEach((header, index) => {
+    switch (normaliseHeader(header)) {
+      case 'id':
+      case 'productid':
+        columns.id = index;
+        break;
+      case 'product':
+      case 'productname':
+      case 'name':
+        columns.name = index;
+        break;
+      case 'manufacturer':
+      case 'manufacturername':
+        columns.manufacturerName = index;
+        break;
+      case 'unitcost':
+      case 'unitcostusd':
+      case 'cost':
+        columns.unitCostUSD = index;
+        break;
+      case 'manufacturernumber':
+      case 'manufacturernumbers':
+      case 'manufacturerpartnumber':
+      case 'manufacturerpartnumbers':
+        columns.manufacturerNumbers = index;
+        break;
+      case 'claimable':
+      case 'claimstatus':
+        columns.claimable = index;
+        break;
+      case 'category':
+        columns.category = index;
+        break;
+      case 'subcategory':
+      case 'subcat':
+        columns.subcategory = index;
+        break;
+    }
+  });
+
+  if (layout === 'legacy') {
+    return {
+      name: columns.name ?? 0,
+      unitCostUSD: columns.unitCostUSD ?? 1,
+      manufacturerName: columns.manufacturerName ?? 2,
+      manufacturerNumbers: columns.manufacturerNumbers,
+      claimable: columns.claimable,
+      category: columns.category,
+      subcategory: columns.subcategory,
+    };
+  }
+
+  return {
+    id: columns.id ?? 0,
+    name: columns.name ?? 1,
+    manufacturerName: columns.manufacturerName ?? 2,
+    unitCostUSD: columns.unitCostUSD ?? 3,
+    manufacturerNumbers: columns.manufacturerNumbers ?? 4,
+    claimable: columns.claimable ?? 5,
+    category: columns.category,
+    subcategory: columns.subcategory,
+  };
+}
+
+async function getProductSheetInfo(): Promise<ProductSheetInfo> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Products!A1:F1',
+    range: 'Products!A1:Z1',
   });
-  const headers = (res.data.values?.[0] ?? []).map(h => String(h).trim().toLowerCase());
-  return headers[0] === 'product' ? 'legacy' : 'structured';
+  const headers = (res.data.values?.[0] ?? []).map(h => String(h).trim());
+  const layout = normaliseHeader(headers[0] ?? '') === 'product' ? 'legacy' : 'structured';
+  return { layout, headers, columns: getProductColumnMap(headers, layout) };
 }
 
 function productMatches(product: Product, candidate: Pick<Product, 'name' | 'manufacturerName' | 'unitCostUSD'>): boolean {
@@ -207,78 +294,98 @@ function legacyProductId(sheetRow: number): string {
   return `products-row-${sheetRow}`;
 }
 
-function rowToProduct(row: string[], layout: ProductSheetLayout, sheetRow: number): Product {
+function readCell(row: string[], index: number | undefined): string {
+  return index === undefined ? '' : (row[index] || '');
+}
+
+function writeCell(row: string[], index: number | undefined, value: string): void {
+  if (index === undefined) return;
+  while (row.length <= index) row.push('');
+  row[index] = value;
+}
+
+function productToSheetRow(product: Product, info: ProductSheetInfo, baseRow: string[] = []): string[] {
+  const row = [...baseRow];
+  const { columns } = info;
+  if (info.layout !== 'legacy') writeCell(row, columns.id, product.id);
+  writeCell(row, columns.name, product.name);
+  writeCell(row, columns.manufacturerName, product.manufacturerName);
+  writeCell(row, columns.unitCostUSD, String(product.unitCostUSD));
+  writeCell(row, columns.manufacturerNumbers, product.manufacturerNumbers.join(', '));
+  writeCell(row, columns.claimable, product.claimable === false ? 'FALSE' : 'TRUE');
+  writeCell(row, columns.category, product.category || '');
+  writeCell(row, columns.subcategory, product.subcategory || '');
+
+  const minWidth = Math.max(
+    info.headers.length,
+    ...Object.values(columns).filter((v): v is number => v !== undefined).map(index => index + 1),
+  );
+  while (row.length < minWidth) row.push('');
+  return row;
+}
+
+function rowToProduct(row: string[], info: ProductSheetInfo, sheetRow: number): Product {
+  const { layout, columns } = info;
+  const manufacturerNumbers = readCell(row, columns.manufacturerNumbers)
+    ? readCell(row, columns.manufacturerNumbers).split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+  const claimableValue = readCell(row, columns.claimable);
+
   if (layout === 'legacy') {
     return {
       id:                  legacyProductId(sheetRow),
-      name:                row[0] || '',
-      unitCostUSD:         parseSheetMoney(row[1]),
-      manufacturerName:    row[2] || '',
-      manufacturerNumbers: row[3]
-        ? row[3].split(',').map(s => s.trim()).filter(Boolean)
-        : [],
-      claimable: row[4] !== 'FALSE',
+      name:                readCell(row, columns.name),
+      unitCostUSD:         parseSheetMoney(readCell(row, columns.unitCostUSD)),
+      manufacturerName:    readCell(row, columns.manufacturerName),
+      manufacturerNumbers,
+      claimable: columns.claimable === undefined ? true : claimableValue !== 'FALSE',
+      category:            readCell(row, columns.category) || undefined,
+      subcategory:         readCell(row, columns.subcategory) || undefined,
     };
   }
 
   return {
-    id:                 row[0] || '',
-    name:               row[1] || '',
-    manufacturerName:   row[2] || '',
-    unitCostUSD:        parseSheetMoney(row[3]),
-    manufacturerNumbers: row[4]
-      ? row[4].split(',').map(s => s.trim()).filter(Boolean)
-      : [],
-    claimable: row[5] !== 'FALSE', // default true if blank
+    id:                  readCell(row, columns.id),
+    name:                readCell(row, columns.name),
+    manufacturerName:    readCell(row, columns.manufacturerName),
+    unitCostUSD:         parseSheetMoney(readCell(row, columns.unitCostUSD)),
+    manufacturerNumbers,
+    claimable:           columns.claimable === undefined ? true : claimableValue !== 'FALSE',
+    category:            readCell(row, columns.category) || undefined,
+    subcategory:         readCell(row, columns.subcategory) || undefined,
   };
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const layout = await getProductSheetLayout();
+  const info = await getProductSheetInfo();
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Products!A2:F',
+    range: `Products!A2:${columnLetter(Math.max(info.headers.length - 1, 5))}`,
   });
   const rows = res.data.values || [];
   return rows
     .map((row, index) => ({ row, sheetRow: index + 2 }))
     .filter(({ row }) => row[0])
-    .map(({ row, sheetRow }) => rowToProduct(row, layout, sheetRow));
+    .map(({ row, sheetRow }) => rowToProduct(row, info, sheetRow));
 }
 
 export async function createProduct(
   data: Omit<Product, 'id'>
 ): Promise<ProductSaveResult> {
-  const layout = await getProductSheetLayout();
+  const info = await getProductSheetInfo();
+  const { layout } = info;
   const sheets = getSheets();
   const product: Product = { ...data, claimable: data.claimable !== false, id: layout === 'legacy' ? '' : `PROD-${Date.now()}` };
-  const row = layout === 'legacy'
-    ? [
-        product.name,
-        String(product.unitCostUSD),
-        product.manufacturerName,
-        product.manufacturerNumbers.join(', '),
-        product.claimable === false ? 'FALSE' : 'TRUE',
-      ]
-    : [
-        product.id,
-        product.name,
-        product.manufacturerName,
-        String(product.unitCostUSD),
-        product.manufacturerNumbers.join(', '),
-        product.claimable === false ? 'FALSE' : 'TRUE',
-      ];
+  const row = productToSheetRow(product, info);
   const existingRowsRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Products!A2:F',
+    range: `Products!A2:${columnLetter(Math.max(info.headers.length - 1, row.length - 1))}`,
   });
   const existingRows = existingRowsRes.data.values || [];
   const lastUsedIndex = existingRows.reduce((last, row, index) => row.some(cell => String(cell ?? '').trim()) ? index : last, -1);
   const sheetRow = lastUsedIndex + 3;
-  const writeRange = layout === 'legacy'
-    ? `Products!A${sheetRow}:E${sheetRow}`
-    : `Products!A${sheetRow}:F${sheetRow}`;
+  const writeRange = `Products!A${sheetRow}:${columnLetter(row.length - 1)}${sheetRow}`;
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
@@ -296,7 +403,7 @@ export async function createProduct(
     throw new Error(`Google Sheets accepted the save, but row ${sheetRow} could not be read back from the Products tab.`);
   }
 
-  const savedProduct = rowToProduct(savedRow, layout, sheetRow);
+  const savedProduct = rowToProduct(savedRow, info, sheetRow);
   if (!productMatches(savedProduct, product)) {
     throw new Error(`Google Sheets saved row ${sheetRow}, but the values read back did not match the product that was submitted.`);
   }
@@ -307,49 +414,38 @@ export async function updateProduct(
   id: string,
   updates: Partial<Product>
 ): Promise<void> {
-  const layout = await getProductSheetLayout();
+  const info = await getProductSheetInfo();
   const sheets = getSheets();
-  const products = await getProducts();
+  const readRange = `Products!A2:${columnLetter(Math.max(info.headers.length - 1, 5))}`;
+  const rowsRes = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: readRange });
+  const rows = rowsRes.data.values || [];
+  const products = rows.map((row, index) => rowToProduct(row, info, index + 2));
   const idx = products.findIndex(p => p.id === id);
   if (idx === -1) throw new Error(`Product ${id} not found`);
 
   const updated = { ...products[idx], ...updates };
-  const row = layout === 'legacy'
-    ? [
-        updated.name,
-        String(updated.unitCostUSD),
-        updated.manufacturerName,
-        updated.manufacturerNumbers.join(', '),
-        updated.claimable === false ? 'FALSE' : 'TRUE',
-      ]
-    : [
-        updated.id,
-        updated.name,
-        updated.manufacturerName,
-        String(updated.unitCostUSD),
-        updated.manufacturerNumbers.join(', '),
-        updated.claimable === false ? 'FALSE' : 'TRUE',
-      ];
+  const row = productToSheetRow(updated, info, rows[idx]);
   const sheetRow = idx + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: layout === 'legacy' ? `Products!A${sheetRow}:E${sheetRow}` : `Products!A${sheetRow}:F${sheetRow}`,
+    range: `Products!A${sheetRow}:${columnLetter(row.length - 1)}${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] },
   });
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  const layout = await getProductSheetLayout();
+  const info = await getProductSheetInfo();
   const sheets = getSheets();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Products!A2:F' });
+  const range = `Products!A2:${columnLetter(Math.max(info.headers.length - 1, 5))}`;
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range });
   const rows = res.data.values || [];
   const filtered = rows.filter((r, index) => {
-    const product = rowToProduct(r, layout, index + 2);
+    const product = rowToProduct(r, info, index + 2);
     return product.id !== id;
   });
   if (filtered.length === rows.length) throw new Error(`Product ${id} not found`);
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: layout === 'legacy' ? 'Products!A2:E' : 'Products!A2:F' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range });
   if (filtered.length > 0) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID, range: 'Products!A2',

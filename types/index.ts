@@ -47,6 +47,8 @@ export interface Product {
   unitCostUSD: number;
   manufacturerNumbers: string[]; // Preset selectable options e.g. ["MN-001", "MN-002"]
   claimable: boolean;            // false = track only, cannot submit manufacturer claim
+  category?: string;
+  subcategory?: string;
 }
 
 export interface Manufacturer {
