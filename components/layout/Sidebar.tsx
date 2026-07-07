@@ -29,6 +29,7 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  PackageX,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
@@ -114,6 +115,32 @@ function ReplenishmentAlertBadge({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+function UnfulfilledAlertBadge({ collapsed }: { collapsed: boolean }) {
+  const [count, setCount] = useState<number>(0);
+  useEffect(() => {
+    function check() {
+      if (document.visibilityState === 'hidden') return;
+      fetch('/api/unfulfilled-orders/alerts')
+        .then(r => r.json())
+        .then(d => setCount(d.count ?? 0))
+        .catch(err => console.warn('[UnfulfilledAlertBadge]', err));
+    }
+    check();
+    const interval = setInterval(check, 60_000);
+    document.addEventListener('visibilitychange', check);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', check); };
+  }, []);
+  if (!count) return null;
+  if (collapsed) return (
+    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+  );
+  return (
+    <span className="text-[9px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
+      {count}
+    </span>
+  );
+}
+
 function ChangelogNewBadge({ collapsed }: { collapsed: boolean }) {
   const [show, setShow] = useState(false);
 
@@ -185,6 +212,7 @@ const navGroups: NavGroup[] = [
       { label: 'Returns',      href: '/returns',   icon: RotateCcw },
       { label: 'Refunds',      href: '/refunds',   icon: CreditCard },
       { label: 'Order Lookup', href: '/orders',    icon: ShoppingBag },
+      { label: 'Unfulfilled Orders', href: '/unfulfilled', icon: PackageX },
       { label: 'Corporate',    href: '/corporate', icon: Briefcase,   adminOnly: true },
     ],
   },
@@ -421,10 +449,12 @@ export function Sidebar() {
                             {!collapsed && item.href === '/returns'       && <ReturnAlertBadge collapsed={false} />}
                             {!collapsed && item.href === '/refunds'       && <RefundAlertBadge collapsed={false} />}
                             {!collapsed && item.href === '/replenishment' && <ReplenishmentAlertBadge collapsed={false} />}
+                            {!collapsed && item.href === '/unfulfilled'   && <UnfulfilledAlertBadge collapsed={false} />}
                             {!collapsed && item.href === '/admin'         && <ChangelogNewBadge collapsed={false} />}
                             {collapsed  && item.href === '/returns'       && <ReturnAlertBadge collapsed={true} />}
                             {collapsed  && item.href === '/refunds'       && <RefundAlertBadge collapsed={true} />}
                             {collapsed  && item.href === '/replenishment' && <ReplenishmentAlertBadge collapsed={true} />}
+                            {collapsed  && item.href === '/unfulfilled'   && <UnfulfilledAlertBadge collapsed={true} />}
                             {collapsed  && item.href === '/admin'         && <ChangelogNewBadge collapsed={true} />}
                           </Link>
                         </div>

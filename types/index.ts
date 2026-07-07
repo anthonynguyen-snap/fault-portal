@@ -564,6 +564,37 @@ export interface RetailOrderItem {
   unitPrice: number;
 }
 
+// =========================================================
+// UNFULFILLED CUSTOMER CONTACT LIST
+// =========================================================
+export type UnfulfilledOutcome =
+  | 'Waiting for stock'
+  | 'Split fulfilment'
+  | 'Cancelled'
+  | 'Colour swap'
+  | 'Alternative product'
+  | 'Other';
+
+export interface UnfulfilledOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  productVariant: string;
+  assignedTo: string;
+  contactedAt: string | null;
+  contactedBy: string;
+  followUpRequired: boolean;
+  followUpOn: string | null;
+  outcome: UnfulfilledOutcome;
+  resolvedAt: string | null;
+  resolvedBy: string;
+  internalNotes: InternalNote[];
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RetailOrder {
   id: string;
   createdAt: string;
