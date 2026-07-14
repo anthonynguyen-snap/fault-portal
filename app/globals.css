@@ -3,7 +3,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Baby blue brand colour overrides — ensures correct colour regardless of build cache */
+/* SNAP interface tokens */
 :root {
   --brand-50:  #eaf8fd;
   --brand-100: #cceef8;
@@ -15,6 +15,16 @@
   --brand-700: #107394;
   --brand-800: #0b5572;
   --brand-900: #07405a;
+
+  --surface-canvas: #f6f6f7;
+  --surface-raised: #ffffff;
+  --surface-subdued: #f7f8fa;
+  --border-subdued: #e3e5e8;
+  --border-strong: #c9ccd1;
+  --text-muted: #6d7175;
+  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.05), 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-popover: 0 8px 24px rgb(15 23 42 / 0.12);
+  --focus-ring: 0 0 0 3px rgb(42 176 217 / 0.22);
 }
 
 @layer base {
@@ -26,52 +36,72 @@
     @apply border-slate-200;
   }
   body {
-    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    @apply text-slate-900 font-sans antialiased;
+    background: var(--surface-canvas);
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold tracking-tight;
+    @apply font-semibold tracking-normal;
+  }
+  ::selection {
+    background: var(--brand-100);
+    color: var(--brand-900);
   }
 }
 
 @layer components {
   /* Card */
   .card {
-    @apply bg-white rounded-xl border border-slate-200;
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.07), 0 1px 2px -1px rgb(0 0 0 / 0.07);
+    @apply bg-white rounded-lg border;
+    border-color: var(--border-subdued);
+    box-shadow: var(--shadow-card);
   }
 
   /* Buttons */
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-lg transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
     background-color: var(--brand-600);
-    focus-ring-color: var(--brand-600);
   }
   .btn-primary:hover {
     background-color: var(--brand-700);
   }
-  .btn-primary:focus {
-    --tw-ring-color: var(--brand-600);
+  .btn-primary:focus-visible {
+    box-shadow: var(--focus-ring);
   }
   .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-white text-slate-700 text-sm font-medium rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-slate-700 text-sm font-semibold rounded-lg border hover:bg-slate-50 transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
+    border-color: var(--border-strong);
+    box-shadow: 0 1px 0 rgb(0 0 0 / 0.03);
+  }
+  .btn-secondary:hover {
+    border-color: #b8bcc3;
+  }
+  .btn-secondary:focus-visible {
+    box-shadow: var(--focus-ring);
   }
   .btn-danger {
-    @apply inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-danger:focus-visible {
+    box-shadow: 0 0 0 3px rgb(220 38 38 / 0.22);
   }
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-3 py-1.5 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-100 transition-colors;
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 text-slate-600 text-sm font-semibold rounded-lg hover:bg-slate-100 transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-ghost:focus-visible {
+    box-shadow: var(--focus-ring);
   }
 
   /* Form inputs */
   .form-input {
-    @apply w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-all;
+    @apply w-full px-3 py-2 text-sm bg-white border rounded-lg placeholder:text-slate-400 focus:outline-none transition-colors;
+    border-color: var(--border-strong);
   }
   .form-input:focus {
-    --tw-ring-color: var(--brand-600);
     border-color: var(--brand-600);
+    box-shadow: var(--focus-ring);
   }
   .form-label {
-    @apply block text-sm font-medium text-slate-700 mb-1.5;
+    @apply block text-sm font-semibold text-slate-700 mb-1.5;
   }
   .form-error {
     @apply text-xs text-red-600 mt-1;
@@ -80,15 +110,20 @@
   /* Tables */
   .data-table {
     @apply w-full text-sm;
+    border-collapse: separate;
+    border-spacing: 0;
   }
   .data-table th {
-    @apply px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 border-b border-slate-200;
+    @apply px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-normal border-b;
+    background: var(--surface-subdued);
+    border-color: var(--border-subdued);
     position: sticky;
     top: 0;
     z-index: 10;
   }
   .data-table td {
-    @apply px-4 py-3.5 text-slate-700 border-b border-slate-100 transition-colors;
+    @apply px-4 py-3 text-slate-700 border-b transition-colors;
+    border-color: #edf0f2;
   }
   .data-table tr:last-child td {
     @apply border-b-0;
@@ -96,19 +131,18 @@
   .data-table tbody tr {
     @apply transition-colors;
   }
-  /* Zebra striping — warm brand tint on even rows */
+  /* Subtle striping keeps long operational tables scannable. */
   .data-table tbody tr:nth-child(odd) {
     background-color: #ffffff;
   }
   .data-table tbody tr:nth-child(even) {
-    background-color: #f5fbfd;
+    background-color: #fafbfb;
   }
-  /* Hover overrides stripe */
   .data-table tbody tr:hover td {
-    background-color: #ddf2fa;
+    background-color: #eef8fb;
   }
   .data-table tbody tr:hover td:first-child {
-    box-shadow: inset 3px 0 0 #1591b3;
+    box-shadow: inset 2px 0 0 var(--brand-600);
   }
   /* Numeric column — right-aligned monospaced */
   .data-table td.num,
@@ -118,29 +152,30 @@
 
   /* Status badges */
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold;
   }
 
   /* Page header */
   .page-header {
-    @apply flex items-center justify-between mb-6;
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5;
   }
   .page-title {
-    @apply text-2xl font-bold text-slate-900;
+    @apply text-2xl font-semibold text-slate-900 tracking-normal;
   }
   .page-subtitle {
-    @apply text-sm text-slate-500 mt-0.5;
+    color: var(--text-muted);
+    @apply text-sm mt-0.5;
   }
 }
 
 /* Sidebar active nav item — inset left accent + subtle dark tint */
 .nav-active {
-  background-color: rgba(21, 145, 179, 0.14);
-  box-shadow: inset 3px 0 0 #5ac4e6;
+  background-color: rgba(42, 176, 217, 0.12);
+  box-shadow: inset 3px 0 0 var(--brand-400);
 }
 .nav-active-home {
-  background-color: rgba(21, 145, 179, 0.22);
-  box-shadow: inset 3px 0 0 #94D8EE;
+  background-color: rgba(42, 176, 217, 0.18);
+  box-shadow: inset 3px 0 0 var(--brand-300);
 }
 
 /* Toast animation */

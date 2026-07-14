@@ -34,10 +34,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v10.1',
+    label: 'Interface Polish',
+    date: '2026-07-15',
+    isLatest: true,
+    summary: 'The portal interface has a calmer, more consistent admin-tool finish inspired by Shopify-style operational workflows.',
+    changes: [
+      { category: 'UI/UX', text: 'Global cards, buttons, inputs, tables, page headers, and focus states now use a quieter, more consistent visual system across the portal.' },
+      { category: 'UI/UX', text: 'Long operational tables now use subtler striping, cleaner hover states, and tighter row spacing to improve scanability without changing any workflow logic.' },
+      { category: 'UI/UX', text: 'The active navigation treatment and base page canvas have been softened so high-priority statuses and alerts stand out more clearly.' },
+    ],
+  },
+  {
     version: 'v10.0',
     label: 'Structured Fault Taxonomy',
     date: '2026-07-02',
-    isLatest: true,
+    isLatest: false,
     summary: 'New fault submissions now use clear parent types and conditional subtypes, with dedicated safety categories and better fallback notes.',
     changes: [
       { category: 'Cases', text: 'New submissions use 15 consistent parent fault types with focused subtype choices, replacing the growing flat list of overlapping labels.' },
