@@ -34,10 +34,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v10.2',
+    label: 'Navigation Polish',
+    date: '2026-07-15',
+    isLatest: true,
+    summary: 'The portal shell now has a more refined sidebar and header, with clearer search, navigation, and alert surfaces.',
+    changes: [
+      { category: 'UI/UX', text: 'Sidebar navigation has been refreshed with calmer grouping, clearer quick actions, refined active states, and a more polished account footer.' },
+      { category: 'UI/UX', text: 'Header search now has a stronger command-palette feel with improved focus styling, spacing, and dropdown treatment.' },
+      { category: 'UI/UX', text: 'Notifications and mobile menu controls now match the updated admin-tool visual system.' },
+    ],
+  },
+  {
     version: 'v10.1',
     label: 'Interface Polish',
     date: '2026-07-15',
-    isLatest: true,
+    isLatest: false,
     summary: 'The portal interface has a calmer, more consistent admin-tool finish inspired by Shopify-style operational workflows.',
     changes: [
       { category: 'UI/UX', text: 'Global cards, buttons, inputs, tables, page headers, and focus states now use a quieter, more consistent visual system across the portal.' },

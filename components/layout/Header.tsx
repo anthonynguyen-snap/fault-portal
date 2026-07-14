@@ -129,7 +129,7 @@ function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className="relative flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+        className="relative flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors focus:outline-none focus-visible:shadow-[var(--focus-ring)]"
         aria-label="Notifications"
       >
         <Bell size={16} />
@@ -141,8 +141,8 @@ function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-50">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-[var(--shadow-popover)] overflow-hidden z-50">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-[#f7f8fa]">
             <div className="flex items-center gap-1.5">
               <Bell size={13} className="text-slate-500" />
               <span className="text-xs font-semibold text-slate-700">Notifications</span>
@@ -168,7 +168,7 @@ function NotificationBell() {
                     onClick={() => setOpen(false)}
                     className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
                   >
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${NOTIF_COLOR[n.severity]}`}>
+                    <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 ${NOTIF_COLOR[n.severity]}`}>
                       <Icon size={13} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -458,19 +458,19 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white">
-      <div className="flex items-center px-4 py-3 h-[52px] gap-3">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90">
+      <div className="flex items-center px-3 sm:px-4 py-2.5 min-h-[56px] gap-3">
         {/* Hamburger — only on small screens */}
         <button
           onClick={toggle}
-          className="lg:hidden flex-shrink-0 p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+          className="lg:hidden flex-shrink-0 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors focus:outline-none focus-visible:shadow-[var(--focus-ring)]"
           aria-label="Open menu"
         >
           <Menu size={20} />
         </button>
 
         {/* Search Input */}
-        <div ref={searchRef} className="flex-shrink-0 w-80">
+        <div ref={searchRef} className="flex-1 min-w-0 max-w-xl">
           <div className="relative">
             <div className="relative flex items-center">
               <Search className="absolute left-3 w-4 h-4 text-slate-400" />
@@ -482,11 +482,11 @@ export default function Header() {
                 onChange={e => setQuery(e.target.value)}
                 onFocus={() => setShowDropdown(true)}
                 onKeyDown={handleKeyDown}
-                className="w-full pl-9 pr-16 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-9 pr-16 py-2.5 text-sm bg-[#f7f8fa] border border-slate-200 rounded-lg shadow-[0_1px_0_rgba(0,0,0,0.03)] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-brand-600 focus:shadow-[var(--focus-ring)] transition-colors"
                 autoComplete="off"
               />
               {!query && !isLoading && (
-                <kbd className="absolute right-3 text-[10px] text-slate-300 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 font-mono pointer-events-none select-none hidden sm:block">
+                <kbd className="absolute right-3 text-[10px] text-slate-400 bg-white border border-slate-200 rounded px-1.5 py-0.5 font-mono pointer-events-none select-none hidden sm:block">
                   ⌘K
                 </kbd>
               )}
@@ -497,7 +497,7 @@ export default function Header() {
 
             {/* Dropdown Results */}
             {showDropdown && (
-              <div className="absolute top-full left-0 mt-2 w-[34rem] max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+              <div className="absolute top-full left-0 mt-2 w-[34rem] max-w-[calc(100vw-1.5rem)] bg-white border border-slate-200 rounded-lg shadow-[var(--shadow-popover)] overflow-hidden">
                 {hasResults ? (
                   <div className="max-h-[420px] overflow-y-auto">
                     {[
@@ -507,7 +507,7 @@ export default function Header() {
                       { label: 'Records', items: resultCommands, offset: actionCommands.length + recentCommands.length + pageCommands.length },
                     ].filter(group => group.items.length > 0).map(group => (
                       <div key={group.label} className="border-b border-slate-100 last:border-b-0">
-                        <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-600">{group.label}</div>
+                        <div className="px-3 py-2 bg-[#f7f8fa] text-[11px] font-bold uppercase tracking-normal text-slate-500">{group.label}</div>
                         {group.items.map((item, i) => {
                           const globalIdx = group.offset + i;
                           const isFocused = globalIdx === focusedIndex;
@@ -516,9 +516,9 @@ export default function Header() {
                               key={item.id}
                               href={item.href}
                               onClick={handleResultClick}
-                              className={`flex items-start gap-3 px-3 py-2.5 transition-colors ${isFocused ? 'bg-brand-50 border-l-2 border-brand-500' : 'hover:bg-slate-50'}`}
+                              className={`flex items-start gap-3 px-3 py-2.5 transition-colors ${isFocused ? 'bg-brand-50 shadow-[inset_2px_0_0_var(--brand-600)]' : 'hover:bg-slate-50'}`}
                             >
-                              <span className={`mt-0.5 px-2 py-0.5 rounded text-[10px] font-semibold flex-shrink-0 ${
+                              <span className={`mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${
                                 item.kind === 'action'
                                   ? 'bg-brand-100 text-brand-700'
                                   : item.kind === 'page' || item.kind === 'recent'
@@ -548,7 +548,7 @@ export default function Header() {
                   </div>
                 )}
                 {hasResults && (
-                  <div className="px-3 py-2 border-t border-slate-100 bg-slate-50 flex items-center gap-2 text-[10px] text-slate-400">
+                  <div className="px-3 py-2 border-t border-slate-100 bg-[#f7f8fa] flex items-center gap-2 text-[10px] text-slate-400">
                     <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px] font-mono">↑↓</kbd> navigate
                     <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px] font-mono">↵</kbd> open
                     <kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px] font-mono">Esc</kbd> close
@@ -560,18 +560,18 @@ export default function Header() {
         </div>
 
         {/* Breadcrumb — fills remaining space */}
-        <div className="flex-1 flex items-center gap-1.5 min-w-0 ml-1">
+        <div className="hidden md:flex flex-1 items-center gap-1.5 min-w-0 ml-1">
           {breadcrumb && (
             <>
               {breadcrumb.section && breadcrumb.sectionHref ? (
                 <>
-                  <Link href={breadcrumb.sectionHref} className="text-sm text-slate-400 hover:text-slate-600 transition-colors truncate">
+                  <Link href={breadcrumb.sectionHref} className="text-sm text-slate-500 hover:text-slate-700 transition-colors truncate">
                     {breadcrumb.section}
                   </Link>
                   <span className="text-slate-300 text-xs flex-shrink-0">›</span>
                 </>
               ) : null}
-              <span className="text-sm font-medium text-slate-700 truncate">{breadcrumb.current}</span>
+              <span className="text-sm font-semibold text-slate-800 truncate">{breadcrumb.current}</span>
             </>
           )}
         </div>

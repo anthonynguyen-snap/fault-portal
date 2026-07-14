@@ -52,7 +52,7 @@ export default async function RootLayout({
       <body>
         <Providers>
           <SidebarProvider>
-            <div className="flex h-screen overflow-hidden bg-slate-50">
+            <div className="flex h-screen overflow-hidden bg-[#f6f6f7]">
               {/* Sidebar Navigation */}
               <Sidebar />
 

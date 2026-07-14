@@ -175,7 +175,7 @@ function SidebarTooltip({ label, y }: { label: string; y: number }) {
       className="fixed z-[200] pointer-events-none"
       style={{ top: y, left: 64, transform: 'translateY(-50%)' }}
     >
-      <span className="whitespace-nowrap rounded-md bg-slate-800 border border-slate-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg">
+      <span className="whitespace-nowrap rounded-lg bg-slate-950 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-white shadow-lg">
         {label}
       </span>
     </div>
@@ -298,37 +298,37 @@ export function Sidebar() {
       )}
 
       <aside className={cn(
-        'bg-slate-900 flex flex-col flex-shrink-0 h-full z-50',
+        'bg-[#111827] border-r border-slate-950/80 flex flex-col flex-shrink-0 h-full z-50 shadow-[1px_0_0_rgba(255,255,255,0.03)_inset]',
         'transition-[width] duration-200 ease-in-out',
         'lg:relative lg:translate-x-0',
         'fixed inset-y-0 left-0',
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-        collapsed ? 'w-14 overflow-visible' : 'w-56 overflow-hidden',
+        collapsed ? 'w-14 overflow-visible' : 'w-60 overflow-hidden',
       )}>
 
         {/* Logo */}
         <div className={cn(
-          'border-b border-slate-800 flex items-center flex-shrink-0',
-          collapsed ? 'px-0 py-3.5 justify-center' : 'px-4 py-3.5 gap-2.5',
+          'border-b border-slate-800/80 flex items-center flex-shrink-0',
+          collapsed ? 'px-0 py-3.5 justify-center' : 'px-4 py-4 gap-2.5',
         )}>
           {collapsed ? (
-            <Link href="/" className="w-7 h-7 rounded-md overflow-hidden bg-white flex items-center justify-center" title="SNAP Customer Care">
+            <Link href="/" className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-sm" title="SNAP Customer Care">
               <Image src="/snap-logo.jpg" alt="SNAP Logo" width={28} height={28} className="object-contain w-full h-full" />
             </Link>
           ) : (
             <>
               <Link href="/" className="flex items-center gap-2.5 flex-1 min-w-0">
-                <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden bg-white">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden bg-white shadow-sm">
                   <Image src="/snap-logo.jpg" alt="SNAP Logo" width={28} height={28} className="object-contain w-full h-full" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-bold text-sm leading-tight truncate">SNAP Customer Care</p>
-                  <p className="text-slate-500 text-[10px]">Internal Portal</p>
+                  <p className="text-white font-semibold text-sm leading-tight truncate">SNAP Customer Care</p>
+                  <p className="text-slate-400 text-[10px] font-medium">Operations portal</p>
                 </div>
               </Link>
               <button
                 onClick={close}
-                className="lg:hidden text-slate-500 hover:text-white transition-colors p-1 rounded flex-shrink-0"
+                className="lg:hidden text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 flex-shrink-0"
                 aria-label="Close menu"
               >
                 <X size={15} />
@@ -338,7 +338,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className={cn('flex-1 py-3 overflow-y-auto', collapsed ? 'px-1.5 overflow-x-visible' : 'px-2 overflow-x-hidden')}>
+        <nav className={cn('flex-1 py-3 overflow-y-auto', collapsed ? 'px-1.5 overflow-x-visible' : 'px-3 overflow-x-hidden')}>
 
           {/* Home */}
           <div className="mb-2">
@@ -351,7 +351,7 @@ export function Sidebar() {
                 collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
                 isActive('/')
                   ? 'nav-active-home text-white font-semibold'
-                  : 'font-medium text-slate-400 hover:bg-slate-800 hover:text-white'
+                  : 'font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white'
               )}
             >
               <Home size={15} className={cn('flex-shrink-0', isActive('/') ? 'text-brand-300' : '')} />
@@ -370,32 +370,32 @@ export function Sidebar() {
                     href={item.href}
                     onMouseEnter={e => showTooltip(e, item.label)}
                     onMouseLeave={hideTooltip}
-                    className="flex justify-center items-center py-2 rounded-md transition-all text-brand-400 hover:bg-slate-700/60 hover:text-brand-200"
+                    className="flex justify-center items-center py-2 rounded-lg transition-all text-brand-300 hover:bg-white/10 hover:text-brand-100"
                   >
-                    <div className="w-5 h-5 rounded bg-brand-900/60 flex items-center justify-center">
-                      <Icon size={11} className="text-brand-400" />
+                    <div className="w-6 h-6 rounded-lg bg-brand-900/80 border border-brand-700/40 flex items-center justify-center">
+                      <Icon size={12} className="text-brand-300" />
                     </div>
                   </Link>
                 );
               })}
             </div>
           ) : (
-            <div className="mb-4 rounded-lg border border-slate-700/60 bg-slate-800/40 p-1.5 space-y-0.5">
-              <p className="px-2 pb-1 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">Quick actions</p>
+            <div className="mb-4 rounded-lg border border-slate-700/70 bg-slate-900/45 p-1.5 space-y-0.5 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]">
+              <p className="px-2 pb-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide">Quick actions</p>
               {quickActions.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm font-semibold transition-all text-brand-300 hover:bg-slate-700/60 hover:text-brand-200"
+                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm font-semibold transition-all text-brand-200 hover:bg-white/10 hover:text-white"
                   >
-                    <div className="w-5 h-5 rounded bg-brand-900/60 flex items-center justify-center flex-shrink-0">
-                      <Icon size={11} className="text-brand-400" />
+                    <div className="w-6 h-6 rounded-lg bg-brand-900/80 border border-brand-700/40 flex items-center justify-center flex-shrink-0">
+                      <Icon size={12} className="text-brand-300" />
                     </div>
                     <span className="flex-1 truncate text-xs">{item.label}</span>
                     {item.shortcut && (
-                      <kbd className="text-[9px] leading-none text-slate-400 bg-slate-900/70 border border-slate-700 rounded px-1.5 py-1 font-mono">
+                      <kbd className="text-[9px] leading-none text-slate-400 bg-slate-950/70 border border-slate-700 rounded px-1.5 py-1 font-mono">
                         {item.shortcut}
                       </kbd>
                     )}
@@ -417,11 +417,11 @@ export function Sidebar() {
               return (
                 <div key={group.label}>
                   {!collapsed && (
-                    <p className="px-3 mb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    <p className="px-3 mb-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                       {group.label}
                     </p>
                   )}
-                  {collapsed && <div className="mx-1 mb-1 border-t border-slate-800" />}
+                  {collapsed && <div className="mx-1 mb-1 border-t border-slate-800/90" />}
                   <div className="space-y-0.5">
                     {visibleItems.map((item) => {
                       const Icon = item.icon;
@@ -438,7 +438,7 @@ export function Sidebar() {
                               collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
                               active
                                 ? 'nav-active text-white font-semibold'
-                                : 'font-medium text-slate-400 hover:bg-slate-800 hover:text-white'
+                                : 'font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white'
                             )}
                           >
                             <Icon
@@ -475,10 +475,10 @@ export function Sidebar() {
             hidden lg:flex
             absolute -right-3 top-1/2 -translate-y-1/2
             w-6 h-6 rounded-full
-            bg-slate-700 hover:bg-slate-600
-            border border-slate-600 hover:border-slate-500
+            bg-white hover:bg-slate-50
+            border border-slate-200 hover:border-slate-300
             items-center justify-center
-            text-slate-300 hover:text-white
+            text-slate-500 hover:text-slate-700
             shadow-md transition-all duration-150
             z-10
           "
@@ -487,7 +487,7 @@ export function Sidebar() {
         </button>
 
         {/* Footer */}
-        <div className={cn('border-t border-slate-800', collapsed ? 'px-1.5 py-3' : 'px-3 py-3')}>
+        <div className={cn('border-t border-slate-800/80 bg-slate-950/20', collapsed ? 'px-1.5 py-3' : 'px-3 py-3')}>
           {canPreviewTeam && !collapsed && (
             <button
               type="button"
@@ -496,7 +496,7 @@ export function Sidebar() {
                 'mb-3 flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-xs font-semibold transition-colors',
                 viewingAsTeam
                   ? 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15'
-                  : 'border-slate-700 bg-slate-800/50 text-slate-300 hover:bg-slate-800 hover:text-white'
+                  : 'border-slate-700 bg-slate-900/60 text-slate-300 hover:bg-white/[0.08] hover:text-white'
               )}
               title={viewingAsTeam ? 'Return to admin navigation' : 'Preview team member navigation'}
             >
@@ -523,7 +523,7 @@ export function Sidebar() {
                   onMouseLeave={hideTooltip}
                   className={cn(
                     'w-7 h-7 rounded-full flex items-center justify-center transition-colors',
-                    viewingAsTeam ? 'bg-amber-500/20 text-amber-300' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                    viewingAsTeam ? 'bg-amber-500/20 text-amber-300' : 'text-slate-400 hover:text-white hover:bg-white/10'
                   )}
                 >
                   <Eye size={13} />
@@ -533,7 +533,7 @@ export function Sidebar() {
                 href="/account/password"
                 onMouseEnter={e => showTooltip(e, loading ? 'Loading…' : user?.name || 'Account')}
                 onMouseLeave={hideTooltip}
-                className="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center hover:bg-indigo-600 transition-colors"
+                className="w-7 h-7 rounded-full bg-brand-700 flex items-center justify-center hover:bg-brand-600 transition-colors"
               >
                 <span className="text-[10px] font-bold text-white">{initials}</span>
               </Link>
@@ -541,7 +541,7 @@ export function Sidebar() {
                 onClick={logout}
                 onMouseEnter={e => showTooltip(e, 'Sign out')}
                 onMouseLeave={hideTooltip}
-                className="text-slate-600 hover:text-slate-300 transition-colors p-1 rounded hover:bg-slate-800"
+                className="text-slate-500 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
               >
                 <LogOut size={14} />
               </button>
@@ -551,7 +551,7 @@ export function Sidebar() {
               <Link
                 href="/account/password"
                 title="Change password"
-                className="w-7 h-7 rounded-full bg-indigo-700 flex items-center justify-center flex-shrink-0 hover:bg-indigo-600 transition-colors"
+                className="w-8 h-8 rounded-full bg-brand-700 flex items-center justify-center flex-shrink-0 hover:bg-brand-600 transition-colors"
               >
                 <span className="text-[10px] font-bold text-white">{initials}</span>
               </Link>
@@ -570,7 +570,7 @@ export function Sidebar() {
               <button
                 onClick={logout}
                 title="Sign out"
-                className="text-slate-600 hover:text-slate-300 transition-colors flex-shrink-0 p-1 rounded hover:bg-slate-800"
+                className="text-slate-500 hover:text-white transition-colors flex-shrink-0 p-1 rounded-lg hover:bg-white/10"
               >
                 <LogOut size={14} />
               </button>
