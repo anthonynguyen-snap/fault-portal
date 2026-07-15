@@ -34,10 +34,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v10.3',
+    label: 'Dedicated Request Workflows',
+    date: '2026-07-15',
+    isLatest: true,
+    summary: 'Return and refund quick actions now open dedicated full-page workflows instead of cramped popups.',
+    changes: [
+      { category: 'Returns', text: 'Log Return Request now has its own full page at /returns/request/new, with room for customer details, products, return label context, and duplicate warnings.' },
+      { category: 'Refunds', text: 'Request Refund now has its own full page at /refunds/new, preserving order prefill and the existing refund request validation.' },
+      { category: 'UI/UX', text: 'Sidebar shortcuts, command search, and order lookup actions now route to the dedicated create pages while existing drawers remain available for inline edits.' },
+    ],
+  },
+  {
     version: 'v10.2',
     label: 'Navigation Polish',
     date: '2026-07-15',
-    isLatest: true,
+    isLatest: false,
     summary: 'The portal shell now has a more refined sidebar and header, with clearer search, navigation, and alert surfaces.',
     changes: [
       { category: 'UI/UX', text: 'Sidebar navigation has been refreshed with calmer grouping, clearer quick actions, refined active states, and a more polished account footer.' },

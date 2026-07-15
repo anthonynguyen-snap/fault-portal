@@ -198,9 +198,9 @@ type NavGroup = {
 };
 
 const quickActions: NavItem[] = [
-  { label: 'Submit Fault',   href: '/cases/new',     icon: PlusCircle, shortcut: '⌘K, F', isAction: true },
-  { label: 'Log Return',     href: '/returns?new=1', icon: RotateCcw,  shortcut: '⌘K, R', isAction: true },
-  { label: 'Request Refund', href: '/refunds?new=1', icon: CreditCard, shortcut: '⌘K, P', isAction: true },
+  { label: 'Submit Fault',    href: '/cases/new',            icon: PlusCircle, shortcut: '⌘K, F', isAction: true },
+  { label: 'Return Request',  href: '/returns/request/new',  icon: RotateCcw,  shortcut: '⌘K, R', isAction: true },
+  { label: 'Request Refund',  href: '/refunds/new',          icon: CreditCard, shortcut: '⌘K, P', isAction: true },
 ];
 
 const navGroups: NavGroup[] = [

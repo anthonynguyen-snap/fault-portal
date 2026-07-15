@@ -477,9 +477,9 @@ function RefundsInner() {
             </span>
           )}
           <button onClick={load} className="btn-secondary"><RefreshCw size={14} /> Refresh</button>
-          <button onClick={() => setShowForm(true)} className="btn-primary">
+          <Link href="/refunds/new" className="btn-primary">
             <Plus size={14} /> Request Refund
-          </button>
+          </Link>
         </div>
       </div>
 

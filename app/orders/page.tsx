@@ -413,9 +413,9 @@ export default function OrderLookupPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link href={`/returns?order=${searchHref}`} className="btn-secondary text-sm"><RotateCcw size={14} /> Log Return Request</Link>
+            <Link href={`/returns/request/new?order=${searchHref}`} className="btn-secondary text-sm"><RotateCcw size={14} /> Log Return Request</Link>
             <Link href={`/returns/new?order=${searchHref}`} className="btn-secondary text-sm"><PlusCircle size={14} /> Process Office Return</Link>
-            <Link href={`/refunds?new=1&order=${searchHref}`} className="btn-secondary text-sm"><CreditCard size={14} /> Request Refund</Link>
+            <Link href={`/refunds/new?order=${searchHref}`} className="btn-secondary text-sm"><CreditCard size={14} /> Request Refund</Link>
             <Link href={`/cases/new?order=${searchHref}`} className="btn-secondary text-sm"><AlertTriangle size={14} /> Submit Fault Case</Link>
           </div>
 

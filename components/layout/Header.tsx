@@ -13,8 +13,10 @@ const ROUTE_LABELS: Record<string, string> = {
   '/cases/new':      'Submit Fault',
   '/claims':         'Claims',
   '/returns':        'Returns',
-  '/returns/new':    'Log Return',
+  '/returns/request/new': 'Log Return Request',
+  '/returns/new':    'Process Office Return',
   '/refunds':        'Refunds',
+  '/refunds/new':    'Request Refund',
   '/orders':         'Order Lookup',
   '/stock':          'Stock Room',
   '/replenishment':  'Replenishment',
@@ -252,8 +254,8 @@ const getTypeLabel = (type: 'case' | 'refund' | 'return'): string => {
 
 const QUICK_ACTIONS: CommandItem[] = [
   { kind: 'action', id: 'fault-case', title: 'Submit Fault Case', subtitle: 'Create a product fault case', href: '/cases/new', shortcut: 'F' },
-  { kind: 'action', id: 'return-request', title: 'Log Return Request', subtitle: 'Customer has asked to send something back', href: '/returns?new=1', shortcut: 'R' },
-  { kind: 'action', id: 'refund-request', title: 'Request Refund', subtitle: 'Raise a refund for approval', href: '/refunds?new=1', shortcut: 'P' },
+  { kind: 'action', id: 'return-request', title: 'Log Return Request', subtitle: 'Customer has asked to send something back', href: '/returns/request/new', shortcut: 'R' },
+  { kind: 'action', id: 'refund-request', title: 'Request Refund', subtitle: 'Raise a refund for approval', href: '/refunds/new', shortcut: 'P' },
   { kind: 'action', id: 'process-return', title: 'Process Office Return', subtitle: 'Inspect a received parcel and close the return', href: '/returns/new' },
   { kind: 'action', id: 'order-lookup', title: 'Lookup Order', subtitle: 'Search cases, returns, and refunds for an order', href: '/orders' },
 ];

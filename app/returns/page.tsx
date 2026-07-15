@@ -931,7 +931,7 @@ export default function ReturnsPage() {
               </div>
               {requests.length === 0 && !loading && (
                 <div className="card">
-                  <EmptyState icon={RotateCcw} title="No return requests" description="Log a request when a customer asks to return an item." action={{ label: 'Log Return Request', onClick: () => setShowRequestForm(true) }} />
+                  <EmptyState icon={RotateCcw} title="No return requests" description="Log a request when a customer asks to return an item." action={{ label: 'Log Return Request', href: '/returns/request/new' }} />
                 </div>
               )}
             </div>
