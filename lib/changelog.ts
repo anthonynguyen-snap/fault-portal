@@ -34,10 +34,22 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v10.4',
+    label: 'Fault Submission Flow',
+    date: '2026-07-15',
+    isLatest: true,
+    summary: 'Submit Fault now uses one guided full-page flow with fewer clicks and clearer completion cues.',
+    changes: [
+      { category: 'Cases', text: 'Submit Fault no longer asks staff to choose between Standard and Quick modes; the page now follows one streamlined customer, product, fault, and evidence flow.' },
+      { category: 'Cases', text: 'The e-waste reminder is now an informational note before submission instead of a required checkbox.' },
+      { category: 'UI/UX', text: 'A sticky completion checklist now shows missing required items while staff complete a fault case.' },
+    ],
+  },
+  {
     version: 'v10.3',
     label: 'Dedicated Request Workflows',
     date: '2026-07-15',
-    isLatest: true,
+    isLatest: false,
     summary: 'Return and refund quick actions now open dedicated full-page workflows instead of cramped popups.',
     changes: [
       { category: 'Returns', text: 'Log Return Request now has its own full page at /returns/request/new, with room for customer details, products, return label context, and duplicate warnings.' },
