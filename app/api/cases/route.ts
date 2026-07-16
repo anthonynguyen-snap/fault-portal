@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
     // Validate required fields
     const required = [
       'date', 'orderNumber', 'customerName', 'product',
-      'manufacturerName', 'faultType', 'commslayerChatLink', 'evidenceLink',
+      'faultType', 'commslayerChatLink', 'evidenceLink',
     ];
     for (const field of required) {
       if (!body[field]) {
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
       orderNumber:        body.orderNumber.trim(),
       customerName:       body.customerName.trim(),
       product:            body.product,
-      manufacturerName:   body.manufacturerName,
+      manufacturerName:   String(body.manufacturerName ?? '').trim(),
       manufacturerNumber: body.manufacturerNumber || '',
       faultType:          body.faultType,
       faultSubtype:       body.faultSubtype || '',
@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
       entityType:  'Case',
       entityId:    newCase.id ?? '',
       entityLabel: body.orderNumber,
-      detail:      { product: body.product, faultType: body.faultType, manufacturer: body.manufacturerName },
+      detail:      { product: body.product, faultType: body.faultType, manufacturer: String(body.manufacturerName ?? '').trim() },
     });
     return NextResponse.json({ data: newCase }, { status: 201 });
   } catch (error) {
