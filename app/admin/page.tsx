@@ -190,15 +190,16 @@ function ProductsPanel() {
   }
 
   async function handleSave() {
-    if (!form.name || !form.manufacturerName) { setError('Name and manufacturer are required'); return; }
+    if (!form.name.trim()) { setError('Product name is required'); return; }
     setSaving(true); setError('');
     try {
+      const manufacturerName = form.manufacturerName.trim();
       const body = {
         ...(editing ? { id: editing.id } : {}),
-        name: form.name,
-        manufacturerName: form.manufacturerName,
+        name: form.name.trim(),
+        manufacturerName,
         unitCostUSD: parseFloat(form.unitCostUSD) || 0,
-        claimable: form.claimable,
+        claimable: manufacturerName ? form.claimable : false,
         manufacturerNumbers: form.manufacturerNumbers
           .split(',').map(s => s.trim()).filter(Boolean),
       };
@@ -261,7 +262,9 @@ function ProductsPanel() {
             products.map(p => (
               <tr key={p.id}>
                 <td className="font-medium">{p.name}</td>
-                <td className="text-slate-500">{p.manufacturerName}</td>
+                <td className={p.manufacturerName ? 'text-slate-500' : 'text-slate-400 italic'}>
+                  {p.manufacturerName || 'TBD'}
+                </td>
                 <td className="font-semibold">${p.unitCostUSD.toFixed(2)}</td>
                 <td className="text-slate-400 text-xs">{p.manufacturerNumbers.join(', ') || '—'}</td>
                 <td className="text-center">
@@ -299,7 +302,7 @@ function ProductsPanel() {
               <input value={form.name} onChange={e => setForm(f=>({...f,name:e.target.value}))} className="form-input" placeholder="e.g. Widget Pro 3000" />
             </div>
             <div>
-              <label className="form-label">Manufacturer Name *</label>
+              <label className="form-label">Manufacturer Name</label>
               {!customMfr ? (
                 <div className="flex gap-2">
                   <select
@@ -310,7 +313,7 @@ function ProductsPanel() {
                     }}
                     className="form-input flex-1"
                   >
-                    <option value="">Select manufacturer…</option>
+                    <option value="">TBD / add later</option>
                     {manufacturers.map(m => <option key={m} value={m}>{m}</option>)}
                     <option value="__new__">＋ Add new manufacturer…</option>
                   </select>
@@ -322,7 +325,7 @@ function ProductsPanel() {
                     value={form.manufacturerName}
                     onChange={e => setForm(f => ({ ...f, manufacturerName: e.target.value }))}
                     className="form-input flex-1"
-                    placeholder="e.g. Acme Corp"
+                    placeholder="e.g. Acme Corp, or leave blank for TBD"
                   />
                   <button type="button" onClick={() => { setCustomMfr(false); setForm(f => ({ ...f, manufacturerName: '' })); }}
                     className="text-xs text-slate-500 hover:text-slate-700 whitespace-nowrap px-2">
@@ -330,6 +333,7 @@ function ProductsPanel() {
                   </button>
                 </div>
               )}
+              <p className="text-xs text-slate-400 mt-1">Leave blank if the manufacturer is not confirmed yet.</p>
             </div>
             <div>
               <label className="form-label">Unit Cost (USD)</label>
@@ -341,12 +345,16 @@ function ProductsPanel() {
             </div>
             <div>
               <label className="form-label">Claim Status</label>
-              <label className={`flex items-center gap-3 cursor-pointer select-none rounded-xl border px-4 py-3 transition-colors ${form.claimable ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
-                <input type="checkbox" checked={form.claimable} onChange={e => setForm(f=>({...f,claimable:e.target.checked}))}
+              <label className={`flex items-center gap-3 select-none rounded-xl border px-4 py-3 transition-colors ${form.manufacturerName.trim() ? 'cursor-pointer' : 'cursor-not-allowed'} ${form.claimable && form.manufacturerName.trim() ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                <input type="checkbox" checked={form.manufacturerName.trim() ? form.claimable : false} disabled={!form.manufacturerName.trim()} onChange={e => setForm(f=>({...f,claimable:e.target.checked}))}
                   className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
                 <div>
                   <p className="text-sm font-medium text-slate-800">Claimable product</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Uncheck for products we track but cannot claim against the manufacturer (e.g. discontinued / 1st gen)</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {form.manufacturerName.trim()
+                      ? 'Uncheck for products we track but cannot claim against the manufacturer (e.g. discontinued / 1st gen)'
+                      : 'Products without a manufacturer stay Track only until the manufacturer is added.'}
+                  </p>
                 </div>
               </label>
               <p className="text-xs text-slate-400 mt-1">These appear as a dropdown when this product is selected.</p>

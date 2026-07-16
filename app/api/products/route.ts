@@ -23,20 +23,23 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    if (!body.name || !body.manufacturerName) {
+    const name = String(body.name ?? '').trim();
+    const manufacturerName = String(body.manufacturerName ?? '').trim();
+
+    if (!name) {
       return NextResponse.json(
-        { error: 'Product name and manufacturer name are required' },
+        { error: 'Product name is required' },
         { status: 400 }
       );
     }
     const result = await createProduct({
-      name:               body.name,
-      manufacturerName:   body.manufacturerName,
+      name,
+      manufacturerName,
       unitCostUSD:        parseFloat(body.unitCostUSD) || 0,
       manufacturerNumbers: Array.isArray(body.manufacturerNumbers)
         ? body.manufacturerNumbers
         : [],
-      claimable: body.claimable !== false,
+      claimable: manufacturerName ? body.claimable !== false : false,
     });
     return NextResponse.json({
       data: result.product,
@@ -61,7 +64,18 @@ export async function PATCH(req: NextRequest) {
     if (!body.id) {
       return NextResponse.json({ error: 'Product ID required' }, { status: 400 });
     }
-    await updateProduct(body.id, body);
+    const updates = {
+      ...body,
+      ...(body.name !== undefined ? { name: String(body.name ?? '').trim() } : {}),
+      ...(body.manufacturerName !== undefined
+        ? { manufacturerName: String(body.manufacturerName ?? '').trim() }
+        : {}),
+    };
+    if (updates.name !== undefined && !updates.name) {
+      return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
+    }
+    if (updates.manufacturerName === '') updates.claimable = false;
+    await updateProduct(body.id, updates);
     return NextResponse.json({ message: 'Updated' });
   } catch (error) {
     console.error('[PATCH /api/products]', error);

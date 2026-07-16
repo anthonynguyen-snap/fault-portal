@@ -523,7 +523,9 @@ export default function NewCasePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-400">Manufacturer</p>
-                    <p className="text-sm font-medium text-slate-700 truncate">{form.manufacturerName || '-'}</p>
+                    <p className={`text-sm font-medium truncate ${form.manufacturerName ? 'text-slate-700' : 'text-slate-400 italic'}`}>
+                      {form.manufacturerName || 'TBD'}
+                    </p>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase text-slate-400">Unit Cost</p>
