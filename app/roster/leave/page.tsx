@@ -335,13 +335,14 @@ export default function LeavePage() {
     return days < 14 ? days : null;
   }, [addType, addDateFrom]);
 
-  function getWeekdaysBetween(from: string, to: string): string[] {
+  function getRosteredLeaveDatesBetween(from: string, to: string, agentId: string): string[] {
     const dates: string[] = [];
+    const agent = agents.find(a => a.id === agentId);
     const cur = new Date(from + 'T00:00:00');
     const end = new Date(to   + 'T00:00:00');
     while (cur <= end) {
-      const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) dates.push(localDateStr(cur));
+      const shift = agent && config ? getAgentShiftForWeek(agent, cur, config) : 'mon-fri';
+      if (SHIFT_DAYS[shift].includes(cur.getDay())) dates.push(localDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
     return dates;
@@ -350,8 +351,11 @@ export default function LeavePage() {
   async function handleAdd() {
     if (!addAgent || !addDateFrom) return;
     const dateTo = addDateTo || addDateFrom;
-    const dates  = getWeekdaysBetween(addDateFrom, dateTo);
-    if (!dates.length) return;
+    const dates  = getRosteredLeaveDatesBetween(addDateFrom, dateTo, addAgent);
+    if (!dates.length) {
+      toastError('No rostered work days found for that agent');
+      return;
+    }
     setSaving(true);
     try {
       const newRecords: RosterLeave[] = [];
@@ -1173,7 +1177,7 @@ export default function LeavePage() {
                 </div>
                 {addDateFrom && addDateTo && addDateTo > addDateFrom && (
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {getWeekdaysBetween(addDateFrom, addDateTo).length} weekday{getWeekdaysBetween(addDateFrom, addDateTo).length !== 1 ? 's' : ''} — one record each
+                    {getRosteredLeaveDatesBetween(addDateFrom, addDateTo, addAgent).length} work day{getRosteredLeaveDatesBetween(addDateFrom, addDateTo, addAgent).length !== 1 ? 's' : ''} — one record each
                   </p>
                 )}
               </div>

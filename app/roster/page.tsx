@@ -331,13 +331,14 @@ function RosterPageInner() {
   })();
 
   // ── Handlers ───────────────────────────────────────────────────────────
-  function getWeekdaysBetween(from: string, to: string): string[] {
+  function getRosteredLeaveDatesBetween(from: string, to: string, agentId: string): string[] {
     const dates: string[] = [];
+    const agent = agents.find(a => a.id === agentId);
     const cur = new Date(from + 'T00:00:00');
     const end = new Date((to || from) + 'T00:00:00');
     while (cur <= end) {
-      const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6) dates.push(toDateStr(cur));
+      const shift = agent && config ? getAgentShiftForWeek(agent, cur, config) : 'mon-fri';
+      if (SHIFT_DAYS[shift].includes(cur.getDay())) dates.push(toDateStr(cur));
       cur.setDate(cur.getDate() + 1);
     }
     return dates;
@@ -347,8 +348,8 @@ function RosterPageInner() {
     if (!leaveForm.agentId) { toastError('Missing agent', 'Please select an agent.'); return; }
     setSavingLeave(true);
     try {
-      const dates = getWeekdaysBetween(leaveForm.date, leaveForm.dateTo || leaveForm.date);
-      if (!dates.length) { toastError('No weekdays', 'The selected range contains no weekdays.'); setSavingLeave(false); return; }
+      const dates = getRosteredLeaveDatesBetween(leaveForm.date, leaveForm.dateTo || leaveForm.date, leaveForm.agentId);
+      if (!dates.length) { toastError('No work days', 'The selected range contains no rostered work days for that agent.'); setSavingLeave(false); return; }
       for (const date of dates) {
         const res  = await fetch('/api/roster/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...leaveForm, date }) });
         const json = await res.json();
@@ -865,7 +866,7 @@ function RosterPageInner() {
                 </div>
                 {leaveForm.date && leaveForm.dateTo && leaveForm.dateTo > leaveForm.date && (
                   <p className="text-[10px] text-slate-400 mt-1">
-                    {getWeekdaysBetween(leaveForm.date, leaveForm.dateTo).length} weekday{getWeekdaysBetween(leaveForm.date, leaveForm.dateTo).length !== 1 ? 's' : ''} · one record each
+                    {getRosteredLeaveDatesBetween(leaveForm.date, leaveForm.dateTo, leaveForm.agentId).length} work day{getRosteredLeaveDatesBetween(leaveForm.date, leaveForm.dateTo, leaveForm.agentId).length !== 1 ? 's' : ''} · one record each
                   </p>
                 )}
               </div>
