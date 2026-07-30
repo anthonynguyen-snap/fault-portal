@@ -3,10 +3,12 @@ import { getSupabase } from '@/lib/supabase';
 import { Return, ReturnItem } from '@/types';
 import { logActivity } from '@/lib/activity';
 import { verifySession } from '@/lib/auth';
+import { adjustStockQuantity, getAllStockItems } from '@/lib/stock-sheets';
 
 export const runtime = 'nodejs';
 
 type ReturnWriteResult = { returnId: string; closedRefundIds?: string[] };
+type StockReceiptLine = { sku: string; quantity: number };
 
 async function logClosedRefunds(ids: string[], orderNumber: string, actor: string) {
   await Promise.all(ids.map(id => logActivity({
@@ -17,6 +19,65 @@ async function logClosedRefunds(ids: string[], orderNumber: string, actor: strin
     entityLabel: orderNumber,
     detail: { note: 'Auto-closed when return was processed' },
   })));
+}
+
+function getRestockLines(items: Array<Record<string, unknown>>): StockReceiptLine[] {
+  const quantitiesBySku = new Map<string, number>();
+  for (const item of items) {
+    if (!item.addToStock) continue;
+    const sku = String(item.product ?? '').trim();
+    if (!sku) continue;
+    quantitiesBySku.set(sku, (quantitiesBySku.get(sku) ?? 0) + 1);
+  }
+  return Array.from(quantitiesBySku.entries()).map(([sku, quantity]) => ({ sku, quantity }));
+}
+
+async function validateRestockSkus(lines: StockReceiptLine[]) {
+  if (!lines.length) return;
+  const stockItems = await getAllStockItems();
+  const stockSkus = new Set(stockItems.map(item => item.sku));
+  const missing = lines.map(line => line.sku).filter(sku => !stockSkus.has(sku));
+  if (missing.length > 0) {
+    throw new Error(`Cannot add return to Stock Room because these SKUs are not tracked: ${missing.join(', ')}`);
+  }
+}
+
+async function receiveReturnedStock(lines: StockReceiptLine[], orderNumber: string, actor: string) {
+  if (!lines.length) return;
+
+  const reason = 'Customer Return';
+  const notes = `Return processed for ${orderNumber}`;
+  const movementId = crypto.randomUUID();
+  const movementItems = [];
+
+  for (const line of lines) {
+    const { itemName } = await adjustStockQuantity(
+      line.sku,
+      line.quantity,
+      `IN · ${reason} · ${notes}`,
+    );
+    movementItems.push({
+      id: crypto.randomUUID(),
+      movementId,
+      stockItemId: line.sku,
+      stockItemName: itemName || line.sku,
+      quantity: line.quantity,
+    });
+  }
+
+  await logActivity({
+    actor: actor || 'Stock',
+    action: 'stock_movement_created',
+    entityType: 'stock_movement',
+    entityId: movementId,
+    entityLabel: `IN · ${reason}`,
+    detail: {
+      type: 'in',
+      reason,
+      notes,
+      items: movementItems,
+    },
+  });
 }
 
 function fromItemRow(row: Record<string, unknown>): ReturnItem {
@@ -160,6 +221,8 @@ export async function POST(req: NextRequest) {
     if (!orderNumber || !customerName || !items?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+    const restockLines = getRestockLines(items);
+    await validateRestockSkus(restockLines);
 
     // Build restocking reasons note
     const restockingNotes = items
@@ -211,6 +274,7 @@ export async function POST(req: NextRequest) {
       detail:      { customerName, itemCount: items?.length ?? 0 },
     });
     await logClosedRefunds(result.closedRefundIds ?? [], orderNumber, loggedBy);
+    await receiveReturnedStock(restockLines, orderNumber, loggedBy);
 
     return NextResponse.json({ data: fromRow(full) }, { status: 201 });
   } catch (error) {

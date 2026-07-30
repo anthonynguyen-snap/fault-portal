@@ -339,14 +339,14 @@ export default function NewReturnPage() {
             <span className="font-mono font-semibold text-slate-700">{successOrder}</span> has been saved successfully.
           </p>
           {restockReminder.length > 0 && (
-            <div className="w-full max-w-sm mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-left">
-              <p className="text-sm font-semibold text-amber-900 mb-1">📦 Don&apos;t forget to log stock in</p>
-              <p className="text-xs text-amber-700 mb-2">You marked the following as going back to the storeroom:</p>
-              <ul className="text-xs text-amber-800 space-y-0.5 mb-3">
+            <div className="w-full max-w-sm mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-left">
+              <p className="text-sm font-semibold text-emerald-900 mb-1">Stock Room updated</p>
+              <p className="text-xs text-emerald-700 mb-2">The following item{restockReminder.length !== 1 ? 's were' : ' was'} added back automatically:</p>
+              <ul className="text-xs text-emerald-800 space-y-0.5 mb-3">
                 {restockReminder.map((sku, i) => <li key={i} className="font-mono">• {sku}</li>)}
               </ul>
-              <Link href="/stock" className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 underline hover:text-amber-900">
-                Go to Stock → Receive to log it →
+              <Link href="/stock" className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 underline hover:text-emerald-900">
+                View Stock Room →
               </Link>
             </div>
           )}
