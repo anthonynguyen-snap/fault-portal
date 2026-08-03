@@ -8,7 +8,7 @@ import {
   Copy, Check, User, ChevronRight as ChevronRightSm,
   BarChart3, Trophy, TrendingDown, TrendingUp,
 } from 'lucide-react';
-import { FaultCase, ClaimStatus, FaultType } from '@/types';
+import { FaultCase, ClaimStatus, FaultType, Product } from '@/types';
 import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge, STATUS_STYLES } from '@/lib/utils';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -467,6 +467,7 @@ export default function CasesPage() {
   const [faultInsights, setFaultInsights] = useState<FaultInsights | null>(null);
   const [manufacturers, setManufacturers] = useState<string[]>([]);
   const [faultTypes, setFaultTypes]       = useState<string[]>([]);
+  const [products, setProducts]           = useState<Product[]>([]);
   const [nonClaimableProducts, setNonClaimableProducts] = useState<Set<string>>(new Set());
   const [claimableOnly, setClaimableOnly] = useState(false);
   const [loading, setLoading]     = useState(true);
@@ -477,6 +478,8 @@ export default function CasesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
+  const [productSearch, setProductSearch]         = useState('');
+  const [productSearchInput, setProductSearchInput] = useState('');
   const [faultTypeFilter, setFaultTypeFilter]       = useState<string[]>([]);
   const [fromDate, setFromDate]   = useState('');
   const [toDate, setToDate]       = useState('');
@@ -510,6 +513,8 @@ export default function CasesPage() {
         setSearchInput(typeof view.search === 'string' ? view.search : '');
         setStatusFilter(typeof view.statusFilter === 'string' ? view.statusFilter : '');
         setManufacturerFilter(typeof view.manufacturerFilter === 'string' ? view.manufacturerFilter : '');
+        setProductSearch(typeof view.productSearch === 'string' ? view.productSearch : '');
+        setProductSearchInput(typeof view.productSearch === 'string' ? view.productSearch : '');
         setFaultTypeFilter(Array.isArray(view.faultTypeFilter) ? view.faultTypeFilter : []);
         setFromDate(typeof view.fromDate === 'string' ? view.fromDate : '');
         setToDate(typeof view.toDate === 'string' ? view.toDate : '');
@@ -531,17 +536,23 @@ export default function CasesPage() {
     if (!viewRestored) return;
     sessionStorage.setItem(CASES_VIEW_STORAGE_KEY, JSON.stringify({
       search, statusFilter, manufacturerFilter, faultTypeFilter,
-      fromDate, toDate, mineOnly, claimableOnly, showFilters,
+      productSearch, fromDate, toDate, mineOnly, claimableOnly, showFilters,
       sortKey, sortDir, page,
     }));
-  }, [viewRestored, search, statusFilter, manufacturerFilter, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
+  }, [viewRestored, search, statusFilter, manufacturerFilter, productSearch, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const productSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleSearchInput(val: string) {
     setSearchInput(val);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => { setSearch(val); setPage(1); }, 300);
+  }
+  function handleProductSearchInput(val: string) {
+    setProductSearchInput(val);
+    if (productSearchTimer.current) clearTimeout(productSearchTimer.current);
+    productSearchTimer.current = setTimeout(() => { setProductSearch(val); setPage(1); }, 300);
   }
 
   // Load manufacturers + fault types once on mount
@@ -563,9 +574,9 @@ export default function CasesPage() {
     fetch('/api/products')
       .then(r => r.json())
       .then(json => {
-        const nonClaimable = new Set<string>(
-          (json.data ?? []).filter((p: { name: string; claimable: boolean }) => p.claimable === false).map((p: { name: string }) => p.name.toLowerCase().trim())
-        );
+        const items: Product[] = (json.data ?? []).sort((a: Product, b: Product) => a.name.localeCompare(b.name));
+        setProducts(items);
+        const nonClaimable = new Set<string>(items.filter(p => p.claimable === false).map(p => p.name.toLowerCase().trim()));
         setNonClaimableProducts(nonClaimable);
       })
       .catch(() => {});
@@ -579,6 +590,7 @@ export default function CasesPage() {
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
+    if (productSearch)       params.set('product', productSearch);
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
@@ -602,7 +614,7 @@ export default function CasesPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, manufacturerFilter, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
+  }, [search, statusFilter, manufacturerFilter, productSearch, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => {
     if (viewRestored) load();
@@ -692,9 +704,12 @@ export default function CasesPage() {
 
   function clearFilters() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (productSearchTimer.current) clearTimeout(productSearchTimer.current);
     sessionStorage.removeItem(CASES_VIEW_STORAGE_KEY);
     setSearchInput('');
     setSearch('');
+    setProductSearchInput('');
+    setProductSearch('');
     setStatusFilter('');
     setManufacturerFilter('');
     setFaultTypeFilter([]);
@@ -720,13 +735,14 @@ export default function CasesPage() {
     if (!showFilters) setShowFilters(true);
   }
 
-  const isFiltered = !!(search || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
+  const isFiltered = !!(search || productSearch || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
+    if (productSearch)       params.set('product', productSearch);
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
@@ -841,7 +857,7 @@ export default function CasesPage() {
 
       {/* Search + Filter Bar */}
       <div className="card p-4 space-y-3">
-        <div className="flex gap-3">
+        <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -861,6 +877,38 @@ export default function CasesPage() {
                 Clear all
               </button>
             )}
+          </div>
+          <div className="relative w-full lg:w-72 flex-shrink-0">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              list="case-product-options"
+              placeholder="Search product…"
+              value={productSearchInput}
+              onChange={e => handleProductSearchInput(e.target.value)}
+              className="form-input pl-9 pr-9"
+              aria-label="Search cases by product"
+            />
+            {productSearchInput && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (productSearchTimer.current) clearTimeout(productSearchTimer.current);
+                  setProductSearchInput('');
+                  setProductSearch('');
+                  setPage(1);
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                aria-label="Clear product search"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <datalist id="case-product-options">
+              {products.map(product => (
+                <option key={product.id} value={product.name} />
+              ))}
+            </datalist>
           </div>
           <button
             onClick={() => { setMineOnly(v => !v); setPage(1); }}
