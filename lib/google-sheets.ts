@@ -692,7 +692,7 @@ export async function createClaim(
   const claim: Claim = { ...data, id: `CLM-${Date.now()}` };
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Claims!A:L',
+    range: 'Claims!A:N',
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [claimToRow(claim)] },
   });
@@ -712,7 +712,7 @@ export async function updateClaim(
   const sheetRow = idx + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `Claims!A${sheetRow}:L${sheetRow}`,
+    range: `Claims!A${sheetRow}:N${sheetRow}`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [claimToRow(updated)] },
   });

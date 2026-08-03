@@ -11,12 +11,12 @@ import {
   AlertCircle,
   CheckCircle,
   X,
-  DollarSign,
   BarChart2,
   CircleDot,
+  Package,
 } from 'lucide-react';
 import { Claim, ClaimStatus } from '@/types';
-import { formatCurrency, STATUS_STYLES, STATUS_DOT, CLAIM_STATUSES } from '@/lib/utils';
+import { formatCurrency, STATUS_STYLES, CLAIM_STATUSES } from '@/lib/utils';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
@@ -60,7 +60,8 @@ export default function ClaimsPage() {
   const [saveError, setSaveError] = useState('');
 
   // Record Outcome modal
-  const [outcomeTarget, setOutcomeTarget] = useState<{ claim: Claim; status: ClaimStatus } | null>(null);
+  const [outcomeTarget, setOutcomeTarget] = useState<{ claims: Claim[]; status: ClaimStatus; manufacturer: string } | null>(null);
+  const [resolutionClaimIds, setResolutionClaimIds] = useState<Set<string>>(new Set());
   const [outcomeForm, setOutcomeForm] = useState<{ amountRecovered: string; outcomeDate: string; outcomeNotes: string; resolutionType: string; replacementDetails: string }>({
     amountRecovered: '',
     outcomeDate: new Date().toISOString().slice(0, 10),
@@ -234,10 +235,29 @@ export default function ClaimsPage() {
         resolutionType: claim.resolutionType || 'Credit Note',
         replacementDetails: claim.replacementDetails || '',
       });
-      setOutcomeTarget({ claim, status });
+      setResolutionClaimIds(new Set([claim.id]));
+      setOutcomeTarget({ claims: [claim], status, manufacturer: claim.manufacturer });
     } else {
       applyStatusOnly(claim, status);
     }
+  }
+
+  function openResolution(claimsToResolve: Claim[]) {
+    if (claimsToResolve.length === 0) return;
+    const firstClaim = claimsToResolve[0];
+    setOutcomeForm({
+      amountRecovered: '',
+      outcomeDate: new Date().toISOString().slice(0, 10),
+      outcomeNotes: firstClaim.outcomeNotes || '',
+      resolutionType: 'Replacement Goods',
+      replacementDetails: firstClaim.replacementDetails || '',
+    });
+    setResolutionClaimIds(new Set(claimsToResolve.map(claim => claim.id)));
+    setOutcomeTarget({
+      claims: claimsToResolve,
+      status: 'Resolution Agreed',
+      manufacturer: firstClaim.manufacturer,
+    });
   }
 
   async function applyStatusOnly(claim: Claim, status: ClaimStatus) {
@@ -254,10 +274,14 @@ export default function ClaimsPage() {
   // ── Record Outcome save ────────────────────────────────────────────────────
   async function handleOutcomeSave() {
     if (!outcomeTarget) return;
+    const targetClaims = outcomeTarget.claims.filter(claim => resolutionClaimIds.has(claim.id));
+    if (targetClaims.length === 0) {
+      toastError('No batches selected', 'Select at least one claim batch to update.');
+      return;
+    }
     setSavingOutcome(true);
     try {
       const payload = {
-        id: outcomeTarget.claim.id,
         status: outcomeTarget.status,
         amountRecovered: parseFloat(outcomeForm.amountRecovered) || 0,
         outcomeDate: outcomeForm.outcomeDate,
@@ -265,19 +289,26 @@ export default function ClaimsPage() {
         resolutionType: outcomeForm.resolutionType as Claim['resolutionType'],
         replacementDetails: outcomeForm.replacementDetails,
       };
-      const res = await fetch('/api/claims', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error);
+      await Promise.all(targetClaims.map(async claim => {
+        const res = await fetch('/api/claims', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: claim.id, ...payload }),
+        });
+        const json = await res.json();
+        if (json.error) throw new Error(json.error);
+      }));
 
+      const targetIds = new Set(targetClaims.map(claim => claim.id));
       setClaims(prev => prev.map(c =>
-        c.id === outcomeTarget.claim.id ? { ...c, ...payload } : c
+        targetIds.has(c.id) ? { ...c, ...payload } : c
       ));
       setOutcomeTarget(null);
-      success('Outcome recorded', `${outcomeTarget.status} logged for ${outcomeTarget.claim.manufacturer}.`);
+      setResolutionClaimIds(new Set());
+      success(
+        outcomeTarget.status === 'Resolution Agreed' ? 'Resolution recorded' : 'Outcome recorded',
+        `${targetClaims.length} batch${targetClaims.length !== 1 ? 'es' : ''} updated for ${outcomeTarget.manufacturer}.`
+      );
     } catch (err: unknown) {
       toastError('Failed to save outcome', err instanceof Error ? err.message : '');
     } finally {
@@ -391,6 +422,7 @@ export default function ClaimsPage() {
           const mfrRecovered = mfrClaims
             .filter(c => c.status === 'Credit Received' || c.status === 'Partial Credit')
             .reduce((s, c) => s + c.amountRecovered, 0);
+          const openClaims = mfrClaims.filter(c => !OUTCOME_STATUSES.includes(c.status));
           return (
             <div key={manufacturer} className="card overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 bg-slate-50 border-b border-slate-200">
@@ -401,6 +433,16 @@ export default function ClaimsPage() {
                   <span className="font-mono">{formatCurrency(mfrAtRisk)} at risk</span>
                   {mfrRecovered > 0 && (
                     <span className="text-emerald-600 font-mono font-semibold">{formatCurrency(mfrRecovered)} recovered</span>
+                  )}
+                  {openClaims.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => openResolution(openClaims)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition-colors"
+                    >
+                      <Package size={12} />
+                      Add resolution
+                    </button>
                   )}
                 </div>
               </div>
@@ -420,6 +462,7 @@ export default function ClaimsPage() {
                 <tbody>
                   {mfrClaims.map(claim => {
                     const isResolved = OUTCOME_STATUSES.includes(claim.status);
+                    const hasResolution = claim.status === 'Resolution Agreed' || Boolean(claim.resolutionType || claim.replacementDetails);
                     const isExpanded = expanded.has(claim.id);
                     return (
                       <>
@@ -444,7 +487,7 @@ export default function ClaimsPage() {
                             </select>
                           </td>
                           <td className="font-mono">
-                            {isResolved ? (
+                            {(isResolved || hasResolution) ? (
                               claim.resolutionType === 'Replacement Goods' ? (
                                 <span className="inline-flex items-center gap-1 text-xs bg-violet-100 text-violet-700 rounded-full px-2 py-0.5 font-medium">📦 Replacement</span>
                               ) : claim.resolutionType === 'Mixed' ? (
@@ -472,6 +515,14 @@ export default function ClaimsPage() {
                               >
                                 Edit
                               </button>
+                              {!isResolved && (
+                                <button
+                                  onClick={() => openResolution([claim])}
+                                  className="text-xs text-violet-600 hover:underline font-medium"
+                                >
+                                  Resolution
+                                </button>
+                              )}
                               {(claim.outcomeDate || claim.outcomeNotes || claim.replacementDetails) && (
                                 <button
                                   onClick={() => toggleExpand(claim.id)}
@@ -493,7 +544,8 @@ export default function ClaimsPage() {
                                 <div className="flex items-center gap-1.5">
                                   <CircleDot size={12} className={
                                     claim.status === 'Credit Received' ? 'text-emerald-500' :
-                                    claim.status === 'Partial Credit'  ? 'text-teal-500' : 'text-red-500'
+                                    claim.status === 'Partial Credit'  ? 'text-teal-500' :
+                                    claim.status === 'Resolution Agreed' ? 'text-purple-500' : 'text-red-500'
                                   } />
                                   <span className={`font-semibold ${STATUS_STYLES[claim.status]} px-2 py-0.5 rounded-full`}>
                                     {claim.status}
@@ -645,9 +697,11 @@ export default function ClaimsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
-                <h2 className="font-semibold text-slate-900">Record Outcome</h2>
+                <h2 className="font-semibold text-slate-900">
+                  {outcomeTarget.status === 'Resolution Agreed' ? 'Add Resolution' : 'Record Outcome'}
+                </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {outcomeTarget.claim.manufacturer} · {outcomeTarget.claim.month} {outcomeTarget.claim.year}
+                  {outcomeTarget.manufacturer} · {outcomeTarget.claims.length} batch{outcomeTarget.claims.length !== 1 ? 'es' : ''}
                 </p>
               </div>
               <button onClick={() => setOutcomeTarget(null)} className="text-slate-400 hover:text-slate-600 p-1">
@@ -664,11 +718,41 @@ export default function ClaimsPage() {
                 </span>
               </div>
 
+              {outcomeTarget.claims.length > 1 && (
+                <div>
+                  <label className="form-label">Apply to batches</label>
+                  <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+                    {outcomeTarget.claims.map(claim => (
+                      <label key={claim.id} className="flex items-center justify-between gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer">
+                        <span className="text-sm text-slate-700">
+                          {claim.month} {claim.year}
+                          <span className="ml-2 text-xs text-slate-400">{claim.faultCount} faults</span>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={resolutionClaimIds.has(claim.id)}
+                          onChange={e => {
+                            setResolutionClaimIds(prev => {
+                              const next = new Set(prev);
+                              e.target.checked ? next.add(claim.id) : next.delete(claim.id);
+                              return next;
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 accent-[#1591b3]"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Cost at risk reference */}
               <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg text-sm">
                 <span className="text-slate-500">Cost at risk</span>
                 <span className="font-mono font-semibold text-slate-800">
-                  {formatCurrency(outcomeTarget.claim.costAtRisk)}
+                  {formatCurrency(outcomeTarget.claims
+                    .filter(claim => resolutionClaimIds.has(claim.id))
+                    .reduce((sum, claim) => sum + claim.costAtRisk, 0))}
                 </span>
               </div>
 
@@ -713,9 +797,13 @@ export default function ClaimsPage() {
                       placeholder="0.00"
                     />
                   </div>
-                  {outcomeTarget.status === 'Partial Credit' && outcomeForm.amountRecovered && outcomeTarget.claim.costAtRisk > 0 && (
+                  {outcomeTarget.status === 'Partial Credit' && outcomeForm.amountRecovered && outcomeTarget.claims
+                    .filter(claim => resolutionClaimIds.has(claim.id))
+                    .reduce((sum, claim) => sum + claim.costAtRisk, 0) > 0 && (
                     <p className="text-xs text-teal-600 mt-1">
-                      {Math.round((parseFloat(outcomeForm.amountRecovered) / outcomeTarget.claim.costAtRisk) * 100)}% of cost at risk recovered
+                      {Math.round((parseFloat(outcomeForm.amountRecovered) / outcomeTarget.claims
+                        .filter(claim => resolutionClaimIds.has(claim.id))
+                        .reduce((sum, claim) => sum + claim.costAtRisk, 0)) * 100)}% of cost at risk recovered
                     </p>
                   )}
                 </div>
@@ -765,7 +853,7 @@ export default function ClaimsPage() {
                         ? 'e.g. Susan bulk acknowledged Jan–May, response expected within 30 days…'
                         : outcomeTarget.status === 'Partial Credit'
                           ? 'What was disputed or adjusted…'
-                          : 'Credit note reference, timeline…'
+                          : 'e.g. Grace / Olivia said 200 replacement units were provided in the last order…'
                   }
                 />
               </div>
@@ -774,7 +862,11 @@ export default function ClaimsPage() {
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
               <button onClick={() => setOutcomeTarget(null)} className="btn-secondary">Cancel</button>
               <button onClick={handleOutcomeSave} disabled={savingOutcome} className="btn-primary">
-                {savingOutcome ? 'Saving…' : 'Save Outcome'}
+                {savingOutcome
+                  ? 'Saving…'
+                  : outcomeTarget.status === 'Resolution Agreed'
+                    ? `Save Resolution${resolutionClaimIds.size > 1 ? ` (${resolutionClaimIds.size})` : ''}`
+                    : 'Save Outcome'}
               </button>
             </div>
           </div>
