@@ -200,6 +200,134 @@ function FaultTypeMultiSelect({
   );
 }
 
+function ProductSearchFilter({
+  products,
+  selected,
+  input,
+  onInputChange,
+  onChange,
+}: {
+  products: Product[];
+  selected: string[];
+  input: string;
+  onInputChange: (value: string) => void;
+  onChange: (values: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const query = input.trim().toLowerCase();
+  const selectedLower = selected.map(product => product.toLowerCase());
+  const suggestions = products
+    .filter(product => !selectedLower.includes(product.name.toLowerCase()))
+    .filter(product => !query || product.name.toLowerCase().includes(query))
+    .slice(0, 8);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  function addProduct(value: string) {
+    const seen = new Set(selectedLower);
+    const additions = value
+      .split(',')
+      .map(product => product.trim())
+      .filter(Boolean)
+      .filter(product => {
+        const key = product.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    if (additions.length === 0) return;
+    onChange([...selected, ...additions]);
+    onInputChange('');
+    setOpen(false);
+  }
+
+  function removeProduct(value: string) {
+    onChange(selected.filter(product => product !== value));
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addProduct(input);
+    }
+    if (e.key === 'Backspace' && !input && selected.length > 0) {
+      removeProduct(selected[selected.length - 1]);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative w-full lg:w-[26rem] flex-shrink-0">
+      <div className={`form-input min-h-[38px] pl-2 pr-9 py-1.5 flex items-center gap-1.5 flex-wrap ${selected.length > 0 ? 'border-brand-400 bg-brand-50/40' : ''}`}>
+        <Search size={15} className="text-slate-400 flex-shrink-0 ml-1" />
+        {selected.map(product => (
+          <span key={product} className="inline-flex items-center gap-1 max-w-[12rem] rounded-md bg-brand-100 px-2 py-1 text-xs font-medium text-brand-700">
+            <span className="truncate">{product}</span>
+            <button
+              type="button"
+              onClick={() => removeProduct(product)}
+              className="text-brand-500 hover:text-red-600"
+              aria-label={`Remove ${product}`}
+            >
+              <X size={12} />
+            </button>
+          </span>
+        ))}
+        <input
+          type="search"
+          placeholder={selected.length > 0 ? 'Add product…' : 'Search products…'}
+          value={input}
+          onChange={e => { onInputChange(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          className="min-w-[9rem] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none placeholder:text-slate-400"
+          aria-label="Search cases by one or more products"
+        />
+      </div>
+      {(selected.length > 0 || input) && (
+        <button
+          type="button"
+          onClick={() => { onInputChange(''); onChange([]); }}
+          className="absolute right-2 top-2 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+          aria-label="Clear product filters"
+        >
+          <X size={14} />
+        </button>
+      )}
+      {open && (input || suggestions.length > 0) && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-40 overflow-hidden py-1">
+          {suggestions.map(product => (
+            <button
+              key={product.id}
+              type="button"
+              onClick={() => addProduct(product.name)}
+              className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 truncate"
+            >
+              {product.name}
+            </button>
+          ))}
+          {input.trim() && !selectedLower.includes(input.trim().toLowerCase()) && (
+            <button
+              type="button"
+              onClick={() => addProduct(input)}
+              className="w-full px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-brand-50 border-t border-slate-100 truncate"
+            >
+              Add &quot;{input.trim()}&quot;
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Fault Summary Strip ─────────────────────────────────────────────────────
 function FaultSummaryStrip({
   total, byFaultType, byMonth, otherNotes, search, activeFaultTypes, onFaultTypeClick, onMonthClick,
@@ -478,7 +606,7 @@ export default function CasesPage() {
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
-  const [productSearch, setProductSearch]         = useState('');
+  const [productFilters, setProductFilters]       = useState<string[]>([]);
   const [productSearchInput, setProductSearchInput] = useState('');
   const [faultTypeFilter, setFaultTypeFilter]       = useState<string[]>([]);
   const [fromDate, setFromDate]   = useState('');
@@ -513,8 +641,13 @@ export default function CasesPage() {
         setSearchInput(typeof view.search === 'string' ? view.search : '');
         setStatusFilter(typeof view.statusFilter === 'string' ? view.statusFilter : '');
         setManufacturerFilter(typeof view.manufacturerFilter === 'string' ? view.manufacturerFilter : '');
-        setProductSearch(typeof view.productSearch === 'string' ? view.productSearch : '');
-        setProductSearchInput(typeof view.productSearch === 'string' ? view.productSearch : '');
+        const restoredProducts = Array.isArray(view.productFilters)
+          ? view.productFilters.filter((product: unknown) => typeof product === 'string')
+          : typeof view.productSearch === 'string' && view.productSearch
+            ? [view.productSearch]
+            : [];
+        setProductFilters(restoredProducts);
+        setProductSearchInput('');
         setFaultTypeFilter(Array.isArray(view.faultTypeFilter) ? view.faultTypeFilter : []);
         setFromDate(typeof view.fromDate === 'string' ? view.fromDate : '');
         setToDate(typeof view.toDate === 'string' ? view.toDate : '');
@@ -536,23 +669,17 @@ export default function CasesPage() {
     if (!viewRestored) return;
     sessionStorage.setItem(CASES_VIEW_STORAGE_KEY, JSON.stringify({
       search, statusFilter, manufacturerFilter, faultTypeFilter,
-      productSearch, fromDate, toDate, mineOnly, claimableOnly, showFilters,
+      productFilters, fromDate, toDate, mineOnly, claimableOnly, showFilters,
       sortKey, sortDir, page,
     }));
-  }, [viewRestored, search, statusFilter, manufacturerFilter, productSearch, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
+  }, [viewRestored, search, statusFilter, manufacturerFilter, productFilters, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const productSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function handleSearchInput(val: string) {
     setSearchInput(val);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => { setSearch(val); setPage(1); }, 300);
-  }
-  function handleProductSearchInput(val: string) {
-    setProductSearchInput(val);
-    if (productSearchTimer.current) clearTimeout(productSearchTimer.current);
-    productSearchTimer.current = setTimeout(() => { setProductSearch(val); setPage(1); }, 300);
   }
 
   // Load manufacturers + fault types once on mount
@@ -590,7 +717,7 @@ export default function CasesPage() {
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
-    if (productSearch)       params.set('product', productSearch);
+    productFilters.forEach(product => params.append('product', product));
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
@@ -614,7 +741,7 @@ export default function CasesPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, manufacturerFilter, productSearch, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
+  }, [search, statusFilter, manufacturerFilter, productFilters, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => {
     if (viewRestored) load();
@@ -704,12 +831,11 @@ export default function CasesPage() {
 
   function clearFilters() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (productSearchTimer.current) clearTimeout(productSearchTimer.current);
     sessionStorage.removeItem(CASES_VIEW_STORAGE_KEY);
     setSearchInput('');
     setSearch('');
     setProductSearchInput('');
-    setProductSearch('');
+    setProductFilters([]);
     setStatusFilter('');
     setManufacturerFilter('');
     setFaultTypeFilter([]);
@@ -735,14 +861,14 @@ export default function CasesPage() {
     if (!showFilters) setShowFilters(true);
   }
 
-  const isFiltered = !!(search || productSearch || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
+  const isFiltered = !!(search || productFilters.length || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
     if (search)              params.set('search', search);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
-    if (productSearch)       params.set('product', productSearch);
+    productFilters.forEach(product => params.append('product', product));
     faultTypeFilter.forEach(ft => params.append('faultType', ft));
     if (fromDate)            params.set('from', fromDate);
     if (toDate)              params.set('to', toDate);
@@ -814,7 +940,7 @@ export default function CasesPage() {
           byFaultType={faultSummary}
           byMonth={monthSummary}
           otherNotes={otherNotes}
-          search={search}
+          search={search || productFilters.join(', ')}
           activeFaultTypes={faultTypeFilter}
           onFaultTypeClick={ft => {
             setFaultTypeFilter(prev => prev.includes(ft) ? prev.filter(f => f !== ft) : [...prev, ft]);
@@ -878,38 +1004,13 @@ export default function CasesPage() {
               </button>
             )}
           </div>
-          <div className="relative w-full lg:w-72 flex-shrink-0">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              list="case-product-options"
-              placeholder="Search product…"
-              value={productSearchInput}
-              onChange={e => handleProductSearchInput(e.target.value)}
-              className="form-input pl-9 pr-9"
-              aria-label="Search cases by product"
-            />
-            {productSearchInput && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (productSearchTimer.current) clearTimeout(productSearchTimer.current);
-                  setProductSearchInput('');
-                  setProductSearch('');
-                  setPage(1);
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                aria-label="Clear product search"
-              >
-                <X size={14} />
-              </button>
-            )}
-            <datalist id="case-product-options">
-              {products.map(product => (
-                <option key={product.id} value={product.name} />
-              ))}
-            </datalist>
-          </div>
+          <ProductSearchFilter
+            products={products}
+            selected={productFilters}
+            input={productSearchInput}
+            onInputChange={setProductSearchInput}
+            onChange={values => { setProductFilters(values); setPage(1); }}
+          />
           <button
             onClick={() => { setMineOnly(v => !v); setPage(1); }}
             className={`btn-secondary gap-2 flex-shrink-0 ${mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : ''}`}
@@ -922,7 +1023,7 @@ export default function CasesPage() {
             className={`btn-secondary gap-2 flex-shrink-0 ${showFilters ? 'bg-slate-100 border-slate-300' : ''}`}
           >
             <Filter size={14} /> Filters
-            {(statusFilter || manufacturerFilter || faultTypeFilter.length > 0 || fromDate || toDate) && (
+            {(statusFilter || manufacturerFilter || productFilters.length > 0 || faultTypeFilter.length > 0 || fromDate || toDate) && (
               <span className="w-2 h-2 bg-brand-600 rounded-full" />
             )}
           </button>
