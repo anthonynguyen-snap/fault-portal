@@ -308,7 +308,7 @@ export interface RefundRequest {
 // REPLENISHMENT
 // =========================================================
 export type ReplenishmentStatus = 'Pending' | 'Ordered' | 'Partially Dispatched' | 'Dispatched' | 'Delivered';
-export type ReplenishmentStore  = 'Adelaide Popup' | 'Sydney Store';
+export type ReplenishmentStore  = 'Adelaide Popup' | 'Sydney Store' | 'Melbourne Airport';
 export type ReplenishmentSource = 'Storeroom' | '3PL';
 
 export interface ReplenishmentLineItem {

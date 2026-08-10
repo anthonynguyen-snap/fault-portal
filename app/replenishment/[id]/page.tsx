@@ -10,7 +10,8 @@ import { ReplenishmentRequest, ReplenishmentStatus, ReplenishmentLineItem, Stock
 import { useToast } from '@/components/ui/Toast';
 
 const STATUS_ORDER: ReplenishmentStatus[] = ['Pending', 'Ordered', 'Partially Dispatched', 'Dispatched', 'Delivered'];
-const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
+const STORES = ['Adelaide Popup', 'Sydney Store', 'Melbourne Airport'] as const;
+const REMOTE_3PL_STORES = ['Melbourne Airport', 'Sydney Store'];
 
 type StoreAddress = {
   store: string;
@@ -139,7 +140,7 @@ export default function ReplenishmentDetailPage() {
         else setNotesLog([]);
       } catch { setNotesLog([]); }
       setEditStore((req.store as typeof STORES[number]) ?? 'Adelaide Popup');
-      setAddItemSrc(req.store === 'Sydney Store' ? '3PL' : 'Storeroom');
+      setAddItemSrc(REMOTE_3PL_STORES.includes(req.store) ? '3PL' : 'Storeroom');
     } catch { /* silent */ }
     finally { setLoading(false); }
   }
@@ -342,7 +343,7 @@ export default function ReplenishmentDetailPage() {
       success('Item added');
       await load();
       setShowAddItem(false);
-      setAddItemId(''); setAddItemQty(1); setAddItemSrc(request?.store === 'Sydney Store' ? '3PL' : 'Storeroom');
+      setAddItemId(''); setAddItemQty(1); setAddItemSrc(REMOTE_3PL_STORES.includes(request?.store ?? '') ? '3PL' : 'Storeroom');
     } catch (err: unknown) {
       toastError('Failed to add item', err instanceof Error ? err.message : String(err));
     } finally { setAddItemSaving(false); }
@@ -545,7 +546,7 @@ export default function ReplenishmentDetailPage() {
                 value={addressForm.recipient}
                 onChange={e => setAddressForm(f => ({ ...f, recipient: e.target.value }))}
                 className="form-input"
-                placeholder="e.g. SNAP Wireless Sydney Store"
+                placeholder="e.g. SNAP Wireless Melbourne Airport"
               />
             </div>
             <div>

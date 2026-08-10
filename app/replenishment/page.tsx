@@ -12,7 +12,8 @@ import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
 
-const STORES = ['Adelaide Popup', 'Sydney Store'] as const;
+const STORES = ['Adelaide Popup', 'Sydney Store', 'Melbourne Airport'] as const;
+const REMOTE_3PL_STORES = ['Melbourne Airport', 'Sydney Store'];
 
 interface ReplenComboboxProps {
   items: StockItem[];
@@ -85,7 +86,7 @@ function ReplenCombobox({ items, value, onChange, disabled, includeEOL }: Replen
 }
 
 function generateOrderNumber(store: string): string {
-  const prefix = store === 'Sydney Store' ? 'SYD' : 'ADE';
+  const prefix = store === 'Melbourne Airport' ? 'MEL' : store === 'Sydney Store' ? 'SYD' : 'ADE';
   const now    = new Date();
   const dd     = String(now.getDate()).padStart(2, '0');
   const mm     = String(now.getMonth() + 1).padStart(2, '0');
@@ -229,10 +230,10 @@ function parseSlackRequest(text: string, stockBySku: Map<string, StockItem>, sto
     }
 
     const available = Math.max(0, Number(stock.quantity) || 0);
-    // Sydney Store always sources from 3PL — skip storeroom split
-    const isSydney = store === 'Sydney Store';
-    const storeroomQty = isSydney ? 0 : Math.min(available, requested);
-    const tplQty = isSydney ? requested : Math.max(0, requested - storeroomQty);
+    // Remote airport/store replenishment always sources from 3PL.
+    const remote3plOnly = REMOTE_3PL_STORES.includes(store ?? '');
+    const storeroomQty = remote3plOnly ? 0 : Math.min(available, requested);
+    const tplQty = remote3plOnly ? requested : Math.max(0, requested - storeroomQty);
     const rows: NewItemRow[] = [];
 
     if (storeroomQty > 0) {
@@ -499,7 +500,7 @@ function ReplenishmentPageInner() {
   function addItem() {
     setNewItems(prev => [...prev, {
       stockItemId: '', stockItemName: '', sku: '',
-      quantityRequested: 1, quantityOnHand: 0, source: form.store === 'Sydney Store' ? '3PL' : 'Storeroom', skipped: false,
+      quantityRequested: 1, quantityOnHand: 0, source: REMOTE_3PL_STORES.includes(form.store) ? '3PL' : 'Storeroom', skipped: false,
     }]);
   }
 
@@ -581,7 +582,7 @@ function ReplenishmentPageInner() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Replenishment</h1>
-          <p className="page-subtitle">Manage stock dispatch to Adelaide Popup and Sydney Store</p>
+          <p className="page-subtitle">Manage stock dispatch to Adelaide Popup, Sydney Store, and Melbourne Airport</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
