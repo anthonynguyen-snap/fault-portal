@@ -6,6 +6,7 @@ import {
   CreditCard, Plus, X, RefreshCw, CheckCircle, XCircle,
   ExternalLink, Clock, ChevronDown, ChevronUp, AlertTriangle, Pencil,
   Copy, Check, ArrowUpDown, Search, User, RotateCcw, FileText,
+  Download,
 } from 'lucide-react';
 import { RefundRequest, RefundResolution, REFUND_REASONS, InternalNote } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -76,6 +77,22 @@ function daysSince(iso: string) {
 function fmt(amount: number, currency = 'AUD') {
   const c = CURRENCIES.find(x => x.code === currency) ?? CURRENCIES[0];
   return new Intl.NumberFormat(c.locale, { style: 'currency', currency: c.code }).format(amount);
+}
+
+function csvCell(value: unknown) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
+  const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 const REFUND_SKU_PREFIX = 'Refund SKU: ';
@@ -461,6 +478,27 @@ function RefundsInner() {
     });
   }, [filter, pending, requests, search, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir]);
 
+  function exportCsv() {
+    downloadCsv(
+      `refunds-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Created', 'Order Number', 'Customer', 'Amount', 'Currency', 'Reason', 'Status', 'Resolution', 'Submitted By', 'Processed At', 'Processed Amount', 'Notes'],
+      displayed.map(r => [
+        r.createdAt,
+        r.orderNumber,
+        r.customerName,
+        r.amount,
+        r.currency,
+        r.reason,
+        r.status,
+        r.resolution,
+        r.submittedBy,
+        r.processedAt ?? '',
+        r.processedAmount ?? '',
+        r.notes,
+      ])
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
 
@@ -477,6 +515,9 @@ function RefundsInner() {
             </span>
           )}
           <button onClick={load} className="btn-secondary"><RefreshCw size={14} /> Refresh</button>
+          <button onClick={exportCsv} className="btn-secondary" disabled={loading}>
+            <Download size={14} /> Export CSV
+          </button>
           <Link href="/refunds/new" className="btn-primary">
             <Plus size={14} /> Request Refund
           </Link>
@@ -490,9 +531,9 @@ function RefundsInner() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="stat-tile flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
             <Clock size={18} className="text-amber-500" />
           </div>
           <div>
@@ -500,8 +541,8 @@ function RefundsInner() {
             <p className="text-xs text-slate-500">Pending requests</p>
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+        <div className="stat-tile flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
             <CreditCard size={18} className="text-red-500" />
           </div>
           <div>
@@ -509,8 +550,8 @@ function RefundsInner() {
             <p className="text-xs text-slate-500">Amount pending</p>
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0">
+        <div className="stat-tile flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
             <CheckCircle size={18} className="text-emerald-500" />
           </div>
           <div>
@@ -521,7 +562,7 @@ function RefundsInner() {
             )}
           </div>
         </div>
-        <div className="card p-4">
+        <div className="stat-tile">
           <p className="text-xs text-slate-500 mb-2 font-medium">This week breakdown</p>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -542,9 +583,9 @@ function RefundsInner() {
 
       {/* Queue */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        <div className="resource-toolbar rounded-none border-0 border-b border-slate-100 shadow-none">
           <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-slate-800">Requests</h2>
+            <h2 className="resource-title">Requests</h2>
             {/* Sort controls */}
             <div className="flex items-center gap-1">
               {([
@@ -564,14 +605,12 @@ function RefundsInner() {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="resource-controls">
             {/* Mine toggle */}
             <button
               onClick={() => setMineOnly(v => !v)}
               title={mineOnly ? 'Showing your refunds — click to show all' : 'Filter to refunds you submitted'}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
-              }`}
+              className={`filter-chip ${mineOnly ? 'filter-chip-active' : ''}`}
             >
               <User size={12} /> Mine
               {mineOnly && <span className="w-1.5 h-1.5 bg-brand-600 rounded-full" />}
@@ -579,22 +618,22 @@ function RefundsInner() {
             {/* Search / filter toggle */}
             <button
               onClick={() => setShowFilters(v => !v)}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+              className={`filter-chip ${
                 showFilters || search || fromDate || toDate
-                  ? 'bg-slate-100 border-slate-300 text-slate-700'
-                  : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                  ? 'filter-chip-active'
+                  : ''
               }`}
             >
               <Search size={12} /> Search
               {(search || fromDate || toDate) && <span className="w-1.5 h-1.5 bg-brand-600 rounded-full" />}
             </button>
             {/* Pending / All toggle */}
-            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+            <div className="segmented-control">
               {(['Pending', 'All'] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${filter === f ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={filter === f ? 'is-active' : ''}
                 >
                   {f === 'Pending' ? `Pending (${pending.length})` : 'All'}
                 </button>

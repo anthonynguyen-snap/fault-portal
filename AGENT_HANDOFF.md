@@ -124,7 +124,7 @@ fault-portal/
 │   ├── sop/page.tsx              ← Standard operating procedures
 │   ├── reports/page.tsx
 │   ├── account/password/page.tsx ← Change own password
-│   ├── dashboard/page.tsx        ← SECONDARY dashboard (not the main one — uses DashboardView component, barely used)
+│   ├── dashboard/page.tsx        ← Redirects to `/`
 │   └── api/
 │       ├── auth/                 ← login, logout, me, set-password, change-password
 │       ├── cases/                ← CRUD + notes (Google Sheets backend)
@@ -146,8 +146,7 @@ fault-portal/
 │   │   ├── Header.tsx            ← Search bar, notifications
 │   │   └── SidebarContext.tsx    ← Mobile drawer state
 │   ├── dashboard/
-│   │   ├── DashboardCharts.tsx   ← WeeklyFaultChart (lazy-loaded)
-│   │   └── DashboardView.tsx     ← Secondary dashboard component (NOT the main one)
+│   │   └── DashboardCharts.tsx   ← WeeklyFaultChart (lazy-loaded)
 │   └── ui/
 │       ├── InternalNotes.tsx     ← Shared internal notes component (cases, returns, refunds)
 │       ├── Skeleton.tsx          ← Loading skeletons (TableSkeleton, DashboardSkeleton, etc.)
@@ -173,7 +172,7 @@ fault-portal/
     └── replenishment_migration.sql  ← Reference SQL (run manually in Supabase dashboard)
 ```
 
-**Important: `app/dashboard/page.tsx` is NOT the main dashboard.** The real dashboard is `app/page.tsx` (route `/`). The `dashboard` route uses `DashboardView.tsx` and appears to be an older/alternate view. Don't confuse them.
+**Important: `app/page.tsx` is the real dashboard.** `/dashboard` redirects to `/` so old bookmarks still work.
 
 ---
 
@@ -198,14 +197,14 @@ fault-portal/
 - "What's New" modal on login keyed to latest changelog version
 
 ### Partially complete / deferred
-- **`app/dashboard/page.tsx`** — secondary dashboard using `DashboardView.tsx`. Currently accessible but not linked in sidebar. Likely vestigial from an earlier design. Could be removed.
+- **`app/dashboard/page.tsx`** — redirects to `/` for old bookmarks.
 - **Commslayer live queue (open/unassigned tickets)** — the token only has `reports:read`. To get open ticket counts, add `conversations:read` scope in Commslayer Settings → API Tokens, then update `/api/commslayer/queue/route.ts`.
 - **Corporate module** (`/corporate`) — exists with orders and retail customer pages. Appears functional but limited. Not reviewed thoroughly.
 - **Orders page** (`/orders`) — exists, not audited recently.
 
 ### Known issues / broken
 - **Git lock files** — `.git/HEAD.lock` and `.git/index.lock` cannot be deleted via the shell due to macOS filesystem permissions on the mount. All commits must use the `GIT_INDEX_FILE` workaround (see Section 11).
-- **`app/new/page.tsx` and `app/log/page.tsx`** — appear to be legacy pages that may redirect or overlap with current routes. Haven't been audited.
+- **`app/new/page.tsx`** — redirects to `/cases/new` for old bookmarks.
 - **No automated tests** — zero test files. All QA is manual.
 - **In-memory cache** — `lib/cache.ts` uses module-level state. This works across warm Vercel invocations but resets on cold starts, and different serverless instances don't share cache. Not a bug per se but something to be aware of.
 
@@ -227,7 +226,7 @@ fault-portal/
 
 ## 7. Known Issues & Limitations
 
-1. **Dual dashboard confusion.** `app/page.tsx` is the real dashboard. `app/dashboard/page.tsx` / `components/dashboard/DashboardView.tsx` are secondary and mostly redundant. Easy to accidentally edit the wrong file.
+1. **Dashboard route cleanup.** `app/page.tsx` is the real dashboard. `/dashboard` redirects to `/` for old bookmarks.
 
 2. **Google Sheets as a database.** Fault cases, products, manufacturers, fault types, and claims all live in a Google Sheet (`GOOGLE_SPREADSHEET_ID`). This means no transactions, no foreign keys, and row order matters. The `rowToCase` / `fromRow` functions in `lib/google-sheets.ts` are brittle — if column ordering in the sheet changes, data maps incorrectly. Columns extend to `O` for cases (internal notes stored as JSON in column 15).
 
@@ -239,7 +238,7 @@ fault-portal/
 
 6. **`restockingPct` in returns.** The new `restockingPct` field on `LineItem` (form state) is local only — it is NOT saved to the database. Only the calculated net `refundAmount` is persisted. On the edit form (`app/returns/[id]/page.tsx`), the gross amount displayed is whatever was saved (which may already be net), not the original gross. This can lead to double-deduction if you edit and re-enter a percentage — the user needs to be aware of this.
 
-7. **`components/Dashboard.tsx` and `components/FaultDetailModal.tsx`** — legacy top-level components that appear to be from the original version. They may still be referenced somewhere. Don't delete without checking.
+7. **Legacy dashboard components removed.** The old top-level Dashboard, Navbar, FaultForm, FaultDetailModal, and secondary DashboardView components were removed after confirming they were unreferenced.
 
 8. **`import-data.mjs` and `import-old-data.mjs`** — one-shot migration scripts at the repo root. Historical, not needed for ongoing work.
 

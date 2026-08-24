@@ -17,6 +17,13 @@ export async function POST(req: NextRequest) {
       from: string;
       to: string;
       periodLabel: string;
+      targets?: {
+        repliesPerDay?: number;
+        resolveRate?: number;
+        csat?: number;
+      };
+      primaryAgentIds?: Array<string | number>;
+      primaryAgentNames?: string[];
     };
 
     // Build a concise summary of the data for the prompt
@@ -26,10 +33,11 @@ export async function POST(req: NextRequest) {
 
     // Summarise agents
     const agentSummaries: string[] = [];
-    const PRIMARY_AGENT_IDS = [6525, 6988, 3007]; // Niko, Gabriel, Charles
-    const TARGET_REPLIES = 60;
-    const TARGET_RESOLVE = 0.30;
-    const TARGET_CSAT = 3.0;
+    const primaryAgentIdSet = new Set((body.primaryAgentIds ?? []).map(String));
+    const primaryAgentNames = (body.primaryAgentNames ?? []).filter(Boolean);
+    const TARGET_REPLIES = Number(body.targets?.repliesPerDay ?? 60);
+    const TARGET_RESOLVE = Number(body.targets?.resolveRate ?? 30) / 100;
+    const TARGET_CSAT = Number(body.targets?.csat ?? 3.0);
 
     // Work out how many days are in the period so daily rate is accurate
     const periodDays = Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000) + 1);
@@ -44,7 +52,7 @@ export async function POST(req: NextRequest) {
         const oneTouch   = Number(agent.one_touch_tickets ?? 0);
         const csat       = Number(agent.avg_csat ?? 0);
 
-        const isPrimary = PRIMARY_AGENT_IDS.includes(Number(agent.agent_id ?? agent.id));
+        const isPrimary = primaryAgentIdSet.has(String(agent.agent_id ?? agent.id));
         const repliesStatus  = dailyRate >= TARGET_REPLIES
           ? `on target (${dailyRate.toFixed(1)}/day)`
           : `below target (${dailyRate.toFixed(1)}/day vs ${TARGET_REPLIES} target)`;
@@ -91,7 +99,7 @@ Overview metrics:
 - Overall CSAT: ${Number(avgCsat) > 0 ? Number(avgCsat).toFixed(1) : 'N/A'} (${totalCsatResponses} responses)
 
 Instructions:
-- Focus on the primary support agents (Niko, Gabriel, Charles) for KPI performance
+- Focus on the configured primary support agents${primaryAgentNames.length ? ` (${primaryAgentNames.join(', ')})` : ''} for KPI performance
 - Mention any agents performing particularly well or needing attention by name
 - Note any overall trends in volume or CSAT
 - Be direct and actionable — this is for an internal manager, not a customer

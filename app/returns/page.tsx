@@ -7,7 +7,7 @@ import {
   PlusCircle, RefreshCw, RotateCcw, ChevronRight, ChevronLeft,
   ChevronDown, ChevronUp, Mail, Search, Copy, Check, X,
   Truck, AlertCircle, CheckCircle2, Trash2, Pencil, User,
-  DollarSign, ExternalLink,
+  DollarSign, ExternalLink, Download,
 } from 'lucide-react';
 import { Return, ReturnCondition, ReturnDecision, ReturnStatus, FollowUpStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -34,6 +34,22 @@ function weekLabel(mon: Date): string {
 function daysSince(dateStr: string): number {
   const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
   return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function csvCell(value: unknown) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
+  const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 const STARSHIPIT_RETURN_LABEL_URL = 'https://admin.shopify.com/store/snapwireless/apps/starship/Templates/Admin4/Orders.aspx?ShopifyApp=true&disablenewui=true';
@@ -153,11 +169,12 @@ function LogRequestSlideOver({
   const effectiveSubmittedBy = form.submittedBy.trim() || currentUser?.name || '';
 
   useEffect(() => {
+    if (!open || !isAdmin) return;
     fetch('/api/staff')
       .then(r => r.json())
       .then(d => { if (d.data) setStaff(d.data); })
       .catch(() => setError('Could not load staff list. Please refresh.'));
-  }, []);
+  }, [open, isAdmin]);
 
   useEffect(() => {
     if (!open) return;
@@ -715,15 +732,43 @@ export default function ReturnsPage() {
   const procTotalPages = Math.ceil(displayed.length / PROC_PAGE_SIZE);
   const paginatedDisplayed = displayed.slice((procPage - 1) * PROC_PAGE_SIZE, procPage * PROC_PAGE_SIZE);
 
+  function exportCsv() {
+    const rows = mainTab === 'requested' ? visibleRequests : displayed;
+    downloadCsv(
+      `returns-${mainTab}-${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Date', 'Stage', 'Order Number', 'Customer', 'Email', 'Products', 'Tracking', 'Status', 'Follow Up', 'Assigned To', 'Logged By', 'Refund Total', 'Notes'],
+      rows.map(r => [
+        r.date,
+        r.stage,
+        r.orderNumber,
+        r.customerName,
+        r.customerEmail,
+        (r.items ?? []).map(i => i.product).join('; '),
+        r.trackingNumber || r.starshipitOrderNumber,
+        r.status,
+        r.followUpStatus,
+        r.assignedTo,
+        r.processedBy,
+        r.totalRefundAmount,
+        r.notes,
+      ])
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="page-header">
         <div>
           <h1 className="page-title">Returns</h1>
           <p className="page-subtitle">Track return requests and processed parcels</p>
         </div>
-        <button onClick={load} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={exportCsv} className="btn-secondary" disabled={loading}>
+            <Download size={14} /> Export CSV
+          </button>
+          <button onClick={load} className="btn-ghost" title="Refresh"><RefreshCw size={15} /></button>
+        </div>
       </div>
 
       {/* Action summary */}
@@ -731,7 +776,7 @@ export default function ReturnsPage() {
         <button
           type="button"
           onClick={() => openWorkflow('awaiting')}
-          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+          className="stat-tile"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -745,7 +790,7 @@ export default function ReturnsPage() {
         <button
           type="button"
           onClick={() => openWorkflow('follow-up')}
-          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+          className="stat-tile"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -761,7 +806,7 @@ export default function ReturnsPage() {
         <button
           type="button"
           onClick={() => openWorkflow('processed')}
-          className="card p-4 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+          className="stat-tile"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -775,7 +820,7 @@ export default function ReturnsPage() {
       </div>
 
       {/* Workflow tabs */}
-      <div className="flex flex-wrap gap-1 mb-6 bg-slate-100 rounded-lg p-1 w-fit">
+      <div className="segmented-control mb-6 w-fit max-w-full overflow-x-auto">
         {([
           { key: 'awaiting', label: 'Awaiting Customer', count: requests.length },
           { key: 'follow-up', label: 'Follow-up Required', count: pendingFollowUp.length },
@@ -787,9 +832,7 @@ export default function ReturnsPage() {
             (key === 'follow-up' && mainTab === 'processed' && filter === 'follow-up');
           return (
             <button key={key} onClick={() => openWorkflow(key)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
-                active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}>
+              className={active ? 'is-active' : ''}>
               {label}
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
                 active ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'
@@ -803,7 +846,7 @@ export default function ReturnsPage() {
       {mainTab === 'requested' && (
         <>
           {/* Search + Region filter + Mine */}
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="resource-toolbar mb-4">
             <div className="relative max-w-sm flex-1 min-w-0">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -813,15 +856,17 @@ export default function ReturnsPage() {
                 className="form-input pl-8 py-1.5 text-sm"
               />
             </div>
-            <RegionPills value={regionFilter} onChange={setRegionFilter} counts={reqRegionCounts} />
-            <button
-              onClick={() => setMineOnly(v => !v)}
-              title={mineOnly ? 'Showing your requests — click to show all' : 'Filter to requests you logged'}
-              className={`btn-secondary gap-2 ${mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : ''}`}
-            >
-              <User size={14} /> Mine
-              {mineOnly && <span className="w-2 h-2 bg-brand-600 rounded-full" />}
-            </button>
+            <div className="resource-controls">
+              <RegionPills value={regionFilter} onChange={setRegionFilter} counts={reqRegionCounts} />
+              <button
+                onClick={() => setMineOnly(v => !v)}
+                title={mineOnly ? 'Showing your requests — click to show all' : 'Filter to requests you logged'}
+                className={`filter-chip ${mineOnly ? 'filter-chip-active' : ''}`}
+              >
+                <User size={14} /> Mine
+                {mineOnly && <span className="w-2 h-2 bg-brand-600 rounded-full" />}
+              </button>
+            </div>
           </div>
 
           {loading ? <TableSkeleton rows={5} cols={5} /> : (
@@ -838,20 +883,20 @@ export default function ReturnsPage() {
                 ) : (
                   <div className="card overflow-hidden">
                     <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="data-table">
                       <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Date / Order</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Products</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Tracking</th>
-                          <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Logged By</th>
+                        <tr>
+                          <th>Date / Order</th>
+                          <th>Customer</th>
+                          <th>Products</th>
+                          <th>Tracking</th>
+                          <th>Logged By</th>
                           <th className="px-4 py-3" />
                         </tr>
                       </thead>
                       <tbody>
-                        {visibleRequests.map((r, idx) => (
-                          <tr key={r.id} className={`border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/70'} hover:bg-[#e0f4fa] transition-colors group`}>
+                        {visibleRequests.map(r => (
+                          <tr key={r.id} className="group">
                             <td className="px-4 py-3">
                               <p className="text-xs text-slate-400 font-mono">{r.date}</p>
                               <span className="group/copy inline-flex items-center gap-1">
@@ -943,7 +988,7 @@ export default function ReturnsPage() {
       {mainTab === 'processed' && (
         <>
           {/* Week navigator + region filter + team search + Mine + Process Return */}
-          <div className="flex flex-wrap items-center gap-3 mb-2">
+          <div className="resource-toolbar mb-3">
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-1 py-1 shadow-sm">
               <button onClick={() => { setWeekStart(d => addDays(d, -7)); setProcPage(1); }} className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"><ChevronLeft size={16} /></button>
               <span className="text-sm font-semibold text-slate-700 px-2 min-w-[120px] text-center">{weekLabel(weekStart)}</span>
@@ -978,7 +1023,7 @@ export default function ReturnsPage() {
             </div>
             <RegionPills value={regionFilter} onChange={setRegionFilter} counts={procRegionCounts} />
           </div>
-          <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="resource-toolbar mb-4">
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input type="text" value={teamSearch} onChange={e => setTeamSearch(e.target.value)} placeholder="Search customer, order, product…" className="form-input pl-8 py-1.5 text-sm" />
@@ -986,7 +1031,7 @@ export default function ReturnsPage() {
             <button
               onClick={() => setMineOnly(v => !v)}
               title={mineOnly ? 'Showing your returns — click to show all' : 'Filter to returns you logged'}
-              className={`btn-secondary gap-2 ${mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : ''}`}
+              className={`filter-chip ${mineOnly ? 'filter-chip-active' : ''}`}
             >
               <User size={14} /> Mine
               {mineOnly && <span className="w-2 h-2 bg-brand-600 rounded-full" />}
@@ -997,7 +1042,7 @@ export default function ReturnsPage() {
           </div>
 
           {/* Filter tabs */}
-          <div className="flex gap-1 mb-5 bg-slate-100 rounded-lg p-1 w-fit">
+          <div className="segmented-control mb-5 w-fit max-w-full overflow-x-auto">
             {([
               { key: 'all',       label: 'This Week'        },
               { key: 'Processed', label: 'Processed'        },
@@ -1005,7 +1050,7 @@ export default function ReturnsPage() {
               { key: 'follow-up', label: 'Needs Follow-up'  },
             ] as { key: FilterTab; label: string }[]).map(({ key, label }) => (
               <button key={key} onClick={() => { setFilter(key); setProcPage(1); }}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${filter === key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                className={filter === key ? 'is-active' : ''}>
                 {label}
                 <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${filter === key ? 'bg-brand-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                   {counts[key as keyof typeof counts] ?? 0}
@@ -1029,23 +1074,23 @@ export default function ReturnsPage() {
           ) : (
             <div className="card overflow-hidden">
               <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="data-table">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
+                  <tr>
                     {([
                       { key: 'date' as ReturnSortKey,         label: 'Date / Order' },
                       { key: 'customerName' as ReturnSortKey, label: 'Customer'     },
                     ] as { key: ReturnSortKey; label: string }[]).map(col => (
-                      <th key={col.key} onClick={() => handleSort(col.key)} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                      <th key={col.key} onClick={() => handleSort(col.key)} className="cursor-pointer select-none hover:bg-slate-100 transition-colors">
                         <div className="flex items-center gap-1">{col.label}<SortIcon col={col.key} /></div>
                       </th>
                     ))}
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Condition</th>
-                    <th onClick={() => handleSort('totalRefundAmount')} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                    <th>Product</th>
+                    <th>Condition</th>
+                    <th onClick={() => handleSort('totalRefundAmount')} className="cursor-pointer select-none hover:bg-slate-100 transition-colors">
                       <div className="flex items-center gap-1">Decision<SortIcon col="totalRefundAmount" /></div>
                     </th>
-                    <th onClick={() => handleSort('status')} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer select-none hover:bg-slate-100 transition-colors">
+                    <th onClick={() => handleSort('status')} className="cursor-pointer select-none hover:bg-slate-100 transition-colors">
                       <div className="flex items-center gap-1">Status<SortIcon col="status" /></div>
                     </th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Follow-up</th>

@@ -34,10 +34,41 @@ export type ChangelogVersion = {
 
 export const CHANGELOG: ChangelogVersion[] = [
   {
+    version: 'v10.6',
+    label: 'Dashboard & Cases Facelift',
+    date: '2026-08-24',
+    isLatest: true,
+    summary: 'A visual clean-up of the dashboard and All Cases: one hero metric row, a single FRT breach banner up top, flatter cards, and a lighter sidebar.',
+    changes: [
+      { category: 'Dashboard', text: 'FRT breach alerts moved to a single banner at the top of the page with a "Work oldest first" action, instead of being buried mid-page inside nested cards.' },
+      { category: 'Dashboard', text: 'The hero metric row is now 3 cards (Faults This Week, Cost at Risk, Follow-ups Due) instead of 4, with larger numbers and friendlier zero states like "All returns handled".' },
+      { category: 'Dashboard', text: 'Product Launches is now a slim, dismissible strip instead of a full card — Restock Updates gets the space back.' },
+      { category: 'Dashboard', text: 'The AI Summary card now remembers the last-generated summary and offers a Refresh action instead of showing an empty box on every visit.' },
+      { category: 'Cases', text: 'Fault type is now a neutral chip with the note collapsed to one truncated line (full detail on hover), cutting row height so more cases fit on screen.' },
+      { category: 'Cases', text: 'The All Cases table header now stays pinned while scrolling through results.' },
+      { category: 'UI/UX', text: 'Fault type pills are now a neutral grey everywhere — colour is reserved for status (red/amber/green). Chart series use brand blue and slate instead of teal/pink.' },
+      { category: 'UI/UX', text: 'Sidebar: Inventory, Team and System collapse into an accordion showing only the active section; Quick Actions was replaced with a single "Search or create… ⌘K" hint.' },
+    ],
+  },
+  {
+    version: 'v10.5',
+    label: 'My Work & Exports',
+    date: '2026-08-06',
+    isLatest: false,
+    summary: 'The portal now has a personal work queue, better exports, and admin-managed performance agent mapping.',
+    changes: [
+      { category: 'Dashboard', text: 'My Work has been added as a top-level queue for each staff member, combining their open cases, returns, refunds, and assigned unfulfilled orders.' },
+      { category: 'Returns', text: 'Returns now has an Export CSV action that downloads the currently visible requested or processed return view.' },
+      { category: 'Refunds', text: 'Refunds now has an Export CSV action that respects the current status, search, date, and Mine filters.' },
+      { category: 'Performance', text: 'Primary support agents on the Performance page are now configured from Admin staff profiles instead of hardcoded Commslayer IDs.' },
+      { category: 'UI/UX', text: 'Legacy /dashboard and /new routes now redirect to the current dashboard and Submit Fault flow, and old unused dashboard components have been removed.' },
+    ],
+  },
+  {
     version: 'v10.4',
     label: 'Fault Submission Flow',
     date: '2026-07-15',
-    isLatest: true,
+    isLatest: false,
     summary: 'Submit Fault now uses one guided full-page flow with fewer clicks and clearer completion cues.',
     changes: [
       { category: 'Cases', text: 'Submit Fault no longer asks staff to choose between Standard and Quick modes; the page now follows one streamlined customer, product, fault, and evidence flow.' },
@@ -232,14 +263,11 @@ export const CHANGELOG: ChangelogVersion[] = [
   },
   {
     version: 'v7.9',
-    label: 'Shipments & Sidebar',
+    label: 'Restock & Sidebar',
     date: '2026-05-20',
     isLatest: false,
-    summary: 'Incoming Shipments tracker with Google Sheets CSV import, 3PL Restock Tracker, and a collapsible icon-only sidebar.',
+    summary: '3PL Restock Tracker and a collapsible icon-only sidebar.',
     changes: [
-      { category: 'Inventory', text: 'Incoming Shipments page — track all active shipments with status, ETA, transport type, provider, tracking number, costs, cartons, weight, and branch transfer details.' },
-      { category: 'Inventory', text: 'Product line items — each shipment shows the products and quantities arriving inline in the table so you can see what\'s coming without expanding the row.' },
-      { category: 'Inventory', text: 'Google Sheets CSV import — export your Demand Planning & Supply Chain sheet as a CSV and drag it onto the page (or click Import CSV) to preview and import shipments in one step.' },
       { category: 'Inventory', text: '3PL Restock Tracker — a dedicated page for tracking out-of-stock 3PL products with status (Out of Stock, Backordered, On Order, New Release, Back in Stock), expected restock dates, and supplier notes.' },
       { category: 'UI/UX', text: 'Collapsible sidebar — a toggle button collapses the sidebar to icon-only mode for more screen space. Labels reappear as tooltips on hover. Preference is saved and restored between sessions.' },
     ],
@@ -252,8 +280,8 @@ export const CHANGELOG: ChangelogVersion[] = [
     summary: 'Portal audit improvements tighten API access, add data quality checks, and polish high-risk inventory actions.',
     changes: [
       { category: 'Security', text: 'Staff API access is now blocked from admin-only backend routes, not just hidden in the sidebar.' },
-      { category: 'Dashboard', text: 'Admins now get a Data Quality card highlighting missing return, refund, shipment, restock, and promotion cleanup items.' },
-      { category: 'Inventory', text: 'Incoming Shipments and Restock Tracker are read-only for team members while admins keep edit, import, and delete controls.' },
+      { category: 'Dashboard', text: 'Admins now get a Data Quality card highlighting missing return, refund, restock, and promotion cleanup items.' },
+      { category: 'Inventory', text: 'Restock Tracker is read-only for team members while admins keep edit and delete controls.' },
       { category: 'UI/UX', text: 'Stock Room, promotions, and admin delete actions now use portal-styled confirmation dialogs instead of browser popups.' },
       { category: 'Security', text: 'Daily sessions now expire at local Adelaide midnight and the portal requires SESSION_SECRET to be configured.' },
       { category: 'Admin', text: 'Linting now runs through ESLint so future code quality checks work again.' },
@@ -276,9 +304,8 @@ export const CHANGELOG: ChangelogVersion[] = [
     label: 'Team Inventory Visibility',
     date: '2026-05-20',
     isLatest: false,
-    summary: 'Team members can now see Incoming Shipments and Restock Tracker without needing full admin inventory access.',
+    summary: 'Team members can now see Restock Tracker without needing full admin inventory access.',
     changes: [
-      { category: 'Inventory', text: 'Incoming Shipments now appears in the Inventory navigation for team members.' },
       { category: 'Inventory', text: 'Restock Tracker now appears in the Inventory navigation for team members while Stock Room remains admin-only.' },
       { category: 'Security', text: 'Route access now allows /stock/restock for team members without opening the main Stock Room page.' },
     ],

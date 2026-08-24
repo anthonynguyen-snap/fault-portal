@@ -13,7 +13,6 @@ import {
   Briefcase,
   Package,
   CreditCard,
-  PlusCircle,
   Tag,
   LogOut,
   Users2,
@@ -25,11 +24,11 @@ import {
   BookOpen,
   X,
   PackageOpen,
-  Ship,
   Eye,
   ChevronLeft,
   ChevronRight,
   PackageX,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from './SidebarContext';
@@ -197,16 +196,11 @@ type NavGroup = {
   items: NavItem[];
 };
 
-const quickActions: NavItem[] = [
-  { label: 'Submit Fault',    href: '/cases/new',            icon: PlusCircle, shortcut: '⌘K, F', isAction: true },
-  { label: 'Return Request',  href: '/returns/request/new',  icon: RotateCcw,  shortcut: '⌘K, R', isAction: true },
-  { label: 'Request Refund',  href: '/refunds/new',          icon: CreditCard, shortcut: '⌘K, P', isAction: true },
-];
-
 const navGroups: NavGroup[] = [
   {
     label: 'Operations',
     items: [
+      { label: 'My Work',      href: '/my-work',   icon: ClipboardList },
       { label: 'All Cases',    href: '/cases',     icon: AlertTriangle },
       { label: 'Claims',       href: '/claims',    icon: FileText,    adminOnly: true },
       { label: 'Returns',      href: '/returns',   icon: RotateCcw },
@@ -220,8 +214,7 @@ const navGroups: NavGroup[] = [
     label: 'Inventory',
     items: [
       { label: 'Stock Room',         href: '/stock',          icon: Package,     adminOnly: true },
-      { label: 'Incoming Shipments', href: '/shipments',      icon: Ship },
-      { label: 'Restock Tracker',    href: '/stock/restock',  icon: PackageOpen },
+      { label: 'Restock Updates',    href: '/stock/restock',  icon: PackageOpen },
       { label: 'Replenishment',      href: '/replenishment',  icon: Truck,       adminOnly: true },
       { label: 'Promotions',         href: '/promotions',     icon: Tag },
     ],
@@ -287,6 +280,22 @@ export function Sidebar() {
     return pathname.startsWith(href);
   }
 
+  // Accordion — only Operations stays always-expanded. Inventory / Team /
+  // System collapse to their header and only the group containing the
+  // current page auto-opens. `openOverride` tracks an explicit user click;
+  // it resets whenever the route changes so the accordion re-syncs.
+  const [openOverride, setOpenOverride] = useState<string | 'none' | null>(null);
+  useEffect(() => { setOpenOverride(null); }, [pathname]);
+  const autoOpenGroup = navGroups.find(g => g.label !== 'Operations' && g.items.some(item => isActive(item.href)))?.label ?? null;
+  const effectiveOpenGroup = openOverride === null ? autoOpenGroup : openOverride === 'none' ? null : openOverride;
+  function toggleGroup(label: string) {
+    setOpenOverride(effectiveOpenGroup === label ? 'none' : label);
+  }
+
+  function openCommandPalette() {
+    window.dispatchEvent(new Event('portal:open-command-palette'));
+  }
+
   const initials = user?.name
     ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
     : 'CC';
@@ -298,7 +307,7 @@ export function Sidebar() {
       )}
 
       <aside className={cn(
-        'bg-[#111827] border-r border-slate-950/80 flex flex-col flex-shrink-0 h-full z-50 shadow-[1px_0_0_rgba(255,255,255,0.03)_inset]',
+        'bg-[#202223] border-r border-black/20 flex flex-col flex-shrink-0 h-full z-50 shadow-[1px_0_0_rgba(255,255,255,0.04)_inset]',
         'transition-[width] duration-200 ease-in-out',
         'lg:relative lg:translate-x-0',
         'fixed inset-y-0 left-0',
@@ -308,8 +317,8 @@ export function Sidebar() {
 
         {/* Logo */}
         <div className={cn(
-          'border-b border-slate-800/80 flex items-center flex-shrink-0',
-          collapsed ? 'px-0 py-3.5 justify-center' : 'px-4 py-4 gap-2.5',
+          'border-b border-white/10 flex items-center flex-shrink-0',
+          collapsed ? 'px-0 py-3 justify-center' : 'px-4 py-3.5 gap-2.5',
         )}>
           {collapsed ? (
             <Link href="/" className="w-8 h-8 rounded-lg overflow-hidden bg-white flex items-center justify-center shadow-sm" title="SNAP Customer Care">
@@ -323,7 +332,7 @@ export function Sidebar() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-semibold text-sm leading-tight truncate">SNAP Customer Care</p>
-                  <p className="text-slate-400 text-[10px] font-medium">Operations portal</p>
+                  <p className="text-slate-400 text-[10px] font-medium">Admin portal</p>
                 </div>
               </Link>
               <button
@@ -338,7 +347,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className={cn('flex-1 py-3 overflow-y-auto', collapsed ? 'px-1.5 overflow-x-visible' : 'px-3 overflow-x-hidden')}>
+        <nav className={cn('flex-1 py-3 overflow-y-auto', collapsed ? 'px-1.5 overflow-x-visible' : 'px-2.5 overflow-x-hidden')}>
 
           {/* Home */}
           <div className="mb-2">
@@ -347,11 +356,11 @@ export function Sidebar() {
               onMouseEnter={e => showTooltip(e, 'Home')}
               onMouseLeave={hideTooltip}
               className={cn(
-                'flex items-center rounded-lg text-sm transition-all',
+                'flex items-center rounded-md text-sm transition-all',
                 collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
                 isActive('/')
                   ? 'nav-active-home text-white font-semibold'
-                  : 'font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                  : 'font-medium text-slate-300 hover:bg-white/[0.07] hover:text-white'
               )}
             >
               <Home size={15} className={cn('flex-shrink-0', isActive('/') ? 'text-brand-300' : '')} />
@@ -359,54 +368,36 @@ export function Sidebar() {
             </Link>
           </div>
 
-          {/* Quick Actions */}
+          {/* Quick Actions — a single hint pointing at the command palette,
+              rather than duplicating buttons that already exist on pages. */}
           {collapsed ? (
-            <div className="mb-3 space-y-0.5">
-              {quickActions.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onMouseEnter={e => showTooltip(e, item.label)}
-                    onMouseLeave={hideTooltip}
-                    className="flex justify-center items-center py-2 rounded-lg transition-all text-brand-300 hover:bg-white/10 hover:text-brand-100"
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-brand-900/80 border border-brand-700/40 flex items-center justify-center">
-                      <Icon size={12} className="text-brand-300" />
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              onMouseEnter={e => showTooltip(e, 'Search or create (⌘K)')}
+              onMouseLeave={hideTooltip}
+              className="mb-3 w-full flex justify-center items-center py-2 rounded-lg transition-all text-slate-400 hover:bg-white/10 hover:text-white"
+            >
+              <Search size={14} />
+            </button>
           ) : (
-            <div className="mb-4 rounded-lg border border-slate-700/70 bg-slate-900/45 p-1.5 space-y-0.5 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]">
-              <p className="px-2 pb-1 text-[9px] font-bold text-slate-400 uppercase tracking-wide">Quick actions</p>
-              {quickActions.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-sm font-semibold transition-all text-brand-200 hover:bg-white/10 hover:text-white"
-                  >
-                    <div className="w-6 h-6 rounded-lg bg-brand-900/80 border border-brand-700/40 flex items-center justify-center flex-shrink-0">
-                      <Icon size={12} className="text-brand-300" />
-                    </div>
-                    <span className="flex-1 truncate text-xs">{item.label}</span>
-                    {item.shortcut && (
-                      <kbd className="text-[9px] leading-none text-slate-400 bg-slate-950/70 border border-slate-700 rounded px-1.5 py-1 font-mono">
-                        {item.shortcut}
-                      </kbd>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={openCommandPalette}
+              className="mb-4 w-full flex items-center gap-2 rounded-lg border border-white/10 bg-black/18 px-2.5 py-2 text-left text-xs font-medium text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]"
+            >
+              <Search size={13} className="flex-shrink-0" />
+              <span className="flex-1">Search or create…</span>
+              <kbd className="text-[9px] leading-none text-slate-400 bg-slate-950/70 border border-slate-700 rounded px-1.5 py-1 font-mono flex-shrink-0">
+                ⌘K
+              </kbd>
+            </button>
           )}
 
-          {/* Groups */}
-          <div className={cn('space-y-4', collapsed && 'space-y-2')}>
+          {/* Groups — Operations always expanded; Inventory / Team / System
+              collapse to just their header, accordion-style, showing only
+              the group that contains the current page. */}
+          <div className={cn('space-y-3.5', collapsed && 'space-y-2')}>
             {navGroups.map((group) => {
               if (group.adminOnly && !canSeeManagementPages) return null;
               const visibleItems = group.items.filter(item =>
@@ -414,14 +405,28 @@ export function Sidebar() {
               );
               if (visibleItems.length === 0) return null;
 
+              const isAccordion = group.label !== 'Operations';
+              const isOpen = !isAccordion || effectiveOpenGroup === group.label;
+
               return (
                 <div key={group.label}>
-                  {!collapsed && (
+                  {!collapsed && isAccordion && (
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.label)}
+                      className="w-full flex items-center justify-between px-3 mb-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wide hover:text-slate-300 transition-colors"
+                    >
+                      {group.label}
+                      <ChevronRight size={11} className={cn('transition-transform', isOpen && 'rotate-90')} />
+                    </button>
+                  )}
+                  {!collapsed && !isAccordion && (
                     <p className="px-3 mb-1.5 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                       {group.label}
                     </p>
                   )}
                   {collapsed && <div className="mx-1 mb-1 border-t border-slate-800/90" />}
+                  {(!isAccordion || collapsed || isOpen) && (
                   <div className="space-y-0.5">
                     {visibleItems.map((item) => {
                       const Icon = item.icon;
@@ -434,11 +439,11 @@ export function Sidebar() {
                             onMouseEnter={e => showTooltip(e, item.label)}
                             onMouseLeave={hideTooltip}
                             className={cn(
-                              'flex items-center rounded-lg text-sm transition-all',
+                              'flex items-center rounded-md text-sm transition-all',
                               collapsed ? 'justify-center px-0 py-2' : 'gap-2.5 px-3 py-2',
                               active
                                 ? 'nav-active text-white font-semibold'
-                                : 'font-medium text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                                : 'font-medium text-slate-300 hover:bg-white/[0.07] hover:text-white'
                             )}
                           >
                             <Icon
@@ -461,6 +466,7 @@ export function Sidebar() {
                       );
                     })}
                   </div>
+                  )}
                 </div>
               );
             })}
@@ -487,7 +493,7 @@ export function Sidebar() {
         </button>
 
         {/* Footer */}
-        <div className={cn('border-t border-slate-800/80 bg-slate-950/20', collapsed ? 'px-1.5 py-3' : 'px-3 py-3')}>
+        <div className={cn('border-t border-white/10 bg-black/18', collapsed ? 'px-1.5 py-3' : 'px-3 py-3')}>
           {canPreviewTeam && !collapsed && (
             <button
               type="button"

@@ -132,7 +132,7 @@ export function WeeklyFaultChart({ weeklyTrend, weekCountDelta, weekCostDelta }:
           <YAxis yAxisId="right" orientation="right" tick={TICK} axisLine={false} tickLine={false} width={52} tickFormatter={(v) => `$${v}`} />
           <Tooltip contentStyle={TT} formatter={(v: number, name: string) => [name === 'Cost ($)' ? `$${(v as number).toFixed(2)}` : v, name]} />
           <Bar yAxisId="left" dataKey="count" name="Faults" fill="#1591b3" radius={[4, 4, 0, 0]} maxBarSize={44} />
-          <Bar yAxisId="right" dataKey="cost" name="Cost ($)" fill="#e879a0" radius={[4, 4, 0, 0]} maxBarSize={44} />
+          <Bar yAxisId="right" dataKey="cost" name="Cost ($)" fill="#64748b" radius={[4, 4, 0, 0]} maxBarSize={44} />
         </BarChart>
       </ResponsiveContainer>
     </div>

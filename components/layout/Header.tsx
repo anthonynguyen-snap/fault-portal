@@ -9,6 +9,7 @@ import { useSidebar } from './SidebarContext';
 // ── Breadcrumb label map ──────────────────────────────────────────────────────
 const ROUTE_LABELS: Record<string, string> = {
   '/':               'Home',
+  '/my-work':        'My Work',
   '/cases':          'All Cases',
   '/cases/new':      'Submit Fault',
   '/claims':         'Claims',
@@ -262,6 +263,7 @@ const QUICK_ACTIONS: CommandItem[] = [
 
 const PAGE_COMMANDS: CommandItem[] = [
   { kind: 'page', id: 'home', title: 'Dashboard', subtitle: 'Portal overview and daily priorities', href: '/' },
+  { kind: 'page', id: 'my-work', title: 'My Work', subtitle: 'Your open cases, returns, refunds and assigned orders', href: '/my-work' },
   { kind: 'page', id: 'cases', title: 'Cases', subtitle: 'Fault cases and warranty evidence', href: '/cases' },
   { kind: 'page', id: 'returns', title: 'Returns', subtitle: 'Return requests and office processing', href: '/returns' },
   { kind: 'page', id: 'refunds', title: 'Refunds', subtitle: 'Refund requests and approvals', href: '/refunds' },
@@ -316,18 +318,27 @@ export default function Header() {
   const inputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout>();
 
-  // ⌘K / Ctrl+K global shortcut to focus search
+  // ⌘K / Ctrl+K global shortcut to focus search — also triggerable
+  // programmatically (e.g. the sidebar's "Search or create" hint) via a
+  // custom event, so there's one command palette, not two entry points.
   useEffect(() => {
+    function openPalette() {
+      setShowDropdown(true);
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
     function handleGlobalKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setShowDropdown(true);
-        inputRef.current?.focus();
-        inputRef.current?.select();
+        openPalette();
       }
     }
     document.addEventListener('keydown', handleGlobalKey);
-    return () => document.removeEventListener('keydown', handleGlobalKey);
+    window.addEventListener('portal:open-command-palette', openPalette);
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKey);
+      window.removeEventListener('portal:open-command-palette', openPalette);
+    };
   }, []);
 
   useEffect(() => {
@@ -460,8 +471,8 @@ export default function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90">
-      <div className="flex items-center px-3 sm:px-4 py-2.5 min-h-[56px] gap-3">
+    <header className="sticky top-0 z-50 w-full border-b border-[#dfe3e8] bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90">
+      <div className="flex items-center px-3 sm:px-4 py-2 min-h-[54px] gap-3">
         {/* Hamburger — only on small screens */}
         <button
           onClick={toggle}
@@ -484,11 +495,11 @@ export default function Header() {
                 onChange={e => setQuery(e.target.value)}
                 onFocus={() => setShowDropdown(true)}
                 onKeyDown={handleKeyDown}
-                className="w-full pl-9 pr-16 py-2.5 text-sm bg-[#f7f8fa] border border-slate-200 rounded-lg shadow-[0_1px_0_rgba(0,0,0,0.03)] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-brand-600 focus:shadow-[var(--focus-ring)] transition-colors"
+                className="w-full pl-9 pr-16 py-2 text-sm bg-white border border-[#babfc5] rounded-lg shadow-[0_1px_0_rgba(0,0,0,0.04)] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:border-brand-600 focus:shadow-[var(--focus-ring)] transition-colors"
                 autoComplete="off"
               />
               {!query && !isLoading && (
-                <kbd className="absolute right-3 text-[10px] text-slate-400 bg-white border border-slate-200 rounded px-1.5 py-0.5 font-mono pointer-events-none select-none hidden sm:block">
+                <kbd className="absolute right-3 text-[10px] text-slate-500 bg-[#f7f7f8] border border-slate-200 rounded px-1.5 py-0.5 font-mono pointer-events-none select-none hidden sm:block">
                   ⌘K
                 </kbd>
               )}
@@ -499,7 +510,7 @@ export default function Header() {
 
             {/* Dropdown Results */}
             {showDropdown && (
-              <div className="absolute top-full left-0 mt-2 w-[34rem] max-w-[calc(100vw-1.5rem)] bg-white border border-slate-200 rounded-lg shadow-[var(--shadow-popover)] overflow-hidden">
+              <div className="absolute top-full left-0 mt-2 w-[34rem] max-w-[calc(100vw-1.5rem)] bg-white border border-[#dfe3e8] rounded-lg shadow-[var(--shadow-popover)] overflow-hidden">
                 {hasResults ? (
                   <div className="max-h-[420px] overflow-y-auto">
                     {[

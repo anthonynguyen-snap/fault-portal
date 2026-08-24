@@ -32,23 +32,20 @@ export async function GET() {
     const [
       returnsRes,
       refundsRes,
-      shipmentsRes,
       restockRes,
       promotionsRes,
     ] = await Promise.all([
       getSupabase().from('returns').select('id, order_number, tracking_number, processed_by, stage, starshipit_order_number').limit(500),
       getSupabase().from('refund_requests').select('id, order_number, status, submitted_by, processed_at').limit(500),
-      getSupabase().from('shipments').select('id, shipment_number, status, eta, tracking_number').limit(500),
-      getSupabase().from('restock_items').select('id, product_name, status, expected_restock_date, resolved').eq('resolved', false).limit(500),
+      getSupabase().from('restock_items').select('id, product_name, status, expected_restock_date, expected_restock_label, customer_message, resolved').eq('resolved', false).limit(500),
       getSupabase().from('promotions').select('id, name, end_date, enabled').eq('enabled', true).limit(500),
     ]);
 
-    const error = returnsRes.error || refundsRes.error || shipmentsRes.error || restockRes.error || promotionsRes.error;
+    const error = returnsRes.error || refundsRes.error || restockRes.error || promotionsRes.error;
     if (error) throw error;
 
     const returns = returnsRes.data ?? [];
     const refunds = refundsRes.data ?? [];
-    const shipments = shipmentsRes.data ?? [];
     const restock = restockRes.data ?? [];
     const promotions = promotionsRes.data ?? [];
 
@@ -57,14 +54,14 @@ export async function GET() {
       row.stage === 'requested' && isBlank(row.tracking_number) && isBlank(row.starshipit_order_number)
     ).length;
     const pendingRefunds = refunds.filter((row) => row.status === 'Pending').length;
-    const shipmentsMissingEta = shipments.filter((row) =>
-      row.status !== 'Delivered' && isBlank(row.eta)
+    const restockMissingTiming = restock.filter((row) =>
+      ['On Order', 'Backordered', 'Reshipping Soon'].includes(String(row.status)) &&
+      isBlank(row.expected_restock_date) &&
+      isBlank(row.expected_restock_label)
     ).length;
-    const shipmentsMissingTracking = shipments.filter((row) =>
-      row.status !== 'Delivered' && isBlank(row.tracking_number)
-    ).length;
-    const restockMissingDate = restock.filter((row) =>
-      ['On Order', 'Backordered'].includes(String(row.status)) && isBlank(row.expected_restock_date)
+    const restockMissingMessage = restock.filter((row) =>
+      ['Out of Stock', 'Backordered', 'Reshipping Soon'].includes(String(row.status)) &&
+      isBlank(row.customer_message)
     ).length;
     const promosEndingSoon = promotions.filter((row) => {
       if (isBlank(row.end_date)) return false;
@@ -99,28 +96,20 @@ export async function GET() {
         detail: 'Refund requests still waiting to be closed.',
       },
       {
-        id: 'shipments-missing-eta',
-        label: 'Shipments missing ETA',
-        count: shipmentsMissingEta,
-        href: '/shipments',
-        tone: shipmentsMissingEta > 0 ? 'amber' : 'blue',
-        detail: 'Open incoming shipments without an expected arrival date.',
-      },
-      {
-        id: 'shipments-missing-tracking',
-        label: 'Shipments missing tracking',
-        count: shipmentsMissingTracking,
-        href: '/shipments',
-        tone: shipmentsMissingTracking > 0 ? 'red' : 'blue',
-        detail: 'Open incoming shipments without tracking details.',
-      },
-      {
-        id: 'restock-missing-date',
-        label: 'Restock items missing ETA',
-        count: restockMissingDate,
+        id: 'restock-missing-timing',
+        label: 'Restock items missing timing',
+        count: restockMissingTiming,
         href: '/stock/restock',
-        tone: restockMissingDate > 0 ? 'amber' : 'blue',
-        detail: 'Backordered or on-order items without an expected restock date.',
+        tone: restockMissingTiming > 0 ? 'amber' : 'blue',
+        detail: 'Backordered or reshipping items without an expected date or timing note.',
+      },
+      {
+        id: 'restock-missing-message',
+        label: 'Restock items missing message',
+        count: restockMissingMessage,
+        href: '/stock/restock',
+        tone: restockMissingMessage > 0 ? 'amber' : 'blue',
+        detail: 'Out-of-stock items without a team/customer message.',
       },
       {
         id: 'promos-ending-soon',

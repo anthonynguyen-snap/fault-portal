@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { adjustStockQuantity, getAllStockItems } from '@/lib/stock-sheets';
+import { applyStockMovement } from '@/lib/stock-sheets';
 import type { StockMovement, StockMovementItem } from '@/types';
 
 export const runtime = 'nodejs';
@@ -57,36 +57,28 @@ export async function POST(req: NextRequest) {
     if (!type || !reason || !items?.length) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+    if (type !== 'in' && type !== 'out') {
+      return NextResponse.json({ error: 'Movement type must be in or out' }, { status: 400 });
+    }
 
-    // Build a SKU→name map so we can store names in the log without a
-    // separate lookup per item (one read, then N writes).
-    const allItems  = await getAllStockItems();
-    const nameBysku = new Map(allItems.map((i) => [i.sku, i.name]));
-
-    // Adjust quantities in Google Sheets.
-    const movementItems: StockMovementItem[] = [];
     const movementId = crypto.randomUUID();
+    const note = `${type.toUpperCase()} · ${reason}${notes ? ' · ' + notes : ''}`;
+    const movementPlan = await applyStockMovement(
+      items.map((lineItem) => ({
+        sku: lineItem.stockItemId, // after migration, stockItemId IS the sku
+        quantity: lineItem.quantity,
+      })),
+      type,
+      note,
+    );
 
-    for (const lineItem of items) {
-      const sku   = lineItem.stockItemId;  // after migration, stockItemId IS the sku
-      const delta = type === 'in' ? lineItem.quantity : -lineItem.quantity;
-      const note  = `${type.toUpperCase()} · ${reason}${notes ? ' · ' + notes : ''}`;
-
-      const { newQuantity, itemName } = await adjustStockQuantity(sku, delta, note);
-
-      movementItems.push({
+    const movementItems: StockMovementItem[] = movementPlan.map((lineItem) => ({
         id:            crypto.randomUUID(),
         movementId,
-        stockItemId:   sku,
-        stockItemName: itemName || nameBysku.get(sku) || sku,
-        quantity:      lineItem.quantity,
-      });
-
-      // Keep the local allItems list in sync so that if the same SKU appears
-      // twice in one movement, the second delta sees the updated quantity.
-      const cached = allItems.find((i) => i.sku === sku);
-      if (cached) cached.quantity = newQuantity;
-    }
+        stockItemId:   lineItem.sku,
+        stockItemName: lineItem.itemName,
+        quantity:      lineItem.quantityChanged,
+    }));
 
     // Record the movement in activity_log so the history tab can show it.
     const { error: logErr } = await getSupabase().from('activity_log').insert({

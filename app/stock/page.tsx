@@ -1422,7 +1422,7 @@ export default function StockPage() {
       const totalOutbound = outboundItems.reduce((sum, item) => sum + item.quantity, 0);
       const overCurrent = rows.filter(row => row.quantity > row.item.quantity);
       const overCurrentNote = overCurrent.length > 0
-        ? `\n\n${overCurrent.length} SKU${overCurrent.length !== 1 ? 's' : ''} are counted higher than current Stock Room quantity. Stock Room will not go below 0.`
+        ? `\n\n${overCurrent.length} SKU${overCurrent.length !== 1 ? 's' : ''} are counted higher than current Stock Room quantity. Finalise will stop so you can reset the count first.`
         : '';
 
       const ok = await askConfirm({

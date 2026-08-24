@@ -14,9 +14,6 @@ import { StatCardsSkeleton, SkeletonBlock, TableSkeleton } from '@/components/ui
 // ── KPI targets (default) ─────────────────────────────────────────────────────
 const DEFAULT_TARGETS = { repliesPerDay: 60, resolveRate: 30, csat: 3.0 };
 
-// ── Agent groups ──────────────────────────────────────────────────────────────
-const PRIMARY_AGENT_IDS: (number | string)[] = [6525, 6988, 3007]; // Niko, Gabriel, Charles
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AgentStat {
   agent_id: number | string;
@@ -39,6 +36,12 @@ interface PerformanceData {
   agents: Record<string, unknown>;
   overview: Record<string, unknown>;
   csat: Record<string, unknown>;
+}
+
+interface PerformanceAgentConfig {
+  staffName: string;
+  commslayerAgentId: string;
+  performancePrimary: boolean;
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -270,6 +273,7 @@ export default function PerformancePage() {
   const [error,   setError]   = useState('');
   const [showAI,  setShowAI]  = useState(false);
   const [targets, setTargets] = useState<KPITargets>(DEFAULT_TARGETS);
+  const [agentConfig, setAgentConfig] = useState<PerformanceAgentConfig[]>([]);
 
   // AI summary
   const [summary,        setSummary]        = useState('');
@@ -280,10 +284,15 @@ export default function PerformancePage() {
 
   // Fetch KPI targets on mount
   useEffect(() => {
-    fetch('/api/config')
-      .then(r => r.json())
-      .then(json => setTargets(json))
-      .catch(err => console.error('Failed to fetch KPI targets:', err));
+    Promise.all([
+      fetch('/api/config').then(r => r.json()),
+      fetch('/api/performance/agents-config').then(r => r.json()),
+    ])
+      .then(([configJson, agentJson]) => {
+        setTargets(configJson);
+        if (Array.isArray(agentJson.agents)) setAgentConfig(agentJson.agents);
+      })
+      .catch(err => console.error('Failed to fetch performance config:', err));
   }, []);
 
   const load = useCallback(() => {
@@ -308,7 +317,15 @@ export default function PerformancePage() {
     fetch('/api/performance/summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data, from, to, periodLabel }),
+      body: JSON.stringify({
+        data,
+        from,
+        to,
+        periodLabel,
+        targets,
+        primaryAgentIds,
+        primaryAgentNames,
+      }),
     })
       .then(r => r.json())
       .then(json => { setSummary(json.summary ?? ''); setSummaryGeneratedAt(new Date()); })
@@ -327,8 +344,16 @@ export default function PerformancePage() {
   const aiAgents      = rawAgents.filter(a => a.agent_type === 'ai_agent');
   const inactiveCount = rawAgents.filter(a => a.agent_type === 'user' && a.messages_sent === 0).length;
 
-  const primaryAgents = [...humanAgents].filter(a => PRIMARY_AGENT_IDS.includes(a.agent_id)).sort((a, b) => b.closed_tickets - a.closed_tickets);
-  const otherAgents   = [...humanAgents].filter(a => !PRIMARY_AGENT_IDS.includes(a.agent_id)).sort((a, b) => b.closed_tickets - a.closed_tickets);
+  const primaryAgentIds = agentConfig
+    .filter(agent => agent.performancePrimary)
+    .map(agent => agent.commslayerAgentId);
+  const primaryAgentNames = agentConfig
+    .filter(agent => agent.performancePrimary)
+    .map(agent => agent.staffName)
+    .filter(Boolean);
+  const primaryAgentIdSet = new Set(primaryAgentIds.map(String));
+  const primaryAgents = [...humanAgents].filter(a => primaryAgentIdSet.has(String(a.agent_id))).sort((a, b) => b.closed_tickets - a.closed_tickets);
+  const otherAgents   = [...humanAgents].filter(a => !primaryAgentIdSet.has(String(a.agent_id))).sort((a, b) => b.closed_tickets - a.closed_tickets);
   const sortedAgents  = [...primaryAgents, ...otherAgents];
 
   // ── Parse overview ───────────────────────────────────────────────────────────
@@ -425,6 +450,11 @@ export default function PerformancePage() {
             <Icon size={11} /> {label}
           </span>
         ))}
+        {primaryAgentIds.length === 0 && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+            <AlertCircle size={11} /> No primary agents configured
+          </span>
+        )}
       </div>
 
       {/* Error banner */}

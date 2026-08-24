@@ -1,6 +1,5 @@
-import { DashboardView } from "@/components/dashboard/DashboardView";
+import { redirect } from 'next/navigation';
 
 export default async function DashboardPage() {
-  // Auth is handled by middleware — no need to check session here
-  return <DashboardView />;
+  redirect('/');
 }

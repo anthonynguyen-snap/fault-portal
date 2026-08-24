@@ -20,14 +20,15 @@ import {
   Activity,
   CreditCard,
   Inbox,
-  MessageSquare,
-  Mail,
-  UserX,
   ExternalLink,
+  PackageOpen,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { DashboardStats, Return, ReplenishmentRequest, ReplenishmentStatus } from '@/types';
+import { DashboardStats, Return, ReplenishmentRequest, ReplenishmentStatus, RestockItem } from '@/types';
 import {
   WeeklyFaultChartSkeleton,
 } from '@/components/dashboard/DashboardCharts';
@@ -37,7 +38,7 @@ const WeeklyFaultChart = dynamic(
   () => import('@/components/dashboard/DashboardCharts').then(m => ({ default: m.WeeklyFaultChart })),
   { ssr: false, loading: () => <WeeklyFaultChartSkeleton /> },
 );
-import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT, faultTypeBadge } from '@/lib/utils';
+import { formatCurrency, formatDate, STATUS_STYLES, STATUS_DOT } from '@/lib/utils';
 import { computeSuppressions } from '@/lib/promotions';
 import { DashboardSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -175,17 +176,19 @@ function addDays(d: Date, n: number): Date {
 function fmtDate(d: Date) { return d.toISOString().slice(0, 10); }
 // ── Quick Stat Cell ────────────────────────────────────────────────────────────
 function QuickStat({
-  label, value, sub, href, alert = false, trend,
+  label, value, sub, href, alert = false, trend, zeroLabel,
 }: {
   label: string; value: string | number; sub: string;
-  href?: string; alert?: boolean; trend?: number | null;
+  href?: string; alert?: boolean; trend?: number | null; zeroLabel?: string;
 }) {
+  const isZero = value === 0;
+  const showAlert = alert && !isZero;
   const cell = (
-    <div className={`card p-4 h-full transition-shadow hover:shadow-md ${alert ? 'border-amber-200 bg-amber-50/40' : ''}`}>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</p>
-      <p className={`text-3xl font-bold font-mono leading-none ${alert ? 'text-amber-700' : 'text-slate-900'}`}>{value}</p>
-      <div className="flex items-center justify-between mt-2 gap-2">
-        <p className="text-[11px] text-slate-400 leading-tight">{sub}</p>
+    <div className={`card p-5 h-full transition-shadow hover:shadow-md ${showAlert ? 'border-amber-200 bg-amber-50/40' : ''}`}>
+      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2.5">{label}</p>
+      <p className={`kpi-value ${showAlert ? 'text-amber-700' : isZero && zeroLabel ? 'text-emerald-600' : 'text-slate-900'}`}>{value}</p>
+      <div className="flex items-center justify-between mt-2.5 gap-2">
+        <p className="text-xs text-slate-400 leading-tight">{isZero && zeroLabel ? zeroLabel : sub}</p>
         {trend != null && (
           <span className={`flex-shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${
             trend > 0 ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'
@@ -226,6 +229,251 @@ function SectionHeader({
   );
 }
 
+function restockTimingText(item: Pick<RestockItem, 'expectedRestockDate' | 'expectedRestockLabel'>) {
+  if (item.expectedRestockLabel.trim()) return item.expectedRestockLabel.trim();
+  if (!item.expectedRestockDate) return 'Timing not set';
+  return new Date(item.expectedRestockDate + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
+
+const RESTOCK_STATUS_STYLES: Record<RestockItem['status'], string> = {
+  'Out of Stock':    'bg-red-100 text-red-700',
+  'Backordered':     'bg-amber-100 text-amber-700',
+  'Reshipping Soon': 'bg-sky-100 text-sky-700',
+  'On Order':        'bg-blue-100 text-blue-700',
+  'New Release':     'bg-purple-100 text-purple-700',
+  'Back in Stock':   'bg-emerald-100 text-emerald-700',
+};
+
+function RestockUpdatesTile({ items }: { items: RestockItem[] }) {
+  const active = items.filter(item => !item.resolved);
+  const priority = active
+    .filter(item => item.status !== 'Back in Stock')
+    .slice(0, 2);
+  const missingMessage = active.filter(item =>
+    ['Out of Stock', 'Backordered', 'Reshipping Soon'].includes(item.status) &&
+    !item.customerMessage.trim()
+  ).length;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100 bg-sky-50/60">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0">
+            <PackageOpen size={15} className="text-sky-700" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-slate-900">Restock Updates</h2>
+            <p className="text-xs text-slate-500">{active.length} active product update{active.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+        <Link href="/stock/restock" className="text-xs text-sky-700 font-semibold hover:underline flex items-center gap-1 flex-shrink-0">
+          Open <ArrowRight size={11} />
+        </Link>
+      </div>
+
+      {priority.length > 0 ? (
+        <div className="divide-y divide-slate-100">
+          {priority.map(item => (
+            <Link key={item.id} href="/stock/restock" className="block px-5 py-3.5 hover:bg-slate-50 transition-colors">
+              <div className="flex items-start gap-3">
+                <span className={`mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${RESTOCK_STATUS_STYLES[item.status]}`}>
+                  {item.status}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{item.productName}</p>
+                    {item.sku && <span className="text-[10px] font-mono text-slate-400">{item.sku}</span>}
+                  </div>
+                  <p className="text-xs font-medium text-sky-700 mt-1">{restockTimingText(item)}</p>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                    {item.customerMessage || item.notes || 'Add a team/customer message for this product.'}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <Link href="/stock/restock" className="block px-5 py-5 text-sm text-slate-500 hover:bg-slate-50 transition-colors">
+          No active out-of-stock messages right now.
+        </Link>
+      )}
+
+      {missingMessage > 0 && (
+        <div className="border-t border-amber-100 bg-amber-50 px-5 py-2.5 text-xs text-amber-700">
+          {missingMessage} active update{missingMessage !== 1 ? 's' : ''} need a customer message.
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ProductLaunch = {
+  id: string;
+  name: string;
+  description: string;
+  price_aud: number | null;
+  image_url: string;
+  launch_date: string | null;
+  link: string;
+};
+
+const LAUNCHES_DISMISSED_KEY = 'fault-portal:launches-dismissed';
+
+// Slim, dismissible strip — this is marketing content in an operations tool,
+// so it gets one line, not a full card with images.
+function ProductLaunchesStrip({ launches }: { launches: ProductLaunch[] }) {
+  const [dismissed, setDismissed] = useState<string>('');
+
+  useEffect(() => {
+    try { setDismissed(localStorage.getItem(LAUNCHES_DISMISSED_KEY) || ''); } catch { /* no-op */ }
+  }, []);
+
+  if (!launches.length) return null;
+  const ids = launches.map(l => l.id).sort().join(',');
+  if (dismissed === ids) return null;
+
+  const lead = launches[0];
+  const isLive = lead.launch_date ? new Date(lead.launch_date) <= new Date() : true;
+
+  function dismiss() {
+    try { localStorage.setItem(LAUNCHES_DISMISSED_KEY, ids); } catch { /* no-op */ }
+    setDismissed(ids);
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-2.5 text-sm">
+      <Sparkles size={14} className="text-brand-600 flex-shrink-0" />
+      <span className={`flex-shrink-0 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+        {isLive ? 'Live' : 'Soon'}
+      </span>
+      <span className="font-semibold text-slate-800 truncate">{lead.name}</span>
+      {launches.length > 1 && (
+        <span className="text-xs text-slate-400 flex-shrink-0">+{launches.length - 1} more launch{launches.length - 1 !== 1 ? 'es' : ''}</span>
+      )}
+      <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+        {lead.link && (
+          <a href={lead.link} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-brand-700 hover:underline">
+            View
+          </a>
+        )}
+        <button type="button" onClick={dismiss} aria-label="Dismiss product launches" className="text-slate-400 hover:text-slate-600 transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── FRT / Commslayer queue types + helpers ─────────────────────────────────────
+interface BreachingTicket { id: string; title: string; customer: string; inbox: string; ageSeconds: number; url: string; }
+interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; breachingTickets?: BreachingTicket[]; liveQueueError?: string; unassignedQueueUrl?: string; fetchedAt: string; }
+type FrtLevel = 'ok' | 'amber' | 'red';
+const FRT_AMBER_SECONDS = 24 * 3600;
+const FRT_RED_SECONDS = 48 * 3600;
+function fmtFRT(s: number) { if (!s || s <= 0) return '—'; const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60); if (d >= 1) return h > 0 ? `${d}d ${h}h` : `${d}d`; if (h>=1) return `${h}h ${m}m`; return `${m}m`; }
+function frtLevel(s: number): FrtLevel {
+  if (s > FRT_RED_SECONDS) return 'red';
+  if (s > FRT_AMBER_SECONDS) return 'amber';
+  return 'ok';
+}
+const FRT_CARD: Record<FrtLevel, { card: string; iconBg: string; icon: string; value: string; sub: string; label: string }> = {
+  ok:    { card: 'bg-emerald-50 border-emerald-200', iconBg: 'bg-emerald-100', icon: 'text-emerald-600', value: 'text-emerald-700', sub: 'under 24h target', label: 'Great pace' },
+  amber: { card: 'bg-amber-50 border-amber-200', iconBg: 'bg-amber-100', icon: 'text-amber-500', value: 'text-amber-700', sub: 'within 48h max', label: 'Within target' },
+  red:   { card: 'bg-red-50 border-red-200', iconBg: 'bg-red-100', icon: 'text-red-500', value: 'text-red-700', sub: 'over 48h max', label: 'Response needed' },
+};
+function liveFRTSeconds(data: QueueData, clockNow: number) {
+  const fetchedAt = Date.parse(data.fetchedAt);
+  if (Number.isNaN(fetchedAt)) return data.frtSeconds;
+  return data.frtSeconds + Math.max(0, Math.floor((clockNow - fetchedAt) / 1000));
+}
+
+// ── Critical FRT Breach Banner — the one thing that needs action right now ─────
+// Single flat banner, not nested cards. Only appears when something is actually
+// overdue: FRT itself has breached 48h, or a ticket has sat unassigned a day+.
+function FrtBreachBanner({
+  queue, clockNow,
+}: {
+  queue: QueueData | null;
+  clockNow: number;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (!queue) return null;
+
+  const liveFrt = liveFRTSeconds(queue, clockNow);
+  const level = frtLevel(liveFrt);
+  const oldest = queue.breachingTickets?.[0];
+  const oldestIsStale = oldest && oldest.ageSeconds >= 86400; // 24h+
+  const isBreach = level === 'red' || oldestIsStale;
+  if (!isBreach) return null;
+
+  const tickets = queue.breachingTickets ?? [];
+  const workUrl = oldest?.url ?? queue.unassignedQueueUrl;
+  const count = tickets.length || (oldest ? 1 : 0);
+
+  return (
+    <div className="rounded-xl border border-red-300 bg-red-50 overflow-hidden shadow-[0_0_0_1px_rgba(248,113,113,0.12)]">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
+        </span>
+        <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
+        <p className="text-sm font-bold text-red-800">
+          {level === 'red'
+            ? `FRT breach: ${count > 0 ? `${count} ticket${count !== 1 ? 's' : ''}` : 'first replies'} over 48h`
+            : `${count} ticket${count !== 1 ? 's' : ''} unassigned over a day`}
+        </p>
+        {oldest && (
+          <span className="text-xs text-red-700">
+            oldest waiting <span className="font-mono font-semibold">{fmtFRT(oldest.ageSeconds)}</span>
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+          {workUrl && (
+            <a
+              href={workUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors"
+            >
+              Work oldest first <ExternalLink size={11} />
+            </a>
+          )}
+          {tickets.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded(v => !v)}
+              className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white/70 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-white transition-colors"
+            >
+              {expanded ? 'Hide' : 'Show'} {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
+              {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+          )}
+        </div>
+      </div>
+      {expanded && tickets.length > 0 && (
+        <div className="border-t border-red-200 divide-y divide-red-100">
+          {tickets.slice(0, 8).map(ticket => (
+            <a
+              key={ticket.id}
+              href={ticket.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 px-4 py-2 text-red-800 hover:bg-red-100/60 transition-colors"
+            >
+              <span className="font-mono text-[11px] font-bold flex-shrink-0">#{ticket.id}</span>
+              <span className="text-xs font-semibold flex-shrink-0 whitespace-nowrap">{fmtFRT(ticket.ageSeconds)}</span>
+              <span className="min-w-0 flex-1 truncate text-xs">{ticket.customer} · {ticket.title}</span>
+              <ExternalLink size={11} className="flex-shrink-0 opacity-60" />
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Dashboard Page ────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { effectiveRole, viewingAsTeam, setViewingAsTeam } = useAuth();
@@ -238,38 +486,17 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Commslayer queue
-  interface BreachingTicket { id: string; title: string; customer: string; inbox: string; ageSeconds: number; url: string; }
-  interface QueueData { date: string; created: number; closed: number; frtSeconds: number; messagesSent: number; breachingTickets?: BreachingTicket[]; liveQueueError?: string; unassignedQueueUrl?: string; fetchedAt: string; }
-  type FrtLevel = 'ok' | 'amber' | 'red';
-  const FRT_AMBER_SECONDS = 24 * 3600;
-  const FRT_RED_SECONDS = 48 * 3600;
-  function fmtFRT(s: number) { if (!s || s <= 0) return '—'; const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60); if (d >= 1) return h > 0 ? `${d}d ${h}h` : `${d}d`; if (h>=1) return `${h}h ${m}m`; return `${m}m`; }
-  function frtLevel(s: number): FrtLevel {
-    if (s > FRT_RED_SECONDS) return 'red';
-    if (s > FRT_AMBER_SECONDS) return 'amber';
-    return 'ok';
-  }
-  const FRT_CARD: Record<FrtLevel, { card: string; iconBg: string; icon: string; value: string; sub: string; label: string }> = {
-    ok:    { card: 'bg-emerald-50 border-emerald-200', iconBg: 'bg-emerald-100', icon: 'text-emerald-600', value: 'text-emerald-700', sub: 'under 24h target', label: 'Great pace' },
-    amber: { card: 'bg-amber-50 border-amber-200', iconBg: 'bg-amber-100', icon: 'text-amber-500', value: 'text-amber-700', sub: 'within 48h max', label: 'Within target' },
-    red:   { card: 'bg-red-50 border-red-200', iconBg: 'bg-red-100', icon: 'text-red-500', value: 'text-red-700', sub: 'over 48h max', label: 'Response needed' },
-  };
   const [queue, setQueue] = useState<QueueData | null>(null);
   const [queueError, setQueueError] = useState('');
   const [queueLoading, setQueueLoading] = useState(true);
   const [clockNow, setClockNow] = useState(() => Date.now());
-  const [launches, setLaunches] = useState<{ id: string; name: string; description: string; price_aud: number | null; image_url: string; launch_date: string | null; link: string }[]>([]);
+  const [launches, setLaunches] = useState<ProductLaunch[]>([]);
+  const [restockUpdates, setRestockUpdates] = useState<RestockItem[]>([]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClockNow(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
-
-  function liveFRTSeconds(data: QueueData) {
-    const fetchedAt = Date.parse(data.fetchedAt);
-    if (Number.isNaN(fetchedAt)) return data.frtSeconds;
-    return data.frtSeconds + Math.max(0, Math.floor((clockNow - fetchedAt) / 1000));
-  }
 
   async function loadStats() {
     try {
@@ -293,7 +520,15 @@ export default function DashboardPage() {
     setQueueLoading(true);
     fetch('/api/commslayer/queue')
       .then(r => r.json())
-      .then(j => { if (j?.error) setQueueError(j.error); else setQueue(j); })
+      .then(j => {
+        if (j?.error) {
+          setQueueError(j.error);
+          setQueue(null);
+        } else {
+          setQueue(j);
+          setQueueError('');
+        }
+      })
       .catch(e => setQueueError(e.message ?? 'Failed'))
       .finally(() => setQueueLoading(false));
   }
@@ -301,6 +536,7 @@ export default function DashboardPage() {
   useEffect(() => {
     loadStats();
     fetch('/api/product-launches').then(r => r.json()).then(d => setLaunches(d.data ?? [])).catch(() => {});
+    fetch('/api/stock/restock').then(r => r.json()).then(d => setRestockUpdates(d.data ?? [])).catch(() => {});
   }, []);
 
   function handleRefresh() {
@@ -340,12 +576,7 @@ export default function DashboardPage() {
   // ── Returns calculations ───────────────────────────────────────────────────
   const thisMonday = getMondayOf(new Date());
   const thisSunday = addDays(thisMonday, 6);
-  const lastMonday = addDays(thisMonday, -7);
-  const lastSunday = addDays(thisMonday, -1);
   const weekReturns = allReturns.filter(r => r.stage === 'processed' && r.date >= fmtDate(thisMonday) && r.date <= fmtDate(thisSunday));
-  const lastWeekReturns = allReturns.filter(r => r.stage === 'processed' && r.date >= fmtDate(lastMonday) && r.date <= fmtDate(lastSunday));
-  const weekReturnsDelta = lastWeekReturns.length > 0
-    ? ((weekReturns.length - lastWeekReturns.length) / lastWeekReturns.length) * 100 : null;
   const weekRefunded = weekReturns.reduce((sum, r) => sum + (r.totalRefundAmount || 0), 0);
   const pendingFollowUps = allReturns.filter(r => r.followUpStatus === 'Pending').length;
 
@@ -382,48 +613,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Product Launches tile */}
-      {launches.length > 0 && (
-        <div className="card overflow-hidden">
-          <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-brand-50 to-purple-50">
-            <span className="text-base">🚀</span>
-            <h2 className="text-sm font-semibold text-brand-900">Product Launches</h2>
-          </div>
-          <div className={`grid divide-slate-100 ${launches.length === 1 ? 'grid-cols-1' : launches.length === 2 ? 'grid-cols-2 divide-x' : 'grid-cols-3 divide-x'}`}>
-            {launches.map(l => {
-              const isLive = l.launch_date ? new Date(l.launch_date) <= new Date() : true;
-              return (
-                <div key={l.id} className="p-4 flex gap-3 items-start">
-                  {l.image_url && (
-                    <img src={l.image_url} alt={l.name} className="w-16 h-16 object-cover rounded-lg flex-shrink-0 bg-slate-100" />
-                  )}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold text-slate-900 text-sm">{l.name}</span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${isLive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {isLive ? '✅ Live' : '🚀 Coming Soon'}
-                      </span>
-                    </div>
-                    {l.price_aud != null && <p className="text-sm font-bold text-brand-700 mt-0.5">${l.price_aud.toFixed(2)} AUD</p>}
-                    {l.description && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{l.description}</p>}
-                    {l.launch_date && (
-                      <p className="text-[11px] text-slate-400 mt-1">
-                        {isLive ? 'Launched' : 'Launches'} {new Date(l.launch_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    )}
-                    {l.link && (
-                      <a href={l.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1.5 text-[11px] text-brand-600 hover:underline">
-                        View product →
-                      </a>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {viewingAsTeam && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <div>
@@ -439,6 +628,9 @@ export default function DashboardPage() {
           </button>
         </div>
       )}
+
+      {/* ── Critical: FRT breach — the one thing needing action right now ───── */}
+      {!queueLoading && <FrtBreachBanner queue={queue} clockNow={clockNow} />}
 
       {/* ── Action Required Banner ─────────────────────────────────────────── */}
       {followUpLevel && (
@@ -461,14 +653,18 @@ export default function DashboardPage() {
       {/* ── Major sale team alert ───────────────────────────────────────────── */}
       <MajorSaleBanner />
 
-      {/* ── Quick Stat Strip ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* ── Product launches — demoted to a slim, dismissible strip ─────────── */}
+      <ProductLaunchesStrip launches={launches} />
+
+      {/* ── Hero metric row — the 3 numbers that matter most today ──────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <QuickStat
           label="Faults This Week"
           value={stats.faultsThisWeek}
           sub={`${stats.faultsFY} faults this financial year`}
           trend={weekCountDelta}
           href="/cases"
+          zeroLabel="No faults logged this week"
         />
         <QuickStat
           label="Cost at Risk"
@@ -476,224 +672,80 @@ export default function DashboardPage() {
           sub="this week"
           trend={weekCostDelta}
         />
-
         <QuickStat
           label="Follow-ups Due"
           value={pendingFollowUps}
           sub="returns need action"
           href="/returns?filter=follow-up"
           alert={pendingFollowUps > 0}
-        />
-        <QuickStat
-          label="Returns This Week"
-          value={weekReturns.length}
-          sub="processed this week"
-          trend={weekReturnsDelta}
-          href="/returns"
+          zeroLabel="All returns handled"
         />
       </div>
 
       {/* ── Today's Team ─────────────────────────────────────────────────────── */}
       <TodaysTeam />
 
-      {/* ── Today's Activity (Commslayer) ────────────────────────────────────── */}
-      <div className="card p-4">
-        <div className="flex items-center justify-between mb-3">
+      {/* ── Today's Activity (Commslayer) — flat row, one level ──────────────── */}
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <div className="relative flex">
-              <Inbox size={15} className="text-brand-600" />
+              <Inbox size={14} className="text-slate-400" />
               {!queueLoading && !queueError && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-white animate-pulse" />}
             </div>
-            <span className="text-sm font-semibold text-slate-800">Today's Activity</span>
+            <h3 className="text-sm font-semibold text-slate-800">Today's Activity</h3>
             <span className="text-xs text-slate-400">· Commslayer</span>
           </div>
-          {queue && <span className="text-[10px] text-slate-400 font-mono">{queue.date} · {new Date(queue.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</span>}
+          {queue && <span className="text-[10px] text-slate-400 font-mono">{new Date(queue.fetchedAt).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</span>}
         </div>
         {queueLoading && (
-          <div className="grid grid-cols-4 gap-3">
-            {[0,1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-slate-100 animate-pulse" />)}
+          <div className="grid grid-cols-4 divide-x divide-slate-100">
+            {[0,1,2,3].map(i => <div key={i} className="h-16 m-3 rounded-lg bg-slate-100 animate-pulse" />)}
           </div>
         )}
         {!queueLoading && queueError && (
-          <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-mono">{queueError}</p>
+          <p className="text-xs text-red-500 px-5 py-3 font-mono">{queueError}</p>
         )}
         {!queueLoading && queue && (() => {
-          const liveFrt = liveFRTSeconds(queue);
+          const liveFrt = liveFRTSeconds(queue, clockNow);
           const level = frtLevel(liveFrt);
           const tone = FRT_CARD[level];
           return (
-            <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-3">
-                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="w-8 h-8 rounded-lg bg-brand-100 flex items-center justify-center flex-shrink-0"><MessageSquare size={14} className="text-brand-600" /></div>
-                  <div><p className="text-xs text-slate-500 font-medium">Created</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.created}</p><p className="text-[10px] text-slate-400">tickets today</p></div>
-                </div>
-                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0"><UserX size={14} className="text-emerald-600" /></div>
-                  <div><p className="text-xs text-slate-500 font-medium">Closed</p><p className="text-xl font-bold text-emerald-700 leading-tight">{queue.closed}</p><p className="text-[10px] text-slate-400">resolved today</p></div>
-                </div>
-                <div className={`flex items-center gap-2.5 p-3 rounded-xl border ${tone.card}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${tone.iconBg}`}><Clock size={14} className={tone.icon} /></div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-xs text-slate-500 font-medium">Avg FRT</p>
-                      <span className={`text-[9px] font-bold uppercase ${
-                        level === 'red' ? 'text-red-600' : level === 'amber' ? 'text-amber-600' : 'text-emerald-600'
-                      }`}>{tone.label}</span>
-                    </div>
-                    <p className={`text-xl font-bold leading-tight ${tone.value}`}>{fmtFRT(liveFrt)}</p>
-                    <p className="text-[10px] text-slate-400">{tone.sub}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0"><Mail size={14} className="text-indigo-500" /></div>
-                  <div><p className="text-xs text-slate-500 font-medium">Messages</p><p className="text-xl font-bold text-slate-900 leading-tight">{queue.messagesSent}</p><p className="text-[10px] text-slate-400">sent today</p></div>
-                </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-slate-100">
+              <div className="px-5 py-4">
+                <p className="text-xs text-slate-400 font-medium">Created</p>
+                <p className="text-xl font-bold text-slate-900 leading-tight mt-1">{queue.created}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">tickets today</p>
               </div>
-              {/* ── Oldest unassigned ticket alert ───────────────────────── */}
-              {(() => {
-                const oldest = queue.breachingTickets?.[0];
-                if (!oldest || oldest.ageSeconds < 86400) return null; // < 24h, skip
-                const isRed = oldest.ageSeconds >= 72 * 3600; // 3+ days = red
-                return (
-                  <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
-                    isRed
-                      ? 'bg-red-50 border-red-300 text-red-800'
-                      : 'bg-amber-50 border-amber-200 text-amber-800'
-                  }`}>
-                    <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${isRed ? 'text-red-500' : 'text-amber-500'}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isRed && (
-                          <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
-                          </span>
-                        )}
-                        <p className="text-xs font-bold">
-                          {isRed ? 'Neglected ticket: unassigned for over 3 days' : 'Old unassigned ticket needs attention'}
-                        </p>
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
-                          isRed
-                            ? 'border-red-300 bg-white/70 text-red-700'
-                            : 'border-amber-300 bg-white/70 text-amber-700'
-                        }`}>
-                          {fmtFRT(oldest.ageSeconds)} old
-                        </span>
-                      </div>
-                      <p className="text-xs opacity-80 mt-0.5">
-                        {isRed
-                          ? 'Assign this ticket immediately — it has been waiting over 3 days with no response.'
-                          : 'This ticket has been unassigned for over a day. Assign it soon to stay within SLA.'}
-                      </p>
-                      <a
-                        href={oldest.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`mt-2 inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs hover:bg-white transition-colors ${
-                          isRed ? 'border-red-200/70 bg-white/60 text-red-800' : 'border-amber-200/70 bg-white/60 text-amber-800'
-                        }`}
-                      >
-                        <span className="font-mono font-bold">#{oldest.id}</span>
-                        <span className="font-semibold">{fmtFRT(oldest.ageSeconds)}</span>
-                        <span className="max-w-[260px] truncate opacity-80">{oldest.customer} · {oldest.title}</span>
-                        <ExternalLink size={11} className="flex-shrink-0 opacity-60" />
-                      </a>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {queue.frtSeconds > 0 && (
-                <div className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
-                  level === 'red'
-                    ? 'bg-red-50 border-red-300 text-red-800 shadow-[0_0_0_1px_rgba(248,113,113,0.12)]'
-                    : level === 'amber'
-                      ? 'bg-amber-50 border-amber-200 text-amber-800'
-                      : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                }`}>
-                  {level === 'ok'
-                    ? <CheckCircle size={15} className="mt-0.5 flex-shrink-0 text-emerald-600" />
-                    : <AlertTriangle size={15} className={`mt-0.5 flex-shrink-0 ${level === 'red' ? 'text-red-500' : 'text-amber-500'}`} />}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {level === 'red' && (
-                        <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-600" />
-                        </span>
-                      )}
-                      <p className="text-xs font-bold">
-                        {level === 'red'
-                          ? 'FRT BREACH: unassigned first replies overdue'
-                          : level === 'amber'
-                            ? 'Within target: keep first replies under 48h'
-                            : 'Great pace: first replies under 24h'}
-                      </p>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
-                        level === 'red'
-                          ? 'border-red-300 bg-white/70 text-red-700'
-                          : level === 'amber'
-                            ? 'border-amber-300 bg-white/70 text-amber-700'
-                            : 'border-emerald-300 bg-white/70 text-emerald-700'
-                      }`}>
-                        Current {fmtFRT(liveFrt)} · Max 48h
-                      </span>
-                      {level === 'red' && (
-                        <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                          {fmtFRT(liveFrt - FRT_RED_SECONDS)} over breach
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs opacity-80 mt-0.5">
-                      {level === 'red'
-                        ? 'Work unassigned tickets oldest-first until FRT is back under 48h.'
-                        : level === 'amber'
-                          ? 'Still within guidelines. Prioritise unassigned tickets if volume climbs.'
-                          : 'Kudos to the team. Keep this rhythm.'}
-                    </p>
-                    {level === 'red' && queue.breachingTickets && queue.breachingTickets.length > 0 && (
-                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {queue.breachingTickets.slice(0, 4).map(ticket => (
-                          <a
-                            key={ticket.id}
-                            href={ticket.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 rounded-lg border border-red-200/70 bg-white/70 px-2.5 py-2 text-red-800 hover:bg-white transition-colors"
-                          >
-                            <span className="font-mono text-[11px] font-bold">#{ticket.id}</span>
-                            <span className="text-xs font-semibold whitespace-nowrap">{fmtFRT(ticket.ageSeconds)}</span>
-                            <span className="min-w-0 flex-1 truncate text-xs">{ticket.customer} · {ticket.title}</span>
-                            <ExternalLink size={11} className="flex-shrink-0 opacity-60" />
-                          </a>
-                        ))}
-                      </div>
-                    )}
-                    {level === 'red' && !queue.breachingTickets?.length && queue.unassignedQueueUrl && (
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <a
-                          href={queue.unassignedQueueUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                            level === 'red'
-                              ? 'bg-red-600 text-white hover:bg-red-700'
-                              : 'bg-amber-600 text-white hover:bg-amber-700'
-                          }`}
-                        >
-                          Open Unassigned in Commslayer <ExternalLink size={11} />
-                        </a>
-                        <span className="text-[11px] opacity-70">Ticket list not available via API yet.</span>
-                      </div>
-                    )}
-                  </div>
+              <div className="px-5 py-4">
+                <p className="text-xs text-slate-400 font-medium">Closed</p>
+                <p className="text-xl font-bold text-slate-900 leading-tight mt-1">{queue.closed}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">resolved today</p>
+              </div>
+              <div className="px-5 py-4">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-slate-400 font-medium">Avg FRT</p>
+                  <span className={`text-[9px] font-bold uppercase ${
+                    level === 'red' ? 'text-red-600' : level === 'amber' ? 'text-amber-600' : 'text-emerald-600'
+                  }`}>{tone.label}</span>
                 </div>
-              )}
+                <p className={`text-xl font-bold leading-tight mt-1 ${level === 'red' ? 'text-red-700' : level === 'amber' ? 'text-amber-700' : 'text-slate-900'}`}>{fmtFRT(liveFrt)}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{tone.sub}</p>
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-xs text-slate-400 font-medium">Messages</p>
+                <p className="text-xl font-bold text-slate-900 leading-tight mt-1">{queue.messagesSent}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">sent today</p>
+              </div>
             </div>
           );
         })()}
       </div>
+
+      <RestockUpdatesTile items={restockUpdates} />
+
+      {/* ── Promotions strip ─────────────────────────────────────────────────── */}
+      <ActivePromosStrip />
 
       {/* ── Chart + AI Briefing (2/3 + 1/3) ─────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -739,8 +791,8 @@ export default function DashboardPage() {
                     <tr className="cursor-pointer">
                       <td className="font-semibold font-mono text-brand-600">{c.orderNumber}</td>
                       <td className="max-w-[160px] truncate" title={c.product}>{c.product}</td>
-                      <td><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>{c.faultType}</span></td>
-                      <td className="text-slate-400 text-xs font-mono whitespace-nowrap">{formatDate(c.date)}</td>
+                      <td><span className="chip-neutral">{c.faultType}</span></td>
+                      <td className="text-slate-400 text-xs whitespace-nowrap">{formatDate(c.date)}</td>
                       <td>
                         <span className={`badge text-[10px] ${STATUS_STYLES[c.claimStatus]}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[c.claimStatus]}`} />
@@ -849,9 +901,6 @@ export default function DashboardPage() {
 
       {/* ── Replenishment summary row — admin only ────────────────────────────── */}
       {isAdmin && <ReplenishmentSummaryRow />}
-
-      {/* ── Promotions strip ─────────────────────────────────────────────────── */}
-      <ActivePromosStrip />
 
     </div>
   );
@@ -1168,12 +1217,39 @@ function TodayActivityCard({ sectionHeader }: { sectionHeader?: React.ReactNode 
   );
 }
 
+const AI_SUMMARY_CACHE_KEY = 'fault-portal:ai-summary-cache';
+type AiSummaryCache = Partial<Record<SummaryMode, { text: string; generatedAt: string }>>;
+
+function loadAiSummaryCache(): AiSummaryCache {
+  try {
+    return JSON.parse(localStorage.getItem(AI_SUMMARY_CACHE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
 function AiBriefingCard() {
   const [mode, setMode]           = useState<SummaryMode>('briefing');
   const [summary, setSummary]     = useState<Partial<Record<SummaryMode, string>>>({});
   const [generated, setGenerated] = useState<Partial<Record<SummaryMode, Date>>>({});
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
+
+  // Restore the last-generated summary per mode so returning to the dashboard
+  // shows real content with a Refresh action, not an empty "Generate" box.
+  useEffect(() => {
+    const cache = loadAiSummaryCache();
+    const restoredSummary: Partial<Record<SummaryMode, string>> = {};
+    const restoredGenerated: Partial<Record<SummaryMode, Date>> = {};
+    for (const key of Object.keys(cache) as SummaryMode[]) {
+      const entry = cache[key];
+      if (!entry) continue;
+      restoredSummary[key] = entry.text;
+      restoredGenerated[key] = new Date(entry.generatedAt);
+    }
+    setSummary(restoredSummary);
+    setGenerated(restoredGenerated);
+  }, []);
 
   async function generate() {
     setLoading(true);
@@ -1186,8 +1262,14 @@ function AiBriefingCard() {
       });
       const json = await res.json();
       if (json.error) throw new Error(json.error);
+      const now = new Date();
       setSummary(prev => ({ ...prev, [mode]: json.summary }));
-      setGenerated(prev => ({ ...prev, [mode]: new Date() }));
+      setGenerated(prev => ({ ...prev, [mode]: now }));
+      try {
+        const cache = loadAiSummaryCache();
+        cache[mode] = { text: json.summary, generatedAt: now.toISOString() };
+        localStorage.setItem(AI_SUMMARY_CACHE_KEY, JSON.stringify(cache));
+      } catch { /* no-op */ }
     } catch {
       setError('Failed to generate summary. Please try again.');
     } finally {
@@ -1231,7 +1313,9 @@ function AiBriefingCard() {
           >
             {loading
               ? <><RefreshCw size={12} className="animate-spin" /> Generating...</>
-              : <><Sparkles size={12} /> {currentSummary ? 'Regenerate' : 'Generate'}</>
+              : currentSummary
+                ? <><RefreshCw size={12} /> Refresh</>
+                : <><Sparkles size={12} /> Generate</>
             }
           </button>
         </div>
@@ -1445,7 +1529,7 @@ function ActivePromosStrip() {
         );
         setSuppressed(suppressionMap);
         setPromos(all.filter((p: PromoStrip) =>
-          !p.isMajor && p.enabled !== false && (!p.endDate || p.endDate >= today)
+          p.enabled !== false && (!p.endDate || p.endDate >= today)
         ));
       })
       .catch(err => console.error('[ActivePromosStrip]', err));
@@ -1507,7 +1591,14 @@ function ActivePromosStrip() {
 
                 {/* Name + description */}
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold text-slate-800 truncate ${(upcoming || suppressedBy) ? 'text-slate-400' : ''}`}>{p.name}</p>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className={`text-sm font-semibold text-slate-800 truncate ${(upcoming || suppressedBy) ? 'text-slate-400' : ''}`}>{p.name}</p>
+                    {p.isMajor && (
+                      <span className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 whitespace-nowrap">
+                        Major Sale
+                      </span>
+                    )}
+                  </div>
                   {suppressedBy ? (
                     <p className="text-xs text-slate-400 truncate mt-0.5">⏸ Suppressed by {suppressedBy.name}</p>
                   ) : p.description && (

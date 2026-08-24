@@ -9,8 +9,11 @@ function fromRow(row: Record<string, unknown>): RestockItem {
     id:                  String(row.id ?? ''),
     productName:         String(row.product_name ?? ''),
     sku:                 String(row.sku ?? ''),
+    store:               String(row.store ?? 'All Stores'),
     status:              (row.status as RestockItem['status']) ?? 'Out of Stock',
     expectedRestockDate: (row.expected_restock_date as string | null) ?? null,
+    expectedRestockLabel: String(row.expected_restock_label ?? ''),
+    customerMessage:     String(row.customer_message ?? ''),
     supplier:            String(row.supplier ?? ''),
     notes:               String(row.notes ?? ''),
     resolved:            Boolean(row.resolved ?? false),
@@ -43,8 +46,11 @@ export async function POST(req: NextRequest) {
       .insert({
         product_name:          body.productName.trim(),
         sku:                   body.sku?.trim() ?? '',
+        store:                 body.store?.trim() ?? 'All Stores',
         status:                body.status ?? 'Out of Stock',
         expected_restock_date: body.expectedRestockDate || null,
+        expected_restock_label: body.expectedRestockLabel?.trim() ?? '',
+        customer_message:      body.customerMessage?.trim() ?? '',
         supplier:              body.supplier?.trim() ?? '',
         notes:                 body.notes?.trim() ?? '',
       })

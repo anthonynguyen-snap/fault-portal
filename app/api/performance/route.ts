@@ -10,28 +10,50 @@ function isConfigured() {
   return BASE_URL && ACCOUNT_ID && API_TOKEN;
 }
 
+function appRoot() {
+  return BASE_URL.replace(/\/api\/integration\/v1\/?$/, '').replace(/\/$/, '');
+}
+
+function parseCommslayerError(path: string, status: number, text: string) {
+  try {
+    const json = JSON.parse(text);
+    const code = json?.error?.code ?? json?.code;
+    const message = json?.error?.message ?? json?.message;
+    if (status === 401 || code === 'invalid_token') {
+      return 'Commslayer token is invalid or expired. Generate a new API token in Commslayer and update COMMSLAYER_API_TOKEN.';
+    }
+    if (message) return `Commslayer ${path}: ${message}`;
+  } catch {
+    // Fall through to the generic response below.
+  }
+  return `Commslayer ${path}: HTTP ${status}`;
+}
+
 async function csRequest(path: string, params: Record<string, string> = {}) {
-  const url = new URL(`${BASE_URL}/api/integration/v1/${path}`);
+  const url = new URL(`${appRoot()}/api/integration/v1/${path}`);
   url.searchParams.set('account_id', ACCOUNT_ID);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'Authorization': `Bearer ${API_TOKEN}`,
-      'Content-Type':  'application/json',
-    },
-    cache: 'no-store',
-  });
+  const errors: string[] = [];
+  const authHeaders: Record<string, string>[] = [
+    { Authorization: `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' },
+    { api_access_token: API_TOKEN, 'Content-Type': 'application/json' },
+  ];
+  for (const headers of authHeaders) {
+    const res = await fetch(url.toString(), { headers, cache: 'no-store' });
+    const text = await res.text();
+    if (!res.ok) {
+      errors.push(parseCommslayerError(path, res.status, text));
+      continue;
+    }
+    try {
+      return text ? JSON.parse(text) : {};
+    } catch {
+      throw new Error(`Commslayer ${path}: invalid JSON`);
+    }
+  }
 
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`Commslayer ${path}: HTTP ${res.status} — ${text.slice(0, 300)}`);
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`Commslayer ${path}: invalid JSON — ${text.slice(0, 300)}`);
-  }
+  throw new Error(errors[0] ?? `Commslayer ${path}: request failed`);
 }
 
 export async function GET(req: NextRequest) {

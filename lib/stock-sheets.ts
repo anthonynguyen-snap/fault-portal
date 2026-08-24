@@ -275,6 +275,89 @@ export async function adjustStockQuantity(
   return { newQuantity: newQty, itemName: item.name };
 }
 
+export interface StockMovementPlanItem {
+  sku: string;
+  itemName: string;
+  rowIndex: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  quantityChanged: number;
+}
+
+export async function applyStockMovement(
+  lines: Array<{ sku: string; quantity: number }>,
+  type: 'in' | 'out',
+  note: string,
+): Promise<StockMovementPlanItem[]> {
+  const combined = new Map<string, number>();
+  for (const line of lines) {
+    const sku = line.sku.trim();
+    const quantity = Math.trunc(Number(line.quantity));
+    if (!sku) throw new Error('Every stock movement line must have a SKU');
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error(`Stock movement quantity must be greater than zero for ${sku}`);
+    }
+    combined.set(sku, (combined.get(sku) ?? 0) + quantity);
+  }
+
+  if (combined.size === 0) throw new Error('No valid stock movement lines supplied');
+
+  const rows = await fetchAllRows();
+  const plan = Array.from(combined.entries()).map(([sku, quantity]) => {
+    const item = rows.find((row) => row.sku === sku);
+    if (!item) throw new Error(`SKU not found: ${sku}`);
+    if (type === 'out' && item.quantity < quantity) {
+      throw new Error(`${item.name} (${sku}) only has ${item.quantity} in stock; ${quantity} requested`);
+    }
+    const quantityAfter = type === 'in'
+      ? item.quantity + quantity
+      : item.quantity - quantity;
+    return {
+      sku,
+      itemName: item.name,
+      rowIndex: item.rowIndex,
+      quantityBefore: item.quantity,
+      quantityAfter,
+      quantityChanged: quantity,
+    };
+  });
+
+  const sheets = getSheets();
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SHEET_ID(),
+    requestBody: {
+      valueInputOption: 'USER_ENTERED',
+      data: plan.map((item) => ({
+        range: `${SHEET_NAME}!E${item.rowIndex}`,
+        values: [[item.quantityAfter]],
+      })),
+    },
+  });
+
+  try {
+    await ensureLogSheet();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID(),
+      range: `${LOG_NAME}!A:F`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: plan.map((item) => [
+          new Date().toISOString(),
+          item.sku,
+          item.itemName,
+          type.toUpperCase(),
+          item.quantityChanged,
+          note,
+        ]),
+      },
+    });
+  } catch (error) {
+    console.error('[stock-sheets] quantities updated but movement log append failed', error);
+  }
+
+  return plan;
+}
+
 export interface StockDeductionPlanItem {
   sku: string;
   itemName: string;

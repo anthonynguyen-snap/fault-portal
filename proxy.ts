@@ -35,7 +35,6 @@ const ADMIN_MUTATION_API_PREFIXES = [
   '/api/manufacturers',
   '/api/fault-types',
   '/api/promotions',
-  '/api/shipments',
   '/api/stock/restock',
   '/api/roster/agents',
   '/api/roster/config',

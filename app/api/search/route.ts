@@ -23,7 +23,7 @@ interface ApiResponse {
  * - Returns up to 5 results per source, sorted: cases first, then refunds, then returns
  * - Max 12 total results
  * - Returns empty arrays (doesn't throw) if any source fails
- * - Returns 503 if q is missing or < 2 chars
+ * - Returns 400 if q is missing or < 2 chars
  */
 export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse | { error: string }>> {
   try {
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse | 
     if (!q || q.length < 2) {
       return NextResponse.json(
         { error: 'Query must be at least 2 characters' },
-        { status: 503 }
+        { status: 400 }
       );
     }
 
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse | 
           id: String(r.id),
           title: `${r.order_number} — ${r.customer_name}`,
           subtitle: `$${Number(r.amount).toFixed(2)} · ${r.status}`,
-          href: '/refunds',
+          href: `/refunds?open=${encodeURIComponent(String(r.id))}`,
         }));
       results.push(...refundsResults);
     } catch (err) {
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<ApiResponse | 
           id: String(r.id),
           title: `${r.order_number} — ${r.customer_name}`,
           subtitle: String(r.status),
-          href: '/returns',
+          href: `/returns/${encodeURIComponent(String(r.id))}`,
         }));
       results.push(...returnsResults);
     } catch (err) {

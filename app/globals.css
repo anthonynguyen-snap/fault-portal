@@ -16,14 +16,14 @@
   --brand-800: #0b5572;
   --brand-900: #07405a;
 
-  --surface-canvas: #f6f6f7;
+  --surface-canvas: #f1f2f4;
   --surface-raised: #ffffff;
-  --surface-subdued: #f7f8fa;
-  --border-subdued: #e3e5e8;
-  --border-strong: #c9ccd1;
+  --surface-subdued: #f7f7f8;
+  --border-subdued: #dfe3e8;
+  --border-strong: #babfc5;
   --text-muted: #6d7175;
-  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.05), 0 1px 2px rgb(0 0 0 / 0.04);
-  --shadow-popover: 0 8px 24px rgb(15 23 42 / 0.12);
+  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.05);
+  --shadow-popover: 0 12px 28px rgb(15 23 42 / 0.14), 0 0 0 1px rgb(0 0 0 / 0.04);
   --focus-ring: 0 0 0 3px rgb(42 176 217 / 0.22);
 }
 
@@ -55,20 +55,23 @@
     border-color: var(--border-subdued);
     box-shadow: var(--shadow-card);
   }
+  .card:hover {
+    border-color: #d4d8dd;
+  }
 
   /* Buttons */
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-semibold rounded-lg transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
-    background-color: var(--brand-600);
+    background-color: #202223;
   }
   .btn-primary:hover {
-    background-color: var(--brand-700);
+    background-color: #0f172a;
   }
   .btn-primary:focus-visible {
     box-shadow: var(--focus-ring);
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-white text-slate-700 text-sm font-semibold rounded-lg border hover:bg-slate-50 transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 px-3.5 py-2 bg-white text-slate-700 text-sm font-semibold rounded-lg border hover:bg-slate-50 transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
     border-color: var(--border-strong);
     box-shadow: 0 1px 0 rgb(0 0 0 / 0.03);
   }
@@ -114,7 +117,7 @@
     border-spacing: 0;
   }
   .data-table th {
-    @apply px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-normal border-b;
+    @apply px-4 py-2.5 text-left text-[11px] font-bold text-slate-500 uppercase tracking-normal border-b;
     background: var(--surface-subdued);
     border-color: var(--border-subdued);
     position: sticky;
@@ -131,15 +134,14 @@
   .data-table tbody tr {
     @apply transition-colors;
   }
-  /* Subtle striping keeps long operational tables scannable. */
   .data-table tbody tr:nth-child(odd) {
     background-color: #ffffff;
   }
   .data-table tbody tr:nth-child(even) {
-    background-color: #fafbfb;
+    background-color: #ffffff;
   }
   .data-table tbody tr:hover td {
-    background-color: #eef8fb;
+    background-color: #f7f8fa;
   }
   .data-table tbody tr:hover td:first-child {
     box-shadow: inset 2px 0 0 var(--brand-600);
@@ -152,29 +154,82 @@
 
   /* Status badges */
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold;
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold;
   }
 
   /* Page header */
   .page-header {
-    @apply flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5;
+    @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-5;
   }
   .page-title {
-    @apply text-2xl font-semibold text-slate-900 tracking-normal;
+    @apply text-[1.75rem] leading-tight font-semibold text-slate-900 tracking-tight;
   }
   .page-subtitle {
     color: var(--text-muted);
     @apply text-sm mt-0.5;
   }
+
+  /* Hero KPI number — big, high-contrast, tabular */
+  .kpi-value {
+    @apply text-4xl font-bold font-mono tabular-nums leading-none tracking-tight;
+  }
+
+  /* Neutral categorical chip — fault types and other non-status labels.
+     Colour is reserved for status (red/amber/green); everything else stays grey. */
+  .chip-neutral {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-600;
+  }
+
+  /* Resource screens */
+  .resource-toolbar {
+    @apply card p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+  }
+  .resource-controls {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .segmented-control {
+    @apply inline-flex items-center gap-1 rounded-lg bg-[#ebedf0] p-1;
+  }
+  .segmented-control button,
+  .segmented-control a {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors;
+  }
+  .segmented-control .is-active {
+    @apply bg-white text-slate-900 shadow-sm;
+  }
+  .filter-chip {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50;
+  }
+  .filter-chip-active {
+    @apply border-brand-300 bg-brand-50 text-brand-700;
+  }
+  .stat-tile {
+    @apply rounded-lg border border-slate-200 bg-white p-3 text-left transition-colors;
+    box-shadow: var(--shadow-card);
+  }
+  .stat-tile:hover {
+    border-color: #c9ccd1;
+    background-color: #fafafa;
+  }
+  .stat-tile-active {
+    @apply border-brand-300 bg-brand-50;
+    box-shadow: inset 0 0 0 1px rgb(42 176 217 / 0.18);
+  }
+  .resource-title {
+    @apply text-sm font-semibold text-slate-900;
+  }
+  .resource-count {
+    @apply text-xs font-medium text-slate-500;
+  }
 }
 
-/* Sidebar active nav item — inset left accent + subtle dark tint */
+/* Sidebar active nav item */
 .nav-active {
-  background-color: rgba(42, 176, 217, 0.12);
+  background-color: rgba(255, 255, 255, 0.1);
   box-shadow: inset 3px 0 0 var(--brand-400);
 }
 .nav-active-home {
-  background-color: rgba(42, 176, 217, 0.18);
+  background-color: rgba(255, 255, 255, 0.14);
   box-shadow: inset 3px 0 0 var(--brand-300);
 }
 

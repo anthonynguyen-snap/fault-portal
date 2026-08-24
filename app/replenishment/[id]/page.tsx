@@ -91,7 +91,7 @@ export default function ReplenishmentDetailPage() {
   const [notesLog, setNotesLog]   = useState<{ text: string; ts: string }[]>([]);
   const [newNote,  setNewNote]    = useState('');
   const [savingNote, setSavingNote] = useState(false);
-  const [editStore, setEditStore]       = useState<typeof STORES[number]>('Adelaide Popup');
+  const [editStore, setEditStore]       = useState<string>('Adelaide Popup');
 
   // Allow editing even after dispatch
   const [unlocked, setUnlocked] = useState(false);
@@ -99,8 +99,8 @@ export default function ReplenishmentDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  async function load() {
-    setLoading(true);
+  async function load(showSpinner = true) {
+    if (showSpinner) setLoading(true);
     try {
       const [res, stockRes] = await Promise.all([
         fetch(`/api/replenishment/${id}`),
@@ -139,10 +139,12 @@ export default function ReplenishmentDetailPage() {
         else if (raw.trim()) setNotesLog([{ text: raw, ts: '' }]);
         else setNotesLog([]);
       } catch { setNotesLog([]); }
-      setEditStore((req.store as typeof STORES[number]) ?? 'Adelaide Popup');
+      setEditStore(req.store ?? 'Adelaide Popup');
       setAddItemSrc(REMOTE_3PL_STORES.includes(req.store) ? '3PL' : 'Storeroom');
     } catch { /* silent */ }
-    finally { setLoading(false); }
+    finally {
+      if (showSpinner) setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -222,8 +224,25 @@ export default function ReplenishmentDetailPage() {
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       success('Dispatched!', `Tracking: ${trackingNumber || '—'}`);
-      await load();
       setShowDispatch(false);
+      setRequest(prev => prev ? {
+        ...prev,
+        status: (json.status ?? 'Dispatched') as ReplenishmentStatus,
+        trackingNumber,
+        dispatchDate,
+        storeroomDispatched: true,
+        storeroomDispatchDate: dispatchDate,
+        tplDispatched: true,
+        tplTracking: trackingNumber,
+        tplDispatchDate: dispatchDate,
+        items: prev.items.map(item => {
+          const update = itemUpdates.find(i => i.id === item.id);
+          return update
+            ? { ...item, quantitySent: update.quantitySent, source: update.source as ReplenishmentLineItem['source'], skipped: update.skipped }
+            : item;
+        }),
+      } : prev);
+      load(false);
     } catch (err: unknown) {
       toastError('Dispatch failed', err instanceof Error ? err.message : String(err));
     } finally { setSaving(false); }
@@ -252,9 +271,24 @@ export default function ReplenishmentDetailPage() {
       if (json.error) throw new Error(json.error);
       const label = dispatchSource === 'Storeroom' ? 'Storeroom dispatched' : '3PL dispatched';
       success(label, `Tracking: ${tracking || '—'}`);
-      await load();
       setShowStoreroomDispatch(false);
       setShowTplDispatch(false);
+      setRequest(prev => prev ? {
+        ...prev,
+        status: (json.status ?? prev.status) as ReplenishmentStatus,
+        storeroomDispatched: dispatchSource === 'Storeroom' ? true : prev.storeroomDispatched,
+        storeroomDispatchDate: dispatchSource === 'Storeroom' ? date : prev.storeroomDispatchDate,
+        tplDispatched: dispatchSource === '3PL' ? true : prev.tplDispatched,
+        tplTracking: dispatchSource === '3PL' ? tracking : prev.tplTracking,
+        tplDispatchDate: dispatchSource === '3PL' ? date : prev.tplDispatchDate,
+        items: prev.items.map(item => {
+          const update = itemUpdates.find(i => i.id === item.id);
+          return update
+            ? { ...item, quantitySent: update.quantitySent, source: update.source as ReplenishmentLineItem['source'], skipped: update.skipped }
+            : item;
+        }),
+      } : prev);
+      load(false);
     } catch (err: unknown) {
       toastError('Dispatch failed', err instanceof Error ? err.message : String(err));
     } finally { setSaving(false); }
@@ -484,8 +518,9 @@ export default function ReplenishmentDetailPage() {
           {!isDispatched ? (
             <select
               value={editStore}
-              onChange={e => setEditStore(e.target.value as typeof STORES[number])}
+              onChange={e => setEditStore(e.target.value)}
               className="form-input text-sm py-1">
+              {!STORES.includes(editStore as typeof STORES[number]) && <option value={editStore}>{editStore}</option>}
               {STORES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           ) : (

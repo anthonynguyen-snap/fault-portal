@@ -2,29 +2,39 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   PackageOpen, Plus, X, CheckCircle2, Clock, Truck, AlertTriangle,
-  Pencil, Trash2, ChevronDown, RefreshCw, CheckCheck, Sparkles,
+  Pencil, Trash2, ChevronDown, RefreshCw, CheckCheck, Sparkles, MessageSquare,
 } from 'lucide-react';
 import { RestockItem, RestockStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useConfirmDialog } from '@/components/ui/useConfirmDialog';
 
-const STATUSES: RestockStatus[] = ['Out of Stock', 'Backordered', 'On Order', 'New Release', 'Back in Stock'];
+const STATUSES: RestockStatus[] = ['Out of Stock', 'Backordered', 'Reshipping Soon', 'On Order', 'New Release', 'Back in Stock'];
+const STORES = ['All Stores', 'AU (+ Popup)', 'US', 'UK-NZ-ROW'];
 
 const STATUS_STYLES: Record<RestockStatus, string> = {
-  'Out of Stock':  'bg-red-100 text-red-700',
-  'Backordered':   'bg-amber-100 text-amber-700',
-  'On Order':      'bg-blue-100 text-blue-700',
-  'New Release':   'bg-purple-100 text-purple-700',
-  'Back in Stock': 'bg-emerald-100 text-emerald-700',
+  'Out of Stock':    'bg-red-100 text-red-700',
+  'Backordered':     'bg-amber-100 text-amber-700',
+  'Reshipping Soon': 'bg-sky-100 text-sky-700',
+  'On Order':        'bg-blue-100 text-blue-700',
+  'New Release':     'bg-purple-100 text-purple-700',
+  'Back in Stock':   'bg-emerald-100 text-emerald-700',
 };
 
 const STATUS_ICONS: Record<RestockStatus, React.ReactNode> = {
-  'Out of Stock':  <AlertTriangle size={11} />,
-  'Backordered':   <Clock size={11} />,
-  'On Order':      <Truck size={11} />,
-  'New Release':   <Sparkles size={11} />,
-  'Back in Stock': <CheckCircle2 size={11} />,
+  'Out of Stock':    <AlertTriangle size={11} />,
+  'Backordered':     <Clock size={11} />,
+  'Reshipping Soon': <Truck size={11} />,
+  'On Order':        <Truck size={11} />,
+  'New Release':     <Sparkles size={11} />,
+  'Back in Stock':   <CheckCircle2 size={11} />,
+};
+
+const STORE_DISPLAY: Record<string, string> = {
+  'AU (+ Popup)': 'AU',
+  'US': 'US',
+  'UK-NZ-ROW': 'ROW',
+  'All Stores': 'All',
 };
 
 function fmtDate(d: string | null) {
@@ -42,11 +52,19 @@ function blankItem(): Partial<RestockItem> {
   return {
     productName: '',
     sku: '',
+    store: 'All Stores',
     status: 'Out of Stock',
     expectedRestockDate: null,
+    expectedRestockLabel: '',
+    customerMessage: '',
     supplier: '',
     notes: '',
   };
+}
+
+function timingText(item: Pick<RestockItem, 'expectedRestockDate' | 'expectedRestockLabel'>) {
+  if (item.expectedRestockLabel.trim()) return item.expectedRestockLabel.trim();
+  return item.expectedRestockDate ? fmtDate(item.expectedRestockDate) : '';
 }
 
 // ── Slide-over ─────────────────────────────────────────────────────────────────
@@ -116,8 +134,11 @@ export default function RestockTrackerPage() {
     setForm({
       productName:         item.productName,
       sku:                 item.sku,
+      store:               item.store,
       status:              item.status,
       expectedRestockDate: item.expectedRestockDate,
+      expectedRestockLabel: item.expectedRestockLabel,
+      customerMessage:     item.customerMessage,
       supplier:            item.supplier,
       notes:               item.notes,
     });
@@ -228,11 +249,12 @@ export default function RestockTrackerPage() {
     return activeItems.filter(i => i.status === filterStatus);
   }, [activeItems, filterStatus]);
 
-  const outCount        = useMemo(() => activeItems.filter(i => i.status === 'Out of Stock').length, [activeItems]);
-  const backordCount    = useMemo(() => activeItems.filter(i => i.status === 'Backordered').length, [activeItems]);
-  const onOrderCount    = useMemo(() => activeItems.filter(i => i.status === 'On Order').length, [activeItems]);
-  const newReleaseCount = useMemo(() => activeItems.filter(i => i.status === 'New Release').length, [activeItems]);
-  const backInCount     = useMemo(() => activeItems.filter(i => i.status === 'Back in Stock').length, [activeItems]);
+  const statusCounts = useMemo(() => {
+    return STATUSES.reduce((acc, status) => {
+      acc[status] = activeItems.filter(i => i.status === status).length;
+      return acc;
+    }, {} as Record<RestockStatus, number>);
+  }, [activeItems]);
 
   // Form helpers
   function setField<K extends keyof RestockItem>(key: K, val: RestockItem[K] | null) {
@@ -260,18 +282,30 @@ export default function RestockTrackerPage() {
           placeholder="e.g. SNAP-DB-12V"
         />
       </div>
-      <div>
-        <label className="form-label">Status</label>
-        <select
-          value={form.status ?? 'Out of Stock'}
-          onChange={e => setField('status', e.target.value as RestockStatus)}
-          className="form-input"
-        >
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="form-label">Store / Region</label>
+          <select
+            value={form.store ?? 'All Stores'}
+            onChange={e => setField('store', e.target.value)}
+            className="form-input"
+          >
+            {STORES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="form-label">Status</label>
+          <select
+            value={form.status ?? 'Out of Stock'}
+            onChange={e => setField('status', e.target.value as RestockStatus)}
+            className="form-input"
+          >
+            {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
       </div>
       <div>
-        <label className="form-label">Expected Restock Date</label>
+        <label className="form-label">Expected Restock Date <span className="text-slate-400 font-normal">(optional)</span></label>
         <input
           type="date"
           value={form.expectedRestockDate ?? ''}
@@ -280,7 +314,26 @@ export default function RestockTrackerPage() {
         />
       </div>
       <div>
-        <label className="form-label">Supplier</label>
+        <label className="form-label">Expected Timing Text</label>
+        <input
+          value={form.expectedRestockLabel ?? ''}
+          onChange={e => setField('expectedRestockLabel', e.target.value)}
+          className="form-input"
+          placeholder="e.g. Expected to reship mid next month"
+        />
+        <p className="text-xs text-slate-400 mt-1">Use this when an exact date would be fake precision.</p>
+      </div>
+      <div>
+        <label className="form-label">Team / Customer Message</label>
+        <textarea
+          value={form.customerMessage ?? ''}
+          onChange={e => setField('customerMessage', e.target.value)}
+          className="form-input min-h-[92px] resize-y"
+          placeholder="e.g. This product is currently out of stock and is expected to reship mid next month."
+        />
+      </div>
+      <div>
+        <label className="form-label">Supplier / Source</label>
         <input
           value={form.supplier ?? ''}
           onChange={e => setField('supplier', e.target.value)}
@@ -289,12 +342,12 @@ export default function RestockTrackerPage() {
         />
       </div>
       <div>
-        <label className="form-label">Notes</label>
+        <label className="form-label">Internal Notes</label>
         <textarea
           value={form.notes ?? ''}
           onChange={e => setField('notes', e.target.value)}
           className="form-input min-h-[80px] resize-y"
-          placeholder="e.g. Awaiting container from China, ETA mid-June"
+          placeholder="e.g. Confirmed by purchasing; do not promise exact date yet"
         />
       </div>
       <div className="flex gap-2 pt-2">
@@ -303,7 +356,7 @@ export default function RestockTrackerPage() {
           disabled={!form.productName?.trim() || saving}
           className="btn-primary flex-1 justify-center"
         >
-          {saving ? 'Saving…' : panel === 'add' ? 'Add to Tracker' : 'Save Changes'}
+          {saving ? 'Saving…' : panel === 'add' ? 'Add Update' : 'Save Changes'}
         </button>
         <button onClick={closePanel} className="btn-secondary px-4">Cancel</button>
       </div>
@@ -319,9 +372,9 @@ export default function RestockTrackerPage() {
         <div>
           <h1 className="page-title flex items-center gap-2">
             <PackageOpen size={22} className="text-brand-600" />
-            Restock Tracker
+            Restock Updates
           </h1>
-          <p className="page-subtitle">Track out-of-stock, backordered, and new release products at the 3PL</p>
+          <p className="page-subtitle">Keep product availability messages in one place without duplicating shipment tracking</p>
         </div>
         <div className="flex items-center gap-2">
           {saveOk && (
@@ -334,7 +387,7 @@ export default function RestockTrackerPage() {
           </button>
           {canEdit && (
             <button onClick={openAdd} className="btn-primary">
-              <Plus size={14} /> Add Item
+              <Plus size={14} /> Add Update
             </button>
           )}
         </div>
@@ -342,7 +395,7 @@ export default function RestockTrackerPage() {
 
       {!canEdit && (
         <div className="card px-4 py-3 border-blue-200 bg-blue-50 text-sm text-blue-800">
-          Team view is read-only. Ask an admin to update dates, statuses, or tracked items.
+          Team view is read-only. Ask an admin to update availability messages, timing, or tracked products.
         </div>
       )}
 
@@ -353,13 +406,14 @@ export default function RestockTrackerPage() {
       )}
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
-          { label: 'Out of Stock',  count: outCount,        style: 'border-red-200 bg-red-50',        text: 'text-red-600' },
-          { label: 'Backordered',   count: backordCount,    style: 'border-amber-200 bg-amber-50',    text: 'text-amber-600' },
-          { label: 'On Order',      count: onOrderCount,    style: 'border-blue-200 bg-blue-50',      text: 'text-blue-600' },
-          { label: 'New Release',   count: newReleaseCount, style: 'border-purple-200 bg-purple-50',  text: 'text-purple-600' },
-          { label: 'Back in Stock', count: backInCount,     style: 'border-emerald-200 bg-emerald-50', text: 'text-emerald-600' },
+          { label: 'Out of Stock',    count: statusCounts['Out of Stock'],    style: 'border-red-200 bg-red-50',        text: 'text-red-600' },
+          { label: 'Backordered',     count: statusCounts.Backordered,        style: 'border-amber-200 bg-amber-50',    text: 'text-amber-600' },
+          { label: 'Reshipping Soon', count: statusCounts['Reshipping Soon'], style: 'border-sky-200 bg-sky-50',        text: 'text-sky-600' },
+          { label: 'On Order',        count: statusCounts['On Order'],        style: 'border-blue-200 bg-blue-50',      text: 'text-blue-600' },
+          { label: 'New Release',     count: statusCounts['New Release'],     style: 'border-purple-200 bg-purple-50',  text: 'text-purple-600' },
+          { label: 'Back in Stock',   count: statusCounts['Back in Stock'],   style: 'border-emerald-200 bg-emerald-50', text: 'text-emerald-600' },
         ].map(({ label, count, style, text }) => (
           <button
             key={label}
@@ -378,7 +432,7 @@ export default function RestockTrackerPage() {
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
           <div>
-            <h2 className="text-sm font-semibold text-slate-800">Active Items</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Active Updates</h2>
             <p className="text-xs text-slate-400 mt-0.5">{filteredActive.length} item{filteredActive.length !== 1 ? 's' : ''}</p>
           </div>
           {filterStatus !== 'Active' && filterStatus !== 'All' && (
@@ -401,10 +455,10 @@ export default function RestockTrackerPage() {
             </p>
             {activeItems.length === 0 && (
               <>
-                <p className="text-xs text-slate-400 mt-1 mb-4">Add a product that&apos;s currently out of stock at the 3PL</p>
+                <p className="text-xs text-slate-400 mt-1 mb-4">Add an out-of-stock product and the message the team should use</p>
                 {canEdit && (
                   <button onClick={openAdd} className="btn-primary">
-                    <Plus size={14} /> Add Item
+                    <Plus size={14} /> Add Update
                   </button>
                 )}
               </>
@@ -412,14 +466,15 @@ export default function RestockTrackerPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-sm">
+            <table className="w-full min-w-[880px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Product</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Store</th>
                   <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Est. Restock</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Supplier</th>
-                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Expected Timing</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Message</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Internal</th>
                   <th className="px-5 py-3 w-28" />
                 </tr>
               </thead>
@@ -433,6 +488,9 @@ export default function RestockTrackerPage() {
                       <td className="px-5 py-3.5">
                         <p className="font-medium text-slate-800">{item.productName}</p>
                         {item.sku && <p className="text-[11px] font-mono text-slate-400 mt-0.5">{item.sku}</p>}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="badge bg-slate-100 text-slate-600">{STORE_DISPLAY[item.store] ?? item.store}</span>
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="relative group/status">
@@ -458,25 +516,36 @@ export default function RestockTrackerPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        {item.expectedRestockDate ? (
+                        {timingText(item) ? (
                           <div>
                             <p className={`text-sm font-medium ${overdue ? 'text-red-600' : soon ? 'text-amber-600' : 'text-slate-700'}`}>
-                              {fmtDate(item.expectedRestockDate)}
+                              {timingText(item)}
                             </p>
-                            <p className={`text-[11px] mt-0.5 ${overdue ? 'text-red-500' : soon ? 'text-amber-500' : 'text-slate-400'}`}>
-                              {overdue
-                                ? `${Math.abs(days!)} day${Math.abs(days!) !== 1 ? 's' : ''} overdue`
-                                : days === 0
-                                ? 'Due today'
-                                : `${days} day${days !== 1 ? 's' : ''} away`}
-                            </p>
+                            {item.expectedRestockDate && (
+                              <p className={`text-[11px] mt-0.5 ${overdue ? 'text-red-500' : soon ? 'text-amber-500' : 'text-slate-400'}`}>
+                                {overdue
+                                  ? `${Math.abs(days!)} day${Math.abs(days!) !== 1 ? 's' : ''} overdue`
+                                  : days === 0
+                                  ? 'Due today'
+                                  : `${days} day${days !== 1 ? 's' : ''} away`}
+                              </p>
+                            )}
                           </div>
                         ) : (
-                          <span className="text-slate-400 text-xs">No date set</span>
+                          <span className="text-slate-400 text-xs">No timing set</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600">{item.supplier || <span className="text-slate-300">—</span>}</td>
-                      <td className="px-5 py-3.5 text-xs text-slate-500 max-w-[200px]">
+                      <td className="px-5 py-3.5 text-xs text-slate-600 max-w-[260px]">
+                        {item.customerMessage ? (
+                          <span className="line-clamp-3">{item.customerMessage}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-amber-600">
+                            <MessageSquare size={12} /> No message
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-xs text-slate-500 max-w-[220px]">
+                        {item.supplier && <p className="mb-1 text-slate-600">{item.supplier}</p>}
                         {item.notes ? (
                           <span className="line-clamp-2">{item.notes}</span>
                         ) : (
@@ -533,7 +602,7 @@ export default function RestockTrackerPage() {
 
           {showResolved && (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px] text-sm">
+              <table className="w-full min-w-[900px] text-sm">
                 <tbody>
                   {resolvedItems.map(item => (
                     <tr key={item.id} className="group border-b border-slate-50 bg-slate-50/40 hover:bg-slate-50 transition-colors">
@@ -541,10 +610,12 @@ export default function RestockTrackerPage() {
                         <p className="font-medium text-slate-500 line-through">{item.productName}</p>
                         {item.sku && <p className="text-[11px] font-mono text-slate-300 mt-0.5">{item.sku}</p>}
                       </td>
+                      <td className="px-5 py-3 text-xs text-slate-400">{STORE_DISPLAY[item.store] ?? item.store}</td>
                       <td className="px-5 py-3">
                         <span className="badge bg-slate-100 text-slate-400">Resolved</span>
                       </td>
-                      <td className="px-5 py-3 text-xs text-slate-400">{fmtDate(item.expectedRestockDate)}</td>
+                      <td className="px-5 py-3 text-xs text-slate-400">{timingText(item) || '—'}</td>
+                      <td className="px-5 py-3 text-xs text-slate-400 max-w-[220px] line-clamp-1">{item.customerMessage || '—'}</td>
                       <td className="px-5 py-3 text-xs text-slate-400">{item.supplier || '—'}</td>
                       <td className="px-5 py-3 text-xs text-slate-400 max-w-[200px] line-clamp-1">{item.notes || '—'}</td>
                       <td className="px-5 py-3">
@@ -574,7 +645,7 @@ export default function RestockTrackerPage() {
       <SlideOver
         open={panel !== null}
         onClose={closePanel}
-        title={panel === 'add' ? 'Add Item to Tracker' : 'Edit Item'}
+        title={panel === 'add' ? 'Add Restock Update' : 'Edit Restock Update'}
       >
         {FormPanel}
       </SlideOver>

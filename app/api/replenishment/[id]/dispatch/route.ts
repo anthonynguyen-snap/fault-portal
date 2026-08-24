@@ -119,7 +119,7 @@ export async function POST(
 
     if (stockPlan && !finalizeResult?.alreadyDispatched) {
       const movementId = crypto.randomUUID();
-      await logActivity({
+      void logActivity({
         actor: session?.name || 'Stock',
         action: 'stock_movement_created',
         entityType: 'stock_movement',

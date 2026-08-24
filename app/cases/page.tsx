@@ -9,7 +9,7 @@ import {
   BarChart3, Trophy, TrendingDown, TrendingUp,
 } from 'lucide-react';
 import { FaultCase, ClaimStatus, FaultType, Product } from '@/types';
-import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, faultTypeBadge, STATUS_STYLES } from '@/lib/utils';
+import { formatCurrency, formatDate, CLAIM_STATUSES, truncate, STATUS_STYLES } from '@/lib/utils';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useToast } from '@/components/ui/Toast';
@@ -1139,7 +1139,7 @@ export default function CasesPage() {
         <TableSkeleton rows={10} cols={8} />
       ) : (
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-auto max-h-[65vh]">
             <table className="data-table">
               <thead>
                 <tr>
@@ -1197,28 +1197,29 @@ export default function CasesPage() {
                           ? <CheckSquare size={16} className="text-brand-600 mx-auto" />
                           : <Square size={16} className="text-slate-300 mx-auto" />}
                       </td>
-                      <td className="whitespace-nowrap text-xs text-slate-500 font-mono">{formatDate(c.date)}</td>
+                      <td className="whitespace-nowrap text-xs text-slate-500">{formatDate(c.date)}</td>
                       <td><CopyOrderNumber value={c.orderNumber} /></td>
                       <td className="font-medium" title={c.customerName}>{truncate(c.customerName, 22)}</td>
                       <td title={c.product}><span className="text-slate-700 text-sm">{truncate(c.product, 24)}</span>{c.manufacturerNumber && (<p className="text-[11px] text-slate-400 mt-0.5 font-mono">{c.manufacturerNumber}</p>)}</td>
-                      <td
-                        onMouseEnter={c.faultNotes ? e => { const r = (e.currentTarget as HTMLTableCellElement).getBoundingClientRect(); setNoteTooltip({ text: c.faultNotes!, x: r.left, y: r.top - 8 }); } : undefined}
-                        onMouseLeave={() => setNoteTooltip(null)}
-                      >
-                        <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${faultTypeBadge(c.faultType)}`}>
+                      <td>
+                        <span className="chip-neutral">
                           {c.faultType}
                         </span>
-                        {c.faultSubtype && (
-                          <p className="text-[11px] font-medium text-brand-600 mt-1">{c.faultSubtype}</p>
-                        )}
-                        {c.taxonomyStatus === 'Historical — migrated' && (
-                          <p className="text-[10px] font-medium text-amber-600 mt-1">Historical</p>
-                        )}
-                        {c.faultNotes && (
-                          <p className="text-xs text-slate-400 mt-1 max-w-[160px] truncate">
-                            {c.faultNotes}
-                          </p>
-                        )}
+                        {(() => {
+                          const isHistorical = c.taxonomyStatus === 'Historical — migrated';
+                          const line = [c.faultSubtype, c.faultNotes].filter(Boolean).join(' · ') || (isHistorical ? 'Historical — migrated' : '');
+                          if (!line) return null;
+                          const full = [c.faultSubtype, isHistorical ? 'Historical — migrated' : null, c.faultNotes].filter(Boolean).join(' · ');
+                          return (
+                            <p
+                              className="text-xs text-slate-400 mt-1 max-w-[180px] truncate"
+                              onMouseEnter={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setNoteTooltip({ text: full, x: r.left, y: r.top - 8 }); }}
+                              onMouseLeave={() => setNoteTooltip(null)}
+                            >
+                              {line}
+                            </p>
+                          );
+                        })()}
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         <InlineStatusBadge

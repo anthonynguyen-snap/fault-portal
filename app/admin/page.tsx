@@ -31,6 +31,7 @@ import {
   ImageIcon,
   Link as LinkIcon,
   UserPlus,
+  Bot,
 } from 'lucide-react';
 import { Product, Manufacturer, FaultType } from '@/types';
 import { CHANGELOG, CHANGELOG_SEEN_KEY, LATEST_VERSION, type ChangelogVersion } from '@/lib/changelog';
@@ -576,6 +577,8 @@ function StaffPanel() {
     phone: string;
     personalEmail: string;
     contractLink: string;
+    commslayerAgentId: string;
+    performancePrimary: boolean;
     startDate: string;
     notes: string;
     updatedAt?: string;
@@ -587,6 +590,8 @@ function StaffPanel() {
     phone: '',
     personalEmail: '',
     contractLink: '',
+    commslayerAgentId: '',
+    performancePrimary: false,
     startDate: '',
     notes: '',
   };
@@ -756,6 +761,8 @@ function StaffPanel() {
                   profile.phone ||
                   profile.personalEmail ||
                   profile.contractLink ||
+                  profile.commslayerAgentId ||
+                  profile.performancePrimary ||
                   profile.startDate ||
                   profile.notes
                 );
@@ -844,6 +851,30 @@ function StaffPanel() {
             <div>
               <label className="form-label">Contract / Document Link</label>
               <input type="url" value={profileForm.contractLink} onChange={e => setProfileForm(f => ({ ...f, contractLink: e.target.value }))} className="form-input" placeholder="Google Drive, Dropbox, or signed contract URL" />
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Bot size={15} className="text-brand-600" />
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Commslayer Performance</p>
+              </div>
+              <div>
+                <label className="form-label">Commslayer Agent ID</label>
+                <input
+                  value={profileForm.commslayerAgentId}
+                  onChange={e => setProfileForm(f => ({ ...f, commslayerAgentId: e.target.value }))}
+                  className="form-input"
+                  placeholder="e.g. 6525"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={profileForm.performancePrimary}
+                  onChange={e => setProfileForm(f => ({ ...f, performancePrimary: e.target.checked }))}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-600"
+                />
+                Show as primary support agent on Performance
+              </label>
             </div>
             <div>
               <label className="form-label">Admin Notes</label>

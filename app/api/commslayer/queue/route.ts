@@ -20,16 +20,39 @@ function integrationUrl(path: string) {
   return new URL(`${root}/api/integration/v1${path.startsWith('/') ? path : `/${path}`}`);
 }
 
+function parseCommslayerError(status: number, text: string) {
+  try {
+    const json = JSON.parse(text);
+    const code = json?.error?.code ?? json?.code;
+    const message = json?.error?.message ?? json?.message;
+    if (status === 401 || code === 'invalid_token') {
+      return 'Commslayer token is invalid or expired. Generate a new API token in Commslayer and update COMMSLAYER_API_TOKEN.';
+    }
+    if (message) return `Commslayer error: ${message}`;
+  } catch {
+    // Fall through to the generic response below.
+  }
+  return `Commslayer request failed with HTTP ${status}.`;
+}
+
 async function csGet(path: string, params: Record<string, string> = {}) {
   const url = integrationUrl(path);
+  if (ACCOUNT_ID) url.searchParams.set('account_id', ACCOUNT_ID);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), {
-    headers: { 'Authorization': `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' },
-    cache: 'no-store',
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${text.slice(0, 200)}`);
-  return JSON.parse(text);
+
+  const errors: string[] = [];
+  const authHeaders: Record<string, string>[] = [
+    { Authorization: `Bearer ${API_TOKEN}`, 'Content-Type': 'application/json' },
+    { api_access_token: API_TOKEN, 'Content-Type': 'application/json' },
+  ];
+  for (const headers of authHeaders) {
+    const res = await fetch(url.toString(), { headers, cache: 'no-store' });
+    const text = await res.text();
+    if (res.ok) return text ? JSON.parse(text) : {};
+    errors.push(parseCommslayerError(res.status, text));
+  }
+
+  throw new Error(errors[0] ?? 'Commslayer request failed.');
 }
 
 async function csFlexibleGet(path: string, params: Record<string, string>, authMode: 'bearer' | 'api_access_token') {
