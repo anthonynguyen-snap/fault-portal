@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import {
   PackageOpen, Plus, X, CheckCircle2, Clock, Truck, AlertTriangle,
   Pencil, Trash2, ChevronDown, RefreshCw, CheckCheck, Sparkles, MessageSquare,
+  HelpCircle,
 } from 'lucide-react';
 import { RestockItem, RestockStatus } from '@/types';
 import { TableSkeleton } from '@/components/ui/Skeleton';
@@ -100,6 +101,15 @@ export default function RestockTrackerPage() {
   const [panel, setPanel]         = useState<'add' | 'edit' | null>(null);
   const [editingItem, setEditItem] = useState<RestockItem | null>(null);
   const [form, setForm]           = useState<Partial<RestockItem>>(blankItem());
+
+  // "Ask about a product" — staff-facing, lets anyone flag a product they
+  // need timing on without waiting on an admin to notice.
+  const [askOpen, setAskOpen]     = useState(false);
+  const [askProduct, setAskProduct] = useState('');
+  const [askNote, setAskNote]     = useState('');
+  const [askSaving, setAskSaving] = useState(false);
+  const [askError, setAskError]   = useState('');
+  const [askSent, setAskSent]     = useState(false);
 
   // Filter
   const [filterStatus, setFilterStatus] = useState<RestockStatus | 'Active' | 'All'>('Active');
@@ -240,9 +250,44 @@ export default function RestockTrackerPage() {
     setTimeout(() => setSaveOk(false), 2500);
   }
 
+  function openAsk() {
+    setAskProduct('');
+    setAskNote('');
+    setAskError('');
+    setAskOpen(true);
+  }
+
+  async function submitAsk() {
+    if (!askProduct.trim()) return;
+    setAskSaving(true);
+    setAskError('');
+    try {
+      const res  = await fetch('/api/stock/restock/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productName: askProduct, requestedNote: askNote }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setItems(prev => [json.data, ...prev]);
+      setAskOpen(false);
+      setAskSent(true);
+      setTimeout(() => setAskSent(false), 3000);
+    } catch (e: any) {
+      setAskError(e.message);
+    } finally {
+      setAskSaving(false);
+    }
+  }
+
   // Computed lists
   const activeItems   = useMemo(() => items.filter(i => !i.resolved), [items]);
   const resolvedItems = useMemo(() => items.filter(i => i.resolved), [items]);
+  const askMatches = useMemo(() => {
+    const q = askProduct.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return activeItems.filter(i => i.productName.toLowerCase().includes(q)).slice(0, 5);
+  }, [askProduct, activeItems]);
 
   const filteredActive = useMemo(() => {
     if (filterStatus === 'All' || filterStatus === 'Active') return activeItems;
@@ -382,6 +427,11 @@ export default function RestockTrackerPage() {
               <CheckCircle2 size={13} /> Saved
             </span>
           )}
+          {askSent && (
+            <span className="flex items-center gap-1 text-xs text-emerald-700 font-medium">
+              <CheckCircle2 size={13} /> Question sent
+            </span>
+          )}
           <button onClick={load} className="btn-secondary">
             <RefreshCw size={14} /> Refresh
           </button>
@@ -390,12 +440,18 @@ export default function RestockTrackerPage() {
               <Plus size={14} /> Add Update
             </button>
           )}
+          {!canEdit && (
+            <button onClick={openAsk} className="btn-primary">
+              <HelpCircle size={14} /> Ask About a Product
+            </button>
+          )}
         </div>
       </div>
 
       {!canEdit && (
-        <div className="card px-4 py-3 border-blue-200 bg-blue-50 text-sm text-blue-800">
-          Team view is read-only. Ask an admin to update availability messages, timing, or tracked products.
+        <div className="card px-4 py-3 border-brand-200 bg-brand-50 text-sm text-brand-800 flex items-center gap-2.5">
+          <HelpCircle size={15} className="flex-shrink-0" />
+          Don&apos;t see a product listed? Use &quot;Ask About a Product&quot; above — your question shows up here for an admin to answer, no need to chase anyone down.
         </div>
       )}
 
@@ -455,10 +511,16 @@ export default function RestockTrackerPage() {
             </p>
             {activeItems.length === 0 && (
               <>
-                <p className="text-xs text-slate-400 mt-1 mb-4">Add an out-of-stock product and the message the team should use</p>
-                {canEdit && (
+                <p className="text-xs text-slate-400 mt-1 mb-4">
+                  {canEdit ? 'Add an out-of-stock product and the message the team should use' : 'Ask about a product and it will show up here'}
+                </p>
+                {canEdit ? (
                   <button onClick={openAdd} className="btn-primary">
                     <Plus size={14} /> Add Update
+                  </button>
+                ) : (
+                  <button onClick={openAsk} className="btn-primary">
+                    <HelpCircle size={14} /> Ask About a Product
                   </button>
                 )}
               </>
@@ -488,6 +550,11 @@ export default function RestockTrackerPage() {
                       <td className="px-5 py-3.5">
                         <p className="font-medium text-slate-800">{item.productName}</p>
                         {item.sku && <p className="text-[11px] font-mono text-slate-400 mt-0.5">{item.sku}</p>}
+                        {item.requestedBy && (
+                          <p className="text-[11px] text-brand-600 mt-0.5 flex items-center gap-1">
+                            <HelpCircle size={10} /> Asked by {item.requestedBy}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="badge bg-slate-100 text-slate-600">{STORE_DISPLAY[item.store] ?? item.store}</span>
@@ -539,9 +606,14 @@ export default function RestockTrackerPage() {
                         {item.customerMessage ? (
                           <span className="line-clamp-3">{item.customerMessage}</span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-amber-600">
-                            <MessageSquare size={12} /> No message
-                          </span>
+                          <div>
+                            <span className="inline-flex items-center gap-1 text-amber-600">
+                              <MessageSquare size={12} /> {item.requestedBy ? 'Needs a reply' : 'No message'}
+                            </span>
+                            {item.requestedNote && (
+                              <p className="text-slate-500 italic line-clamp-2 mt-1">&ldquo;{item.requestedNote}&rdquo;</p>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-xs text-slate-500 max-w-[220px]">
@@ -648,6 +720,56 @@ export default function RestockTrackerPage() {
         title={panel === 'add' ? 'Add Restock Update' : 'Edit Restock Update'}
       >
         {FormPanel}
+      </SlideOver>
+
+      {/* Ask About a Product slide-over — staff only */}
+      <SlideOver open={askOpen} onClose={() => setAskOpen(false)} title="Ask About a Product">
+        <div className="space-y-5">
+          <div>
+            <label className="form-label">Product Name <span className="text-red-500">*</span></label>
+            <input
+              value={askProduct}
+              onChange={e => setAskProduct(e.target.value)}
+              className="form-input"
+              placeholder="e.g. PowerPack Slim 4"
+              autoFocus
+            />
+            {askMatches.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                <p className="text-xs text-slate-400">Already being tracked — this might already answer it:</p>
+                {askMatches.map(m => (
+                  <div key={m.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-slate-700 truncate">{m.productName}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{timingText(m) || 'No timing set yet'}</p>
+                    </div>
+                    <span className={`badge text-[10px] flex-shrink-0 ${STATUS_STYLES[m.status]}`}>{m.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="form-label">Anything else to add? <span className="text-slate-400 font-normal">(optional)</span></label>
+            <textarea
+              value={askNote}
+              onChange={e => setAskNote(e.target.value)}
+              className="form-input min-h-[80px] resize-y"
+              placeholder="e.g. Customer on order #12345 is asking, or a specific store/region"
+            />
+          </div>
+          {askError && <p className="text-xs text-red-600">{askError}</p>}
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={submitAsk}
+              disabled={!askProduct.trim() || askSaving}
+              className="btn-primary flex-1 justify-center"
+            >
+              {askSaving ? 'Sending…' : 'Send Question'}
+            </button>
+            <button onClick={() => setAskOpen(false)} className="btn-secondary px-4">Cancel</button>
+          </div>
+        </div>
       </SlideOver>
     </div>
   );

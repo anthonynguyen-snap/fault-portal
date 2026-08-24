@@ -489,6 +489,8 @@ export interface RestockItem {
   resolved: boolean;
   createdAt: string;
   resolvedAt: string | null;
+  requestedBy: string | null;
+  requestedNote: string;
 }
 
 // =========================================================

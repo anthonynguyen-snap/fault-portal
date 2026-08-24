@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { verifySession } from '@/lib/auth';
 import { RestockItem } from '@/types';
 
 export const runtime = 'nodejs';
 
+// Staff-facing "ask about a product" endpoint. Unlike the main restock
+// route (admin-only for mutations, see proxy.ts), this is reachable by any
+// signed-in staff member — it only ever creates a bare, unanswered request
+// with the asker's name attached, never a full admin-authored update.
 function fromRow(row: Record<string, unknown>): RestockItem {
   return {
     id:                  String(row.id ?? ''),
@@ -24,37 +29,24 @@ function fromRow(row: Record<string, unknown>): RestockItem {
   };
 }
 
-export async function GET() {
-  try {
-    const { data, error } = await getSupabase()
-      .from('restock_items')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return NextResponse.json({ data: (data ?? []).map(fromRow) });
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
-  }
-}
-
 export async function POST(req: NextRequest) {
   try {
+    const session = await verifySession();
+    if (!session) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+
     const body = await req.json();
     if (!body.productName?.trim()) {
       return NextResponse.json({ error: 'Product name is required' }, { status: 400 });
     }
+
     const { data, error } = await getSupabase()
       .from('restock_items')
       .insert({
-        product_name:          body.productName.trim(),
-        sku:                   body.sku?.trim() ?? '',
-        store:                 body.store?.trim() ?? 'All Stores',
-        status:                body.status ?? 'Out of Stock',
-        expected_restock_date: body.expectedRestockDate || null,
-        expected_restock_label: body.expectedRestockLabel?.trim() ?? '',
-        customer_message:      body.customerMessage?.trim() ?? '',
-        supplier:              body.supplier?.trim() ?? '',
-        notes:                 body.notes?.trim() ?? '',
+        product_name:   body.productName.trim(),
+        store:          body.store?.trim() || 'All Stores',
+        status:         'Out of Stock',
+        requested_by:   session.name,
+        requested_note: body.requestedNote?.trim() ?? '',
       })
       .select()
       .single();

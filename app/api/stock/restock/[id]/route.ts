@@ -19,6 +19,8 @@ function fromRow(row: Record<string, unknown>): RestockItem {
     resolved:            Boolean(row.resolved ?? false),
     createdAt:           String(row.created_at ?? ''),
     resolvedAt:          (row.resolved_at as string | null) ?? null,
+    requestedBy:         (row.requested_by as string | null) ?? null,
+    requestedNote:       String(row.requested_note ?? ''),
   };
 }
 

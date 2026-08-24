@@ -44,6 +44,12 @@ const ADMIN_MUTATION_API_PREFIXES = [
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+// Specific mutation endpoints staff are allowed to hit even though their
+// parent prefix is admin-only — each one enforces its own narrow shape
+// server-side rather than trusting the client (e.g. asking about a restock
+// item, not editing one).
+const STAFF_ALLOWED_MUTATION_PATHS = ['/api/stock/restock/ask'];
+
 // Public paths that don't require auth
 const PUBLIC_PATHS = ['/login'];
 
@@ -60,6 +66,8 @@ function pathMatchesPrefix(pathname: string, prefix: string) {
 
 function isStaffBlockedApiRequest(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (STAFF_ALLOWED_MUTATION_PATHS.includes(pathname)) return false;
+
   const isAdminOnly = ADMIN_ONLY_API_PREFIXES.some((prefix) => pathMatchesPrefix(pathname, prefix));
   if (isAdminOnly) return true;
 
