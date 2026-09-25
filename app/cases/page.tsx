@@ -604,6 +604,8 @@ export default function CasesPage() {
   // Filters
   const [search, setSearch]       = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [manufacturerNumber, setManufacturerNumber] = useState('');
+  const [manufacturerNumberInput, setManufacturerNumberInput] = useState('');
   const [statusFilter, setStatusFilter]           = useState('');
   const [manufacturerFilter, setManufacturerFilter] = useState('');
   const [productFilters, setProductFilters]       = useState<string[]>([]);
@@ -639,6 +641,8 @@ export default function CasesPage() {
         const view = JSON.parse(saved);
         setSearch(typeof view.search === 'string' ? view.search : '');
         setSearchInput(typeof view.search === 'string' ? view.search : '');
+        setManufacturerNumber(typeof view.manufacturerNumber === 'string' ? view.manufacturerNumber : '');
+        setManufacturerNumberInput(typeof view.manufacturerNumber === 'string' ? view.manufacturerNumber : '');
         setStatusFilter(typeof view.statusFilter === 'string' ? view.statusFilter : '');
         setManufacturerFilter(typeof view.manufacturerFilter === 'string' ? view.manufacturerFilter : '');
         const restoredProducts = Array.isArray(view.productFilters)
@@ -668,11 +672,11 @@ export default function CasesPage() {
   useEffect(() => {
     if (!viewRestored) return;
     sessionStorage.setItem(CASES_VIEW_STORAGE_KEY, JSON.stringify({
-      search, statusFilter, manufacturerFilter, faultTypeFilter,
+      search, manufacturerNumber, statusFilter, manufacturerFilter, faultTypeFilter,
       productFilters, fromDate, toDate, mineOnly, claimableOnly, showFilters,
       sortKey, sortDir, page,
     }));
-  }, [viewRestored, search, statusFilter, manufacturerFilter, productFilters, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
+  }, [viewRestored, search, manufacturerNumber, statusFilter, manufacturerFilter, productFilters, faultTypeFilter, fromDate, toDate, mineOnly, claimableOnly, showFilters, sortKey, sortDir, page]);
 
   // Debounce search
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -681,6 +685,28 @@ export default function CasesPage() {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => { setSearch(val); setPage(1); }, 300);
   }
+
+  const manufacturerNumberTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function handleManufacturerNumberInput(value: string) {
+    setManufacturerNumberInput(value);
+    if (manufacturerNumberTimer.current) clearTimeout(manufacturerNumberTimer.current);
+    manufacturerNumberTimer.current = setTimeout(() => {
+      setManufacturerNumber(value.trim());
+      setPage(1);
+    }, 300);
+  }
+
+  function clearManufacturerNumber() {
+    if (manufacturerNumberTimer.current) clearTimeout(manufacturerNumberTimer.current);
+    setManufacturerNumberInput('');
+    setManufacturerNumber('');
+    setPage(1);
+  }
+
+  useEffect(() => () => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (manufacturerNumberTimer.current) clearTimeout(manufacturerNumberTimer.current);
+  }, []);
 
   // Load manufacturers + fault types once on mount
   useEffect(() => {
@@ -715,6 +741,7 @@ export default function CasesPage() {
     setError('');
     const params = new URLSearchParams();
     if (search)              params.set('search', search);
+    if (manufacturerNumber)  params.set('manufacturerNumber', manufacturerNumber);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
     productFilters.forEach(product => params.append('product', product));
@@ -741,7 +768,7 @@ export default function CasesPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, statusFilter, manufacturerFilter, productFilters, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
+  }, [search, manufacturerNumber, statusFilter, manufacturerFilter, productFilters, faultTypeFilter, fromDate, toDate, mineOnly, user?.name, sortKey, sortDir, page]);
 
   useEffect(() => {
     if (viewRestored) load();
@@ -830,6 +857,7 @@ export default function CasesPage() {
   }
 
   function clearFilters() {
+    clearManufacturerNumber();
     if (searchTimer.current) clearTimeout(searchTimer.current);
     sessionStorage.removeItem(CASES_VIEW_STORAGE_KEY);
     setSearchInput('');
@@ -861,11 +889,12 @@ export default function CasesPage() {
     if (!showFilters) setShowFilters(true);
   }
 
-  const isFiltered = !!(search || productFilters.length || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
+  const isFiltered = !!(search || manufacturerNumber || manufacturerNumberInput || productFilters.length || statusFilter || manufacturerFilter || faultTypeFilter.length || fromDate || toDate || mineOnly || claimableOnly);
 
   async function exportCsv() {
     const params = new URLSearchParams();
     if (search)              params.set('search', search);
+    if (manufacturerNumber)  params.set('manufacturerNumber', manufacturerNumber);
     if (statusFilter)        params.set('status', statusFilter);
     if (manufacturerFilter)  params.set('manufacturer', manufacturerFilter);
     productFilters.forEach(product => params.append('product', product));
@@ -940,7 +969,7 @@ export default function CasesPage() {
           byFaultType={faultSummary}
           byMonth={monthSummary}
           otherNotes={otherNotes}
-          search={search || productFilters.join(', ')}
+          search={[search, productFilters.join(', '), manufacturerNumber && `Manufacturing number: ${manufacturerNumber}`].filter(Boolean).join(' · ')}
           activeFaultTypes={faultTypeFilter}
           onFaultTypeClick={ft => {
             setFaultTypeFilter(prev => prev.includes(ft) ? prev.filter(f => f !== ft) : [...prev, ft]);
@@ -983,8 +1012,8 @@ export default function CasesPage() {
 
       {/* Search + Filter Bar */}
       <div className="card p-4 space-y-3">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1">
+        <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3">
+          <div className="relative flex-1 lg:min-w-[20rem]">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -1011,6 +1040,27 @@ export default function CasesPage() {
             onInputChange={setProductSearchInput}
             onChange={values => { setProductFilters(values); setPage(1); }}
           />
+          <div className="relative w-full lg:w-64 flex-shrink-0">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              placeholder="Search manufacturing number…"
+              aria-label="Search cases by manufacturing number"
+              value={manufacturerNumberInput}
+              onChange={e => handleManufacturerNumberInput(e.target.value)}
+              className="form-input pl-9 pr-9"
+            />
+            {(manufacturerNumberInput || manufacturerNumber) && (
+              <button
+                type="button"
+                onClick={clearManufacturerNumber}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                aria-label="Clear manufacturing number search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
           <button
             onClick={() => { setMineOnly(v => !v); setPage(1); }}
             className={`btn-secondary gap-2 flex-shrink-0 ${mineOnly ? 'bg-brand-50 border-brand-300 text-brand-700' : ''}`}

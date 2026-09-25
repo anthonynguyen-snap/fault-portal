@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
     // Optional query filters
     const { searchParams } = new URL(req.url);
     const search      = searchParams.get('search')?.toLowerCase();
+    const manufacturerNumber = searchParams.get('manufacturerNumber')?.trim().toLowerCase();
     const manufacturer= searchParams.get('manufacturer');
     const products    = searchParams.getAll('product')
       .flatMap(product => product.split(','))
@@ -87,6 +88,12 @@ export async function GET(req: NextRequest) {
         (c.faultSubtype || '').toLowerCase().includes(search) ||
         (c.originalFaultType || '').toLowerCase().includes(search) ||
         (c.faultNotes || '').toLowerCase().includes(search)
+      );
+    }
+
+    if (manufacturerNumber) {
+      filtered = filtered.filter(c =>
+        (c.manufacturerNumber || '').toLowerCase().includes(manufacturerNumber)
       );
     }
 
